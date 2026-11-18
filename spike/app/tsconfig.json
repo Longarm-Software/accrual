@@ -5,6 +5,7 @@
   },
   "exclude": [
     "harness",
-    "node_modules"
+    "node_modules",
+    "modules/*/test"
   ]
 }

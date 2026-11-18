@@ -1,6 +1,7 @@
 // loot-core `#platform/server/sqlite` for React Native, on expo-sqlite's
 // synchronous API. Mirrors loot-core's index.electron.ts (better-sqlite3).
 import { Buffer } from 'buffer';
+import { installSqlFunctions, prepareSqlFunctions } from 'accrual-sqlite-functions';
 import * as SQLite from 'expo-sqlite';
 
 type Db = SQLite.SQLiteDatabase;
@@ -15,38 +16,19 @@ function verifyParamTypes(sql: unknown, arr: unknown[]) {
   }
 }
 
-// loot-core registers five JS functions on every connection (UNICODE_LOWER,
-// UNICODE_UPPER, UNICODE_LIKE, REGEXP, NORMALISE). expo-sqlite has no API for
-// user-defined functions, so for the spike:
-//   - UNICODE_LOWER/UPPER fall back to SQLite's ASCII-only LOWER/UPPER
-//   - the other three (text search / regex filters) fail loudly
-// The real fix is a small native SQLite extension (see docs/spike-results.md).
-const UNSUPPORTED = /\b(UNICODE_LIKE|REGEXP|NORMALISE)\s*\(/;
-function rewrite(sql: string): string {
-  if (sql.indexOf('UNICODE_') === -1 && sql.indexOf('REGEXP') === -1 && sql.indexOf('NORMALISE') === -1) {
-    return sql;
-  }
-  const m = sql.match(UNSUPPORTED);
-  if (m) {
-    throw new Error(`SQL function ${m[1]} is not available in the React Native spike build`);
-  }
-  return sql.replace(/\bUNICODE_(LOWER|UPPER)\s*\(/g, '$1(');
-}
-
 export async function init() {}
 export function setWasmBinary(_binary: ArrayBuffer | Uint8Array) {}
 
 export function prepare(db: Db, sql: string): Stmt {
-  return db.prepareSync(rewrite(sql));
+  return db.prepareSync(sql);
 }
 
 export function runQuery(db: Db, sql: string | Stmt, params: SqlParam[] = [], fetchAll = false): any {
   if (params) verifyParamTypes(sql, params);
 
   if (typeof sql === 'string') {
-    const text = rewrite(sql);
-    if (fetchAll) return db.getAllSync(text, params);
-    const info = db.runSync(text, params);
+    if (fetchAll) return db.getAllSync(sql, params);
+    const info = db.runSync(sql, params);
     return { changes: info.changes, insertId: info.lastInsertRowId };
   }
 
@@ -60,7 +42,7 @@ export function runQuery(db: Db, sql: string | Stmt, params: SqlParam[] = [], fe
 }
 
 export function execQuery(db: Db, sql: string) {
-  db.execSync(rewrite(sql));
+  db.execSync(sql);
 }
 
 export type TransactionOptions = { immediate?: boolean };
@@ -99,7 +81,11 @@ export async function asyncTransaction(db: Db, fn: () => Promise<void>) {
   }
 }
 
-export function openDatabase(pathOrBuffer: string | Uint8Array): Db {
+// loot-core registers five JavaScript SQL functions on every connection
+// (UNICODE_LOWER, UNICODE_UPPER, UNICODE_LIKE, REGEXP, NORMALISE). expo-sqlite
+// cannot register JavaScript functions, so a native SQLite extension provides
+// them instead (modules/accrual-sqlite-functions).
+function open(pathOrBuffer: string | Uint8Array): Db {
   if (typeof pathOrBuffer !== 'string') {
     return SQLite.deserializeDatabaseSync(new Uint8Array(pathOrBuffer));
   }
@@ -110,6 +96,13 @@ export function openDatabase(pathOrBuffer: string | Uint8Array): Db {
     { useNewConnection: true },
     pathOrBuffer.slice(0, slash),
   );
+}
+
+export function openDatabase(pathOrBuffer: string | Uint8Array): Db {
+  prepareSqlFunctions();
+  const db = open(pathOrBuffer);
+  installSqlFunctions(db);
+  return db;
 }
 
 export function closeDatabase(db: Db) {

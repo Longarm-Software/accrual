@@ -9,7 +9,7 @@ const core = require('../../engine/dist/loot-core.rn.js') as {
   init(config: { dataDir: string; serverURL: string; password: string }): Promise<Lib>;
   defaultDocumentDir(): string;
 };
-type Lib = { send(name: string, args?: unknown): Promise<any> };
+type Lib = { send(name: string, args?: unknown): Promise<any>; q(table: string): any };
 
 export type RemoteBudget = { name: string; groupId: string; cloudFileId: string };
 export type MonthCategory = {
@@ -46,6 +46,8 @@ export type Engine = {
   getMonth(month: string): Promise<BudgetMonth>;
   getAccounts(): Promise<{ id: string; name: string; offbudget: boolean; closed: boolean }[]>;
   getTransactions(accountId: string, startDate: string, endDate: string): Promise<any[]>;
+  /** Case- and accent-insensitive search over payee names and notes. */
+  searchTransactions(text: string): Promise<{ id: string; date: string; amount: number; notes: string | null }[]>;
   addTransaction(accountId: string, transaction: NewTransaction): Promise<void>;
   sync(): Promise<void>;
   close(): Promise<void>;
@@ -74,6 +76,15 @@ export async function createEngine(config: {
     getAccounts: () => lib.send('api/accounts-get'),
     getTransactions: (accountId, startDate, endDate) =>
       lib.send('api/transactions-get', { accountId, startDate, endDate }),
+    async searchTransactions(text) {
+      const like = `%${text}%`;
+      const query = lib
+        .q('transactions')
+        .filter({ $or: [{ 'payee.name': { $like: like } }, { notes: { $like: like } }] })
+        .select(['id', 'date', 'amount', 'notes'])
+        .orderBy({ date: 'desc' });
+      return (await lib.send('api/query', { query: query.serialize() })).data;
+    },
     async addTransaction(accountId, transaction) {
       await lib.send('api/transactions-add', { accountId, transactions: [transaction] });
     },

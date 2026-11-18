@@ -74,7 +74,7 @@ const result = await esbuild.build({
   target: 'es2022',
   mainFields: ['module', 'main'],
   conditions: ['api'],
-  external: ['expo-sqlite', 'expo-file-system', 'expo-crypto', 'expo/fetch'],
+  external: ['accrual-sqlite-functions', 'expo-sqlite', 'expo-file-system', 'expo-crypto', 'expo/fetch'],
   define: {
     'process.env.NODE_ENV': '"production"',
     'process.env.IS_DEV': 'false',

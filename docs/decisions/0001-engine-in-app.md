@@ -25,8 +25,9 @@ with the user's own Actual server.
 - Run in Node with stand-in native modules, the bundle matches `@actual-app/api` to the cent
   and syncs both ways with a 26.11.0 server.
 - Not yet run on a device or simulator. That is the one condition left before Accepted.
-- Known follow-up work: a native SQLite extension for loot-core's five custom SQL functions,
-  and `react-native-quick-crypto` for encrypted budgets.
+- loot-core's five custom SQL functions are provided by a native SQLite extension
+  (`accrual-sqlite-functions`), verified on Linux and not yet built for phones.
+- Known follow-up work: `react-native-quick-crypto` for encrypted budgets.
 
 ## Alternatives considered
 - **Re-implement in Swift/Kotlin:** months of work, and too much risk of drifting from Actual's

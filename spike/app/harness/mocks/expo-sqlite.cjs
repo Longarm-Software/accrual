@@ -1,6 +1,6 @@
 // Node stand-in for expo-sqlite's synchronous API (backed by better-sqlite3),
 // limited to the surface engine/shims/sqlite.ts uses. Like expo-sqlite, it
-// registers NO custom SQL functions.
+// registers no custom SQL functions itself; they come from the extension.
 const path = require('node:path');
 const Database = require('better-sqlite3');
 
@@ -30,6 +30,7 @@ class SQLiteDatabase {
   }
   execSync(sql) { this.db.exec(sql); }
   prepareSync(sql) { return new SQLiteStatement(this.db.prepare(sql)); }
+  loadExtensionSync(libPath, entryPoint) { this.db.loadExtension(libPath, entryPoint); }
   isInTransactionSync() { return this.db.inTransaction; }
   serializeSync() { return new Uint8Array(this.db.serialize()); }
   closeSync() { this.db.close(); }

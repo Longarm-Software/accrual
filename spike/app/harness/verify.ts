@@ -118,6 +118,21 @@ async function main() {
   check('server -> engine: transaction and budget edit from another client arrive',
     mine.length === 1 && mine[0].amount === -4321 && after.budgeted === 55555);
   await compareMonths(engine, small.groupId, monthsBack(4), 'small, after two-way sync');
+  // Text search and payee matching go through the native SQL functions.
+  await engine.addTransaction(checking.id, {
+    date: today, amount: -999, payee_name: 'ZOË’S BAKERY', notes: `${tag}-upper`,
+  });
+  await engine.sync();
+  for (const text of ['ZOE', 'zoë', 'Grocer', 'TRIP', 'no-such-payee', '100%']) {
+    const expected = reference('search', small.groupId, text);
+    const found = await engine.searchTransactions(text);
+    check(`search "${text}" returns the same transactions as @actual-app/api`,
+      isDeepStrictEqual(found.map((t: any) => t.id).sort(), [...expected.ids].sort()), `(${found.length})`);
+    if (text === 'ZOE') {
+      check('payee matched case-insensitively across non-ASCII (no duplicate payee)',
+        expected.bakeryPayees.length === 1, `(${expected.bakeryPayees.join(', ')})`);
+    }
+  }
   const payeeCount = (await engine.getTransactions(checking.id, today, today))
     .filter((t: any) => t.notes === `${tag}-phone`).length;
   check('added transaction stored once', payeeCount === 1);

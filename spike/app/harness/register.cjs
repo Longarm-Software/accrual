@@ -1,10 +1,11 @@
-// Lets Node load the React Native engine bundle: the four native Expo modules
+// Lets Node load the React Native engine bundle: the native modules
 // resolve to the stand-ins in ./mocks, and the Node globals that Hermes does
 // not have are removed so the bundle has to bring its own (shims/globals.ts).
 const Module = require('node:module');
 const path = require('node:path');
 
 const mocks = {
+  'accrual-sqlite-functions': 'accrual-sqlite-functions.cjs',
   'expo-sqlite': 'expo-sqlite.cjs',
   'expo-file-system': 'expo-file-system.cjs',
   'expo-crypto': 'expo-crypto.cjs',

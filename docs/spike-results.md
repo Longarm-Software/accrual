@@ -15,7 +15,7 @@ It has **not yet run on a phone or simulator**. The spike ran in a Linux cloud c
 Xcode and no hardware virtualisation for an Android emulator. The engine was exercised in Node
 with stand-ins for the four native modules, and the app was compiled to Hermes bytecode for iOS
 and Android. The remaining risk is whether the three Expo native modules behave as their type
-definitions say. Closing it takes one `npx expo run:ios` on a Mac (see
+definitions say, and whether the SQL-function extension builds and loads on each platform. Closing it takes one `npx expo run:ios` on a Mac (see
 [Next steps](#next-steps)).
 
 **Recommendation:** go ahead with ADR 0001 (engine in the app). Do the on-device run first, and
@@ -47,7 +47,7 @@ into Node, with:
 
 - `expo-sqlite`, `expo-file-system`, `expo-crypto` and `expo/fetch` replaced by small stand-ins
   (`harness/mocks/`) that copy the parts of each module's API the shims use. The SQLite stand-in,
-  like expo-sqlite, registers no custom SQL functions.
+  like expo-sqlite, registers no custom SQL functions; it loads the same C extension the app uses.
 - Node's `Buffer`, `crypto` and `setImmediate` globals deleted first, so the bundle has to supply
   its own, as it must on Hermes.
 
@@ -71,7 +71,7 @@ behaviour, or phone performance.
 
 | loot-core module | Normally | In the spike |
 |---|---|---|
-| `#platform/server/sqlite` | better-sqlite3 | **expo-sqlite** synchronous API (`shims/sqlite.ts`). loot-core's database calls are synchronous, and expo-sqlite supports that. |
+| `#platform/server/sqlite` | better-sqlite3 | **expo-sqlite** synchronous API (`shims/sqlite.ts`). loot-core's database calls are synchronous, and expo-sqlite supports that. Custom SQL functions come from a native extension (gap 1 below). |
 | `#platform/server/fs` | Node `fs` | **expo-file-system** `File`/`Directory` (`shims/fs.ts`). The default database and the SQL migrations are embedded in the bundle and served from a read-only virtual folder. |
 | `#platform/server/fs/path-join` | Node `path` | loot-core's own pure-JS version (copied) |
 | `#platform/server/fetch` | global `fetch` | **`expo/fetch`**, because sync sends and receives binary bodies |
@@ -87,18 +87,17 @@ JavaScript, mostly date-fns (1.6 MB), hyperformula (1.6 MB) and loot-core itself
 
 ## Problems and open gaps
 
-1. **Custom SQL functions (needs work in Phase 1).** loot-core registers five JavaScript functions
-   on each connection: `UNICODE_LOWER`, `UNICODE_UPPER`, `UNICODE_LIKE`, `REGEXP`, `NORMALISE`.
-   Neither expo-sqlite nor op-sqlite can register JavaScript functions. In the spike:
-   - `UNICODE_LOWER`/`UPPER` are rewritten to SQLite's built-in ASCII-only versions. This is on
-     the add-transaction path (payee lookup by name). The effect, expected but not tested: a
-     payee whose stored name has a non-ASCII capital, such as "Émile", is not matched
-     case-insensitively and could be created twice.
-   - `UNICODE_LIKE`, `REGEXP` and `NORMALISE` throw. They are used by text and regex filters:
-     transaction search, and rules with "contains" or "matches" conditions.
+1. **Custom SQL functions (solved off-device, not yet built for phones).** loot-core registers
+   five JavaScript functions on each connection: `UNICODE_LOWER`, `UNICODE_UPPER`, `UNICODE_LIKE`,
+   `REGEXP`, `NORMALISE`. Search, "contains" and "matches" rules, and payee lookup depend on
+   them, and neither expo-sqlite nor op-sqlite can register JavaScript functions.
 
-   Fix: a small native SQLite extension in C that defines the five functions. Both expo-sqlite
-   and op-sqlite can load extensions. This is the largest known piece of native work.
+   They are now provided by a native SQLite extension,
+   [`accrual-sqlite-functions`](../spike/app/modules/accrual-sqlite-functions/README.md): about
+   400 lines of C on top of QuickJS's regular-expression engine and Unicode tables, so results
+   match JavaScript exactly. On Linux it agrees with loot-core's own functions on all 183,819
+   test inputs, and search results match `@actual-app/api`. The iOS and Android build files are
+   written but have not been compiled.
 2. **End-to-end encrypted budgets** need AES-256-GCM and PBKDF2, and Hermes has no
    `crypto.subtle`. Stubbed to throw. `react-native-quick-crypto` offers Node's `crypto` API, so
    loot-core's Electron implementation should port almost unchanged. Already a Phase 2 item.
@@ -158,9 +157,9 @@ A cold start in a new process (bundle load, sign in, open, sync) totals about 0.
 1. **On-device run (about 30 minutes, on a Mac).** Follow "Run on a device" in
    [`spike/README.md`](../spike/README.md) for the iOS simulator and an Android emulator. Open
    "Spike Large", add a transaction, sync, and note the timings in the app's log. The likeliest
-   failures are path or URI handling in `shims/fs.ts`, opening a database outside expo-sqlite's
-   default folder, and binary request bodies in `expo/fetch`. Each is a small fix in one shim.
+   failures are the first native build of `accrual-sqlite-functions`, path or URI handling in
+   `shims/fs.ts`, opening a database outside expo-sqlite's default folder, and binary request
+   bodies in `expo/fetch`. Each is a small, local fix.
 2. If it passes, set ADR 0001 to Accepted and tick the first box in plan.md.
-3. Start Phase 1 with the SQL-function extension (gap 1), since search and rules depend on it.
-4. Add the Node harness to CI against a dockerised server. It is a ready-made regression test for
+3. Add the Node harness to CI against a dockerised server. It is a ready-made regression test for
    each monthly Actual release.

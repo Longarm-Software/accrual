@@ -13,6 +13,7 @@ it at a real server or a real budget.
 | `server/` | Throwaway Actual 26.11.0 server, fake-data seeder, and a reference client (`@actual-app/api`) |
 | `app/engine/` | esbuild script that bundles `@actual-app/core`, plus the React Native platform shims |
 | `app/src/engine/adapter.ts` | The typed engine adapter the UI talks to |
+| `app/modules/accrual-sqlite-functions/` | Native SQLite extension with the SQL functions loot-core needs |
 | `app/harness/` | Runs the engine bundle in Node with stand-in native modules and checks it |
 | `app/App.tsx` | Bare on-device screen: connect, open a budget, add a transaction, sync, timings |
 
@@ -24,6 +25,8 @@ npm run server          # 127.0.0.1:5007, data in server/data (gitignored); leav
 npm run seed            # in a second terminal: fake "Spike Small" and "Spike Large" budgets
 
 cd ../app && npm install
+npm run sqlfn:build     # compiles the SQLite extension for this machine (needs a C compiler)
+npm run sqlfn:test      # checks it against loot-core's JavaScript functions
 npm run engine:build    # bundles loot-core into engine/dist
 npm run engine:verify   # compares the engine with @actual-app/api, tests sync both ways
 npm run engine:verify -- cold   # cold start on the already-downloaded large budget
@@ -34,7 +37,8 @@ The first `npm run server` or `npm run seed` writes a random test password to `s
 
 ## Run on a device
 
-Needs a dev build, not Expo Go (expo-sqlite, expo-file-system and expo-crypto are native).
+Needs a dev build, not Expo Go (expo-sqlite, expo-file-system, expo-crypto and the local
+`accrual-sqlite-functions` module are native).
 
 ```sh
 cd spike/app

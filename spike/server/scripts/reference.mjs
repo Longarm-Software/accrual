@@ -3,6 +3,7 @@
 // the React Native engine build. Prints one JSON document on stdout.
 //   node reference.mjs months <syncId> <YYYY-MM,YYYY-MM,...>
 //   node reference.mjs find   <syncId> <accountId> <date> <notes>
+//   node reference.mjs search <syncId> <text>
 //   node reference.mjs edit   <syncId> <accountId> <date> <amount> <notes> <month> <categoryId> <budgeted>
 import * as api from '@actual-app/api';
 
@@ -21,6 +22,16 @@ if (cmd === 'months') {
 } else if (cmd === 'find') {
   const [accountId, date, notes] = args;
   out = (await api.getTransactions(accountId, date, date)).filter(t => t.notes === notes);
+} else if (cmd === 'search') {
+  const like = `%${args[0]}%`;
+  const { data } = await api.aqlQuery(
+    api.q('transactions')
+      .filter({ $or: [{ 'payee.name': { $like: like } }, { notes: { $like: like } }] })
+      .select(['id'])
+      .orderBy({ date: 'desc' }),
+  );
+  const payees = (await api.getPayees()).filter(p => /bakery/i.test(p.name)).map(p => p.name);
+  out = { ids: data.map(t => t.id), bakeryPayees: payees };
 } else if (cmd === 'edit') {
   const [accountId, date, amount, notes, month, categoryId, budgeted] = args;
   await api.addTransactions(accountId, [{ date, amount: Number(amount), notes, payee_name: 'Reference Client' }]);

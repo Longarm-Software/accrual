@@ -1,0 +1,36 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'software.longarm.accrual'
+version = '0.1.0'
+
+expoModule {
+  v2 true
+}
+
+def reactNativeArchitectures() {
+  def value = project.getProperties().get("reactNativeArchitectures")
+  return value ? value.split(",") : ["armeabi-v7a", "x86", "x86_64", "arm64-v8a"]
+}
+
+android {
+  namespace "software.longarm.accrual.sqlitefunctions"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+
+    externalNativeBuild {
+      cmake {
+        abiFilters (*reactNativeArchitectures())
+        arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+      }
+    }
+  }
+  externalNativeBuild {
+    cmake {
+      path "CMakeLists.txt"
+    }
+  }
+}
