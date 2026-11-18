@@ -1,0 +1,76 @@
+# Plan
+
+## Goals
+
+1. **Daily driver first.** It has to be good enough to check and run a real budget on a phone
+   every day before anything else matters.
+2. **Open source from day one.** There are no secrets, personal data or hard-coded servers in the
+   repo. All server details are entered in the app.
+3. **Ship it.** Free on GitHub, and a few dollars on the App Store and Play Store for the signed
+   build.
+
+## Non-goals (for v1)
+
+- Replacing Actual's desktop and web app. Reports, rules editing, imports and bank-sync setup
+  stay there.
+- Any hosted Longarm service, accounts or analytics that collect financial data.
+- Supporting Actual servers older than the version we pin to.
+
+## Phases
+
+### Phase 0: Spike (1–2 sessions)
+Prove the core idea: can Actual's engine (`loot-core`) run inside a React Native/Expo app?
+
+Exit criteria, all of which must pass against a **copy** of a real budget:
+- [ ] The engine loads in an Expo dev build on an iPhone and an Android emulator.
+- [ ] Sign in to an Actual server and download a budget.
+- [ ] Read this month's categories, budgeted, spent and balance amounts, and confirm they match the
+      web app to the cent.
+- [ ] Add a transaction on the phone, sync it, and see it in the web app.
+- [ ] Make an edit in the web app and see it on the phone after a sync.
+- [ ] Measure cold start and sync time on a large budget (10,000+ transactions).
+
+If the spike fails, use the fallback in [architecture.md](architecture.md#fallback-self-hosted-bridge)
+and record the decision in `docs/decisions/`.
+
+### Phase 1: Personal MVP
+- Server setup screen (URL and password) with the password stored in Keychain/Keystore.
+- Budget picker.
+- **Plan screen:** month switcher, To Budget banner, category groups, and category cards with a
+  progress bar, an Available pill and a target status.
+- **Category detail:** activity list, target, and moving money in or out (cover overspending).
+- **Transactions:** account list, register, quick add (payee, category, amount, account) and
+  categorize uncategorized items.
+- Pull-to-refresh sync plus background sync on launch.
+- Overspending alert banner ("2 categories overspent. Cover them?").
+
+### Phase 2: Polish and public beta
+- Home-screen widgets: "Left this week" for chosen categories and the To Budget amount.
+- Offline-first queue with clear sync status.
+- Light and dark themes.
+- Support for end-to-end encrypted budgets.
+- Accessibility pass (Dynamic Type, VoiceOver and TalkBack, contrast).
+- TestFlight and Play internal testing, and a public GitHub repo.
+
+### Phase 3: Store launch
+- App Store and Play Store listings, screenshots and a privacy policy ("we collect nothing").
+- A launch post in the Actual community (Discord, GitHub Discussions, Reddit).
+- A release process that tracks Actual's monthly releases (see Risks).
+
+## Risks
+
+| Risk | Mitigation |
+|---|---|
+| `loot-core` depends on browser or Node APIs that React Native lacks (filesystem, SQLite, workers, crypto) | The spike finds these early. Write a thin platform-shim layer, and use the fallback bridge if it's too deep. |
+| Actual's sync protocol or schema changes each month | Pin to one Actual version, run CI against a dockerized `actual-server` of that version, and bump deliberately. |
+| Performance on big budgets | Measure in the spike, then use lazy queries and a month-scoped cache. |
+| Users with encrypted budgets | Phase 2 feature. Show a clear "not supported yet" message until then. |
+| Trademark confusion | Use our own name and icon, and describe the app as "for Actual Budget". |
+| Data loss bugs | Develop only against budget copies, write integration tests, and never auto-resolve conflicts silently. |
+
+## Dev environment notes
+
+- Develop against a **local test server** (`docker run actualbudget/actual-server`) and a test
+  budget, never a live one.
+- No real financial data goes in the repo, test fixtures, screenshots or issues. Generate fake
+  budgets instead.
