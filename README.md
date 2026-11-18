@@ -37,6 +37,14 @@ This repo is public. Never commit:
 Use generated fake data for fixtures and screenshots. Keep secrets in the OS keychain or CI
 secrets, never in files.
 
+Every commit is scanned for secrets with [gitleaks](https://github.com/gitleaks/gitleaks), locally
+and in CI. After cloning, enable the hook once:
+
+```sh
+brew install gitleaks
+git config core.hooksPath .githooks
+```
+
 ## License
 
 MIT. Bundled Actual Budget code keeps its own MIT notice (see `THIRD_PARTY_NOTICES.md` once added).

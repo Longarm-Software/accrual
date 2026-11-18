@@ -1,0 +1,9 @@
+# gitleaks config: the default rules, plus anything specific to this project.
+title = "accrual"
+
+[extend]
+useDefault = true
+
+# False positives go here, with a comment saying why.
+# [allowlist]
+# paths = ['''docs/example-config\.md''']
