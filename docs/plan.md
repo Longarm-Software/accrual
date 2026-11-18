@@ -23,12 +23,17 @@ Prove the core idea: can Actual's engine (`loot-core`) run inside a React Native
 
 Exit criteria, all of which must pass against a **copy** of a real budget:
 - [ ] The engine loads in an Expo dev build on an iPhone and an Android emulator.
-- [ ] Sign in to an Actual server and download a budget.
-- [ ] Read this month's categories, budgeted, spent and balance amounts, and confirm they match the
+      *(Bundles and compiles to Hermes bytecode for both; on-device run still to do.)*
+- [x] Sign in to an Actual server and download a budget.
+- [x] Read this month's categories, budgeted, spent and balance amounts, and confirm they match the
       web app to the cent.
-- [ ] Add a transaction on the phone, sync it, and see it in the web app.
-- [ ] Make an edit in the web app and see it on the phone after a sync.
+- [x] Add a transaction on the phone, sync it, and see it in the web app.
+- [x] Make an edit in the web app and see it on the phone after a sync.
 - [ ] Measure cold start and sync time on a large budget (10,000+ transactions).
+      *(Measured on desktop only.)*
+
+The ticked items passed off-device, with fake budgets and `@actual-app/api` standing in for the
+web app. Details and caveats are in [spike-results.md](spike-results.md).
 
 If the spike fails, use the fallback in [architecture.md](architecture.md#fallback-self-hosted-bridge)
 and record the decision in `docs/decisions/`.
