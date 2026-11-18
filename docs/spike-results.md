@@ -144,7 +144,7 @@ A cold start in a new process (bundle load, sign in, open, sync) totals about 0.
   Capacitor wrapper around the web build. An experimental iOS TestFlight beta is tracked in
   [issue #9440](https://github.com/actualbudget/actual/issues/9440). It is the web UI in a
   WebView, not a native UI, but it is an official app and it affects how Accrual is positioned
- . business.md does not cover it yet.
+  (see [business.md](business.md#upstreams-own-mobile-app)).
 - **[cubancodepath/actual-expo](https://github.com/cubancodepath/actual-expo)** is a hand port of
   loot-core's sync, CRDT and query code to Expo on expo-sqlite. It is a re-implementation that
   has to track upstream by hand, which this spike shows is avoidable.
