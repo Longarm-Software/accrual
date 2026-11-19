@@ -48,6 +48,20 @@ describe('withPayee', () => {
   it('leaves the category alone when the payee has no last category', () => {
     expect(withPayee(fresh(), payee('payee-market'), expenseIds).categoryId).toBeNull();
   });
+  it("clears the previous payee's suggestion when the new payee has none", () => {
+    const suggested = withPayee(fresh(), cornerShop, expenseIds);
+    const d = withPayee(suggested, payee('payee-market'), expenseIds);
+    expect(d).toMatchObject({ payeeId: 'payee-market', categoryId: null, categoryChosenByHand: false });
+    expect(isSuggested(d)).toBe(false);
+  });
+  it("clears the previous payee's suggestion when the new payee's last category is not offered", () => {
+    const d = withPayee(withPayee(fresh(), cornerShop, expenseIds), employer, expenseIds);
+    expect(d).toMatchObject({ payeeId: 'payee-employer', categoryId: null, categoryChosenByHand: false });
+  });
+  it('keeps a hand-chosen category when the new payee has no suggestion', () => {
+    const d = withPayee(withCategory(fresh(), 'cat-dining'), payee('payee-market'), expenseIds);
+    expect(d).toMatchObject({ categoryId: 'cat-dining', categoryChosenByHand: true });
+  });
   it('suggests nothing for income', () => {
     const d = withPayee(toggleIncome(fresh()), employer, new Set(['cat-salary']));
     expect(d.categoryId).toBeNull();

@@ -35,13 +35,17 @@ export function isSuggested(draft: Draft): boolean {
   return draft.categoryId !== null && !draft.categoryChosenByHand;
 }
 
-/** Choosing an existing payee. Suggests the category it was last used with, if that one is offered. */
+/**
+ * Choosing an existing payee. Suggests the category it was last used with, if that one is offered.
+ * A category chosen by hand is never touched; a suggested one belongs to the previous payee, so it
+ * goes when the new payee has no suggestion of its own.
+ */
 export function withPayee(draft: Draft, payee: PayeeChoice, validCategoryIds: Set<string>): Draft {
   const next = { ...draft, payeeId: payee.id, payeeText: payee.name };
+  if (draft.categoryChosenByHand) return next;
   const suggestion = payee.lastCategoryId;
-  if (!draft.categoryChosenByHand && !draft.income && suggestion !== null && validCategoryIds.has(suggestion)) {
-    next.categoryId = suggestion;
-  }
+  const usable = !draft.income && suggestion !== null && validCategoryIds.has(suggestion);
+  next.categoryId = usable ? suggestion : null;
   return next;
 }
 
