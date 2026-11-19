@@ -1,13 +1,13 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View } from 'react-native';
 
-import { formatMoney } from '../../lib/money';
 import { amount, font, radius, size, space, tint, type } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { Glass } from '../../ui/Glass';
 import { Money } from '../../ui/Money';
 import { Label } from '../../ui/Text';
-import type { HeroView } from './planSummary';
+import { heroLabel } from './planSummary';
+import type { FlowKey, HeroView } from './planSummary';
 
 /** The top card: what is left to budget, and where the month's money went. */
 export function HeroCard({ hero }: { hero: HeroView }) {
@@ -26,7 +26,7 @@ export function HeroCard({ hero }: { hero: HeroView }) {
         />
       )}
       <View style={{ padding: space.xl }}>
-        <View accessible accessibilityLabel={`${hero.label}, ${formatMoney(hero.amount)}`}>
+        <View accessible accessibilityLabel={heroLabel(hero)}>
           <Label style={type.name}>{hero.label}</Label>
           <View style={{ marginTop: space.xs, marginBottom: space.lg }}>
             <Money cents={hero.amount} size={amount.hero} color={over ? theme.color.over : undefined} accessible={false} />
@@ -34,9 +34,9 @@ export function HeroCard({ hero }: { hero: HeroView }) {
         </View>
         <FlowBar flow={hero.flow} />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: space.md, marginTop: space.md }}>
-          <FlowKey text={hero.spentText} />
-          <FlowKey text={hero.setAsideText} />
-          <FlowKey text={hero.freeText} />
+          <Key flowKey={hero.keys.spent} />
+          <Key flowKey={hero.keys.setAside} />
+          <Key flowKey={hero.keys.free} />
         </View>
       </View>
     </Glass>
@@ -61,14 +61,13 @@ function FlowBar({ flow }: { flow: HeroView['flow'] }) {
 }
 
 /** "Still set aside $2,464", with the amount in ink and the words quieter. */
-function FlowKey({ text }: { text: string }) {
+function Key({ flowKey }: { flowKey: FlowKey }) {
   const theme = useTheme();
-  const cut = text.lastIndexOf(' ');
   return (
     <Label style={type.note}>
-      {text.slice(0, cut + 1)}
+      {flowKey.words}{' '}
       <Label style={[type.note, { fontFamily: font.semibold }]} color={theme.color.ink}>
-        {text.slice(cut + 1)}
+        {flowKey.amount}
       </Label>
     </Label>
   );

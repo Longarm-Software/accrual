@@ -70,6 +70,8 @@ export const type = {
   /** A tile's note and the top card's flow key. */
   note: { fontFamily: font.body, fontSize: 12 },
   chip: { fontFamily: font.semibold, fontSize: 12 },
+  /** Text typed into a field. */
+  input: { fontFamily: font.semibold, fontSize: 16.5 },
 } as const;
 
 /** Sizes for amounts drawn with `Money`: the dollars; the cents are half. */

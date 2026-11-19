@@ -1,14 +1,15 @@
 import type { PlanMonth } from '../../engine/types';
 import { formatMoney, formatWholeMoney } from '../../lib/money';
 
+/** One part of the flow key: the quiet words, then the amount drawn in ink. */
+export type FlowKey = { words: string; amount: string };
+
 export type HeroView = {
   state: 'ready' | 'even' | 'over';
   label: string;
   amount: number; // toBudget, cents
   flow: { spent: number; setAside: number; free: number }; // shares of the bar, summing to 1 (or all 0)
-  spentText: string;
-  setAsideText: string;
-  freeText: string;
+  keys: { spent: FlowKey; setAside: FlowKey; free: FlowKey };
 };
 
 export function heroView(month: PlanMonth): HeroView {
@@ -27,10 +28,17 @@ export function heroView(month: PlanMonth): HeroView {
     label,
     amount: toBudget,
     flow: { spent: share(spent), setAside: share(setAside), free: share(free) },
-    spentText: `Spent ${formatWholeMoney(spent)}`,
-    setAsideText: `Still set aside ${formatWholeMoney(setAside)}`,
-    freeText: `Free ${formatWholeMoney(free)}`,
+    keys: {
+      spent: { words: 'Spent', amount: formatWholeMoney(spent) },
+      setAside: { words: 'Still set aside', amount: formatWholeMoney(setAside) },
+      free: { words: 'Free', amount: formatWholeMoney(free) },
+    },
   };
+}
+
+/** What a screen reader says for the top card's label and amount. */
+export function heroLabel(hero: HeroView): string {
+  return `${hero.label}, ${formatMoney(hero.amount)}`;
 }
 
 /** The notice above the tiles, or null when nothing is overspent. */

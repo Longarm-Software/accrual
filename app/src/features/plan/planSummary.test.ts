@@ -1,6 +1,6 @@
 import type { PlanMonth } from '../../engine/types';
 import { fakePlanMonth } from '../../session/fakeEngine';
-import { heroView, overspentNotice } from './planSummary';
+import { heroLabel, heroView, overspentNotice } from './planSummary';
 
 const month = (over: Partial<PlanMonth>): PlanMonth => ({ ...fakePlanMonth, ...over });
 
@@ -14,9 +14,11 @@ describe('heroView', () => {
     expect(v.flow.spent).toBeCloseTo(341617 / 619200);
     expect(v.flow.setAside).toBeCloseTo(246383 / 619200);
     expect(v.flow.free).toBeCloseTo(31200 / 619200);
-    expect(v.spentText).toBe('Spent $3,416');
-    expect(v.setAsideText).toBe('Still set aside $2,464');
-    expect(v.freeText).toBe('Free $312');
+    expect(v.keys).toEqual({
+      spent: { words: 'Spent', amount: '$3,416' },
+      setAside: { words: 'Still set aside', amount: '$2,464' },
+      free: { words: 'Free', amount: '$312' },
+    });
   });
   it('is even when toBudget is 0', () => {
     const v = heroView(month({ toBudget: 0 }));
@@ -30,7 +32,7 @@ describe('heroView', () => {
     expect(v.label).toBe('Overbudgeted');
     expect(v.amount).toBe(-12000);
     expect(v.flow.free).toBe(0);
-    expect(v.freeText).toBe('Free $0');
+    expect(v.keys.free).toEqual({ words: 'Free', amount: '$0' });
     expect(v.flow.spent + v.flow.setAside).toBeCloseTo(1);
   });
   it('shows all zeros for an empty month without dividing by zero', () => {
@@ -45,11 +47,18 @@ describe('heroView', () => {
       expect(s).toBeLessThanOrEqual(1);
     }
     expect(spent + setAside + free).toBeCloseTo(1);
-    expect(v.spentText).toBe('Spent $0');
+    expect(v.keys.spent).toEqual({ words: 'Spent', amount: '$0' });
   });
   it('never sets aside a negative amount when spending exceeds the budget', () => {
     const v = heroView(month({ toBudget: 0, totalBudgeted: 1000, totalSpent: -3000 }));
     expect(v.flow).toEqual({ spent: 1, setAside: 0, free: 0 });
+  });
+});
+
+describe('heroLabel', () => {
+  it('reads the label and the exact amount', () => {
+    expect(heroLabel(heroView(fakePlanMonth))).toBe('Ready to budget, $312.00');
+    expect(heroLabel(heroView(month({ toBudget: -12000 })))).toBe('Overbudgeted, −$120.00');
   });
 });
 

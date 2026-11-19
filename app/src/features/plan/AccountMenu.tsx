@@ -16,26 +16,38 @@ export function AccountMenu({ budgetName, onSignOut }: Props) {
   const theme = useTheme();
   const { width } = useWindowDimensions();
   const button = useRef<HostInstance>(null);
+  const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
+  // Each opening gets a number, so a measurement that lands after the menu closed is ignored.
+  const opening = useRef(0);
 
-  const open = () => {
-    // Show at once in the top corner, then move under the button once it has been measured.
-    setAnchor({ top: space.xxl * 2, right: space.lg });
-    button.current?.measureInWindow((x, y, w, h) => setAnchor({ top: y + h + space.sm, right: width - x - w }));
+  const show = () => {
+    const n = ++opening.current;
+    setAnchor(null);
+    setOpen(true);
+    // The card waits for the button's position, so it appears under it and never jumps.
+    button.current?.measureInWindow((x, y, w, h) => {
+      if (opening.current === n) setAnchor({ top: y + h + space.sm, right: width - x - w });
+    });
   };
-  const close = () => setAnchor(null);
+  const close = () => {
+    opening.current++;
+    setOpen(false);
+    setAnchor(null);
+  };
 
   return (
     <>
-      <Pressable ref={button} accessibilityRole="button" accessibilityLabel="Account" onPress={open}>
+      <Pressable ref={button} accessibilityRole="button" accessibilityLabel="Account" hitSlop={space.xs} onPress={show}>
         {({ pressed }) => (
           <Glass radius={radius.pill} style={{ width: size.control, height: size.control, alignItems: 'center', justifyContent: 'center', opacity: pressed ? tint.pressed : 1 }}>
             <Person />
           </Glass>
         )}
       </Pressable>
-      <Modal visible={anchor !== null} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={close}>
+      <Modal visible={open} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={close}>
         <Pressable accessibilityLabel="Close menu" style={StyleSheet.absoluteFill} onPress={close} />
+        {/* The backdrop is there from the first frame, so the menu can be closed before the card appears. */}
         {anchor && (
           <View
             accessibilityViewIsModal

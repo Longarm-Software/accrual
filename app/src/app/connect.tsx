@@ -8,7 +8,7 @@ import type { RemoteBudget } from '../engine/types';
 import { connectErrorMessage } from '../features/connect/errors';
 import { normalizeServerUrl } from '../session/serverUrl';
 import { useSession } from '../session/SessionProvider';
-import { font, radius, space } from '../theme/tokens';
+import { font, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AuroraBackground } from '../ui/AuroraBackground';
 import { Button } from '../ui/Button';
@@ -73,7 +73,7 @@ export default function Connect() {
   // password may contain one, so this only informs; nothing is changed or blocked.
   const oddCharacter = [...password].findIndex(ch => !/^[\x20-\x7e]$/.test(ch)) + 1;
 
-  const input = { fontFamily: font.semibold, fontSize: 16.5, color: theme.color.ink, paddingVertical: 2 };
+  const input = { ...type.input, color: theme.color.ink, paddingVertical: 2 };
 
   return (
     <AuroraBackground>
