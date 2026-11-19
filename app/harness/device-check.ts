@@ -1,6 +1,6 @@
-// Checks a scripted on-device run (src/autorun.ts) against the official
+// Checks a scripted on-device run (src/dev/autorun.ts) against the official
 // @actual-app/api client on the same throwaway server. Usage:
-//   tsx --env-file=../server/.env harness/device-check.ts <spike-events.jsonl>
+//   tsx --env-file=../tools/test-server/.env harness/device-check.ts <spike-events.jsonl>
 //
 // Run it once the app has logged "waiting for the reference client": it checks
 // what the app read, then edits the large budget as a second client. Run it
@@ -10,10 +10,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
-import { digest } from '../src/digest';
+import { digest } from '../src/dev/digest';
 
-const serverDir = path.join(__dirname, '..', '..', 'server');
-if (!process.env.SPIKE_SERVER_PASSWORD) throw new Error('SPIKE_SERVER_PASSWORD is not set (see spike/README.md)');
+const serverDir = path.join(__dirname, '..', '..', 'tools', 'test-server');
+if (!process.env.SPIKE_SERVER_PASSWORD) throw new Error('SPIKE_SERVER_PASSWORD is not set (see app/README.md)');
 const file = process.argv[2];
 if (!file) throw new Error('Usage: device-check.ts <spike-events.jsonl>');
 

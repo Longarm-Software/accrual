@@ -12,10 +12,10 @@ import { isDeepStrictEqual } from 'node:util';
 const { usesBundledGlobals, nativeFormatToParts } = require('./register.cjs');
 
 const here = __dirname;
-const serverDir = path.join(here, '..', '..', 'server');
+const serverDir = path.join(here, '..', '..', 'tools', 'test-server');
 const serverURL = process.env.SPIKE_SERVER_URL ?? 'http://127.0.0.1:5007';
 const password = process.env.SPIKE_SERVER_PASSWORD;
-if (!password) throw new Error('SPIKE_SERVER_PASSWORD is not set (see spike/README.md)');
+if (!password) throw new Error('SPIKE_SERVER_PASSWORD is not set (see app/README.md)');
 if (/:5006\b/.test(serverURL)) throw new Error('Refusing to run against port 5006');
 
 const mode = process.argv[2] ?? 'full';

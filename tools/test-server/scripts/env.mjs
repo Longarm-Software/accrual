@@ -1,4 +1,4 @@
-// Loads spike/server/.env (gitignored). Creates it with a random throwaway
+// Loads tools/test-server/.env (gitignored). Creates it with a random throwaway
 // password on first run, so no credential ever lives in committed code.
 import crypto from 'node:crypto';
 import fs from 'node:fs';

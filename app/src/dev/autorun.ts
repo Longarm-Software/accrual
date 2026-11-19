@@ -1,6 +1,6 @@
 // Scripted on-device run of the spike, so a simulator or emulator can be checked
-// against the reference client without tapping. Off unless spike/app/.env.local
-// (gitignored) sets it up; see "Scripted run" in spike/README.md.
+// against the reference client without tapping. Off unless app/.env.local
+// (gitignored) sets it up; see "Scripted run" in app/README.md.
 //
 // Each step is recorded as one JSON line in <documents>/spike-events.jsonl,
 // which harness/device-check.ts reads on the host. Budget months are recorded
@@ -9,7 +9,7 @@ import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { digest } from './digest';
-import type { Engine } from './engine/adapter';
+import type { Engine } from '../engine/adapter';
 
 // Written out in full on purpose: Expo only inlines `process.env.EXPO_PUBLIC_*`
 // into a release bundle when it appears literally.
@@ -65,7 +65,7 @@ export async function autorun(say: (line: string) => void) {
   try {
     const cold = doneMarker().exists;
     say(`autorun: ${cold ? 'cold start' : 'full run'} against ${autorunConfig.serverURL}`);
-    const { createEngine } = await timed('load engine bundle', () => require('./engine/adapter'));
+    const { createEngine } = await timed('load engine bundle', () => require('../engine/adapter'));
     const engine: Engine = await timed('init + sign in', () => createEngine(autorunConfig!));
     const budgets = await timed('list budgets', () => engine.listBudgets());
     const small = budgets.find(b => b.name === 'Spike Small');
