@@ -225,6 +225,12 @@ it('says Offline and keeps the numbers when the sync cannot reach the server', a
   expect(screen.getByText('$207')).toBeTruthy();
 });
 
+it('centres the Offline chip on the top bar’s centre line, with the month and account button', async () => {
+  await showPlan(fakeEngine({ offline: true }));
+  await screen.findByText('Groceries');
+  expect(screen.getByTestId('sync-chip')).toHaveStyle({ alignSelf: 'center' });
+});
+
 it('says Offline from the start when the engine opened offline, and clears it after a sync', async () => {
   await showPlan(fakeEngine({ offline: true }));
   await screen.findByText('Groceries');

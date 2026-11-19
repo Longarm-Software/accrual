@@ -105,7 +105,7 @@ function Plan({ engine, budgetName, onSignOut }: PlanProps) {
             canGoForward={bounds !== null && compareMonths(month, bounds.end) < 0}
             onChange={setMonth}
           />
-          {syncChip && <Chip label={syncChip} />}
+          {syncChip && <Chip label={syncChip} testID="sync-chip" style={{ alignSelf: 'center' }} />}
           <View style={{ flex: 1 }} />
           {account}
         </View>
