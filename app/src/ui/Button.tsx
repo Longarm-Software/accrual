@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { font, radius } from '../theme/tokens';
+import { radius, size, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 
 type Props = { title: string; onPress: () => void; variant?: 'primary' | 'quiet'; disabled?: boolean; testID?: string };
@@ -24,11 +24,11 @@ export function Button({ title, onPress, variant = 'primary', disabled = false, 
       ]}
     >
       {primary && <LinearGradient colors={theme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />}
-      <Text style={{ fontFamily: font.semibold, fontSize: 16, color: primary ? theme.color.onAccent : theme.color.ink }}>{title}</Text>
+      <Text style={[type.heading, { color: primary ? theme.color.onAccent : theme.color.ink }]}>{title}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  base: { height: 56, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  base: { height: size.button, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
 });

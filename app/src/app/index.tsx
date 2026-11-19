@@ -7,7 +7,7 @@ import { autorunConfig } from '../dev/autorun';
 import type { BudgetMonth } from '../engine/types';
 import { currentMonth } from '../lib/month';
 import { useSession } from '../session/SessionProvider';
-import { radius, space } from '../theme/tokens';
+import { amount, radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AuroraBackground } from '../ui/AuroraBackground';
 import { Button } from '../ui/Button';
@@ -43,11 +43,11 @@ export default function Home() {
   return (
     <AuroraBackground>
       <SafeAreaView style={{ flex: 1, padding: space.lg, gap: space.lg }}>
-        <Title style={{ fontSize: 28 }}>{session.saved?.budget?.name}</Title>
+        <Title style={type.titleSmall}>{session.saved?.budget?.name}</Title>
         <Glass radius={radius.card} style={{ padding: space.xl, gap: space.sm }}>
           <Label>Ready to budget</Label>
           {month ? (
-            <Money cents={month.toBudget} size={58} color={month.toBudget < 0 ? theme.color.over : undefined} />
+            <Money cents={month.toBudget} size={amount.hero} color={month.toBudget < 0 ? theme.color.over : undefined} />
           ) : (
             <Body color={theme.color.mute}>{failed ? 'Could not read this month.' : ' '}</Body>
           )}

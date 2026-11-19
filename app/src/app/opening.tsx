@@ -7,7 +7,7 @@ import type { OpenStage } from '../engine/types';
 import { connectErrorMessage } from '../features/connect/errors';
 import { stageCopy } from '../features/opening/stageCopy';
 import { useSession } from '../session/SessionProvider';
-import { space } from '../theme/tokens';
+import { space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AuroraBackground } from '../ui/AuroraBackground';
 import { Button } from '../ui/Button';
@@ -82,7 +82,7 @@ export default function Opening() {
         ) : (
           <>
             <Spinner />
-            <Title style={{ textAlign: 'center', fontSize: 28 }}>{copy.title}</Title>
+            <Title style={[type.titleSmall, { textAlign: 'center' }]}>{copy.title}</Title>
             <Body color={theme.color.mute} style={{ textAlign: 'center' }}>{copy.detail}</Body>
           </>
         )}
