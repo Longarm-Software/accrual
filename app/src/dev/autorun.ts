@@ -9,7 +9,7 @@ import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { digest } from './digest';
-import type { Engine } from '../engine/adapter';
+import type { Engine, OpenStage, RemoteBudget } from '../engine/adapter';
 
 // Written out in full on purpose: Expo only inlines `process.env.EXPO_PUBLIC_*`
 // into a release bundle when it appears literally.
@@ -75,14 +75,37 @@ export async function autorun(say: (line: string) => void) {
     const today = new Date().toISOString().slice(0, 10);
 
     if (cold) {
-      await timed('large: open local copy + sync', () => engine.openBudget(large));
+      // Expected: opening, then syncing. Recorded, not enforced.
+      const stages: OpenStage[] = [];
+      await timed('large: open local copy + sync', () => engine.openBudget(large, s => void stages.push(s)));
       await timed('large: read current month', () => engine.getMonth(month));
       await timed('large: sync (nothing new)', () => engine.sync());
       await engine.close();
-      record({ event: 'cold', timings });
+      record({ event: 'cold', stages, timings });
       say('autorun: cold start done');
       return;
     }
+
+    // A full run must download. openBudget reopens whenever a local copy exists, and this run
+    // shares the app's storage, so after the app has opened a budget once these steps would
+    // quietly time a reopen. The first stage tells which path the engine took; anything but
+    // `downloading` stops the run before the step is timed.
+    const downloadAndOpen = async (label: string, budget: RemoteBudget) => {
+      const stages: OpenStage[] = [];
+      await timed(label, () =>
+        engine.openBudget(budget, stage => {
+          stages.push(stage);
+          if (stages[0] !== 'downloading') {
+            throw new Error(
+              `${budget.name}: a local copy already exists (first stage "${stages[0]}", not "downloading"), ` +
+                "so this run would reopen it instead of downloading it. Delete the app's data before a " +
+                'full run (see "Scripted run" in app/README.md).',
+            );
+          }
+        }),
+      );
+      return stages;
+    };
 
     const tag = `device-${Platform.OS}-${Date.now()}`;
     const groceriesIn = async () =>
@@ -90,7 +113,7 @@ export async function autorun(say: (line: string) => void) {
     const checkingIn = async () => (await engine.getAccounts()).find(a => a.name === 'Everyday Checking')!;
 
     // --- Small budget: numbers, engine -> server, and the native SQL functions
-    await timed('small: download + open', () => engine.openBudget(small));
+    const smallStages = await downloadAndOpen('small: download + open', small);
     const smallChecking = await checkingIn();
     const smallGroceries = await groceriesIn();
     await engine.addTransaction(smallChecking.id, {
@@ -112,12 +135,13 @@ export async function autorun(say: (line: string) => void) {
       categoryId: smallGroceries.id,
       date: today,
       phoneNotes: `${tag}-phone`,
+      stages: smallStages,
       months: await monthDigests(engine, monthsBack(4)),
       searches,
     });
 
     // --- Large budget: timings, numbers, then wait for an edit from another client
-    await timed('large: download + open', () => engine.openBudget(large));
+    const largeStages = await downloadAndOpen('large: download + open', large);
     await timed('large: read current month', () => engine.getMonth(month));
     const largeChecking = await checkingIn();
     const largeGroceries = await groceriesIn();
@@ -141,6 +165,7 @@ export async function autorun(say: (line: string) => void) {
       refAmount: -4321,
       refBudgeted,
       transactionCount: count,
+      stages: largeStages,
       months: largeMonths,
       timings,
     });

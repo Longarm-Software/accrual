@@ -148,6 +148,19 @@ EXPO_PUBLIC_SPIKE_PASSWORD=<SPIKE_SERVER_PASSWORD from tools/test-server/.env>
 Expo builds these values into the app's JavaScript, so use this only with the throwaway server,
 and never share a build made this way.
 
+**A full run needs the app's data cleared first.** The scripted run shares the app's id and
+therefore its storage, and opening a budget reopens the local copy whenever one exists. So if the
+app (or an earlier run) has already opened "Spike Small" or "Spike Large", the "download + open"
+steps would time a reopen instead of a download. The run checks for this and stops with an error
+saying a local copy already exists. Clear the app's data before a full run:
+
+```sh
+# iOS simulator: uninstall (or delete the app's data container), then install the app again
+xcrun simctl uninstall <device> software.longarm.accrual
+# Android emulator: keeps the app installed, deletes its data
+adb shell pm clear software.longarm.accrual
+```
+
 Start the app. It downloads both budgets, adds transactions, searches, and then waits. Copy its
 event log to the host and check it, twice:
 
@@ -163,7 +176,7 @@ npx tsx --env-file=../tools/test-server/.env harness/device-check.ts /tmp/events
 The first check compares what the app read, then edits the large budget as a second client.
 When the app shows "full run done", copy the log again and run the check again to confirm the
 edit arrived. After that, each launch does a cold start (open the local copy and sync) and logs
-its timings. To start over, delete the app's data.
+its timings and open stages. To start over, clear the app's data as above.
 
 On a **physical Android phone**, forward the server's port and point the app at it:
 
