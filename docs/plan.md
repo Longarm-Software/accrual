@@ -55,10 +55,12 @@ and record the decision in `docs/decisions/`.
 - **Category detail:** activity list, target, and moving money in or out (cover overspending).
 - **Transactions:** account list, register, quick add (payee, category, amount, account) and
   categorize uncategorized items.
-- [x] Pull-to-refresh sync plus background sync on launch.
+- [x] Pull-to-refresh sync, plus a sync on launch.
       *(Pull to refresh verified on an Android emulator, including going offline and back. The
-      sync on launch is the one the opening screen runs; without a connection the app opens the
-      copy on the phone instead. Not checked on the iOS simulator.)*
+      sync on launch is not a background sync: the opening screen runs it in the foreground,
+      before the Plan appears; without a connection the app opens the copy on the phone instead.
+      A sync when the app returns to the foreground is plan 3. Not checked on the iOS
+      simulator.)*
 - Overspending alert banner ("2 categories overspent. Cover them?").
       *(The banner is built and shows on the Plan, without the "Cover them?" button: covering
       overspending arrives with category detail in plan 4.)*

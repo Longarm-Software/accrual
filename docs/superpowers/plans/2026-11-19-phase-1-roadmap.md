@@ -48,13 +48,14 @@ last because it touches every screen.
 | Sign out leaves the downloaded budget on the phone: delete it, or keep it? | Before any build leaves the household |
 | First-download time. On a Galaxy S24 Ultra (release build, over HTTPS) the owner's own budget downloaded too fast to notice; its size was not recorded. The 12,400-transaction test budget took 3.2 s on the Android emulator (debug build). Still unmeasured: a large budget on a mid-range phone, which is what ADR 0002's 5 s threshold is about. Plan 2 measured nothing new. | Plan 3 |
 | The scripted device check starts twice on one launch (two interleaved runs were recorded), which can inflate its timings. Find the double start and stop it. Plan 2 did not get to it. | Plan 3 |
-| On Android in the light theme the status bar's clock and icons are white on the pale page, and hard to see. iOS draws them dark. | Plan 6 |
-| In a row of two tiles, an amount of $1,000 or more drops one size (as the design says), so its figures sit lower than its neighbour's. Align them on one baseline. | Plan 6 |
-| The Offline chip sits higher than the month switcher and the account button beside it. | Plan 6 |
-| The account menu has no shadow and nothing dims the page behind it, so it reads as part of the top card it covers. | Plan 6 |
-| The month switcher's pill changes width with the month's name, so the next-month arrow moves as you tap it. | Plan 6 |
 | A future month says "Budgeted" for a category that only has money carried in, with nothing budgeted that month. | Plan 4 |
 | The app's last month is one later than the reference client's for the same budget (November 2027 against October 2027). Both come from Actual; harmless so far, but worth knowing when comparing. | Plan 4 |
+| "Today" is read once, when the Plan opens. A phone that keeps the app in memory overnight shows yesterday's pace, and at a month's end the wrong current month. Re-read today, and sync, when the app returns to the foreground. | Plan 3 |
+| A sync has no time bound: a server that silently drops packets keeps the pull spinner turning for the platform's own timeout. Bound it, as sign-in already is. | Plan 3 |
+| A monthly goal's note ("$40.00 more needed") ignores money carried in from last month. Settle it with goals and Cover. | Plan 4 |
+| The top card shows "Free $7,007" under "Ready to budget $7,006.86": the same figure, rounded differently, on one card. | Plan 6 |
+| The pull-to-refresh spinner draws over the month switcher's next arrow while it turns. | Plan 6 |
+| At the largest text size with the Offline chip showing, the top bar may overflow; not yet tried. | Plan 6 |
 
 ## Settled
 
