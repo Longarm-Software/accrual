@@ -29,7 +29,8 @@ ${[0, 1, 2, 3].map(f => `#aurora [data-f="${f}"] .v:not([data-on~="${f}"]){displ
 #aurora .fold{overflow:hidden;transition:max-height ${timing.emphasised}ms ${timing.ease},opacity ${timing.standard}ms ${timing.ease};max-height:80px}
 #aurora .pulse{box-shadow:inset 0 0 0 1.5px var(--ok),0 0 34px -8px var(--ok)!important}
 #aurora .tap{position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(255,255,255,.28);box-shadow:0 0 0 2px rgba(255,255,255,.7);z-index:40}
-#aurora .pad b.save.down{transform:scale(.93);filter:brightness(.85)}
+#aurora .pad b.save{transition:transform 120ms cubic-bezier(.2,0,0,1),filter 120ms}
+#aurora [data-f="2"] .pad b.save{transform:scale(.93);filter:brightness(.85)}
 #aurora .ghost{opacity:.3}
 
 /* Quick add: the sheet covers the Plan until it is saved. */
@@ -85,9 +86,9 @@ ${plan(money(summary.toBudget), alert, {
     ${bite(20762, 1840, { label: false })}
     <div class="bite"><div class="bl">${span('0 1', `<span>${money(20762)}</span>`)}${span('2 3', `<span>${money(18922)}</span>`)}${span('1', `<b>${money(18922)} after</b>`)}${span('2 3', '<b>Saved</b>')}</div></div>
   </div>
-  ${pad().replace('class="save "', `class="save ${f === 2 ? 'down' : ''}"`)}
+  ${pad()}
 </div>
-${f === 1 ? '<div class="tap" style="left:206px;top:612px"></div>' : ''}
+<div class="tap v" data-on="1" style="left:206px;top:612px"></div>
 </div>`;
 
 // --- Cover overspending
@@ -109,7 +110,7 @@ ${plan(span('0 1', money(summary.toBudget)) + span('2 3', money(summary.toBudget
   <div class="src glass"><div><div class="n">${icon('train', 18, 1.9)}Transport</div>${bite(7600, 2810, { small: true })}</div><div class="radio"></div></div>
   <div class="btn" style="flex:none;width:100%;height:56px;font-size:16px;margin-top:16px">Cover $28.10</div>
 </div>
-${f === 0 ? '<div class="tap" style="left:330px;top:296px"></div>' : ''}${f === 1 ? '<div class="tap" style="left:195px;top:778px"></div>' : ''}
+<div class="tap v" data-on="0" style="left:330px;top:296px"></div><div class="tap v" data-on="1" style="left:195px;top:778px"></div>
 </div>`;
 
 export const interactions = [

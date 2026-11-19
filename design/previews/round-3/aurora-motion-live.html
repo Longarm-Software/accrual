@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Accrual · Aurora · motion, live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&display=block" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#E9E7E2;font-family:'Geist',system-ui,sans-serif;padding:56px 64px 64px;width:max-content;color:#1b1b1a}
+.board-head{margin-bottom:40px;max-width:1000px}
+.board-head .kicker{font-size:13px;letter-spacing:.14em;text-transform:uppercase;opacity:.55;font-weight:500}
+.board-head h1{font-size:44px;font-weight:600;letter-spacing:-.03em;margin:6px 0 10px}
+.board-head p{font-size:17px;line-height:1.5;opacity:.72}
+.row{display:flex;gap:48px;align-items:flex-start}
+.row-head{margin:56px 0 28px;max-width:1000px}
+.row-head:first-of-type{margin-top:0}
+.row-head h2{font-size:26px;font-weight:600;letter-spacing:-.02em}
+.row-head p{font-size:15.5px;line-height:1.5;opacity:.7;margin-top:6px}
+.shot figcaption{margin-top:18px;font-size:14px;font-weight:500;opacity:.6;text-align:center;max-width:390px}
+.phone{width:390px;height:844px;border-radius:54px;position:relative;overflow:hidden;box-shadow:0 0 0 10px #101010,0 0 0 11.5px #3a3a3a,0 40px 80px -20px rgba(0,0,0,.35)}
+.statusbar{position:absolute;top:0;left:0;right:0;height:54px;padding:19px 34px 0 40px;display:flex;justify-content:space-between;font:600 16px/1 'Geist',system-ui;z-index:20}
+.sb-right{display:flex;gap:7px;align-items:center}
+.homebar{position:absolute;bottom:8px;left:50%;width:138px;height:5px;margin-left:-69px;border-radius:3px;background:currentColor;opacity:.85;z-index:30}
+.screen{position:absolute;inset:0;padding-top:54px;display:flex;flex-direction:column}
+.screen>*{flex-shrink:0}
+.money{font-variant-numeric:tabular-nums;white-space:nowrap}
+.icon{flex:none;display:block}
+/* A generic Android phone: squarer corners, a punch-hole camera, a thinner gesture bar. */
+.phone.android{border-radius:40px}
+.phone.android .statusbar{padding:17px 26px 0 28px;font-weight:500;font-size:15px}
+.phone.android:before{content:'';position:absolute;top:15px;left:50%;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#000;z-index:25}
+.phone.android .homebar{width:108px;height:4px;margin-left:-54px;bottom:9px;opacity:.6}
+
+#aurora .phone{font-family:'Geist',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:var(--ink);background:var(--bg)}
+#aurora .dark{--bg:radial-gradient(120% 60% at 0% 0%,#123B3A 0%,transparent 60%),radial-gradient(90% 50% at 100% 18%,#16294D 0%,transparent 62%),radial-gradient(100% 50% at 50% 100%,#0F2B2A 0%,transparent 70%),#07090C;--ink:#F3F6F8;--mute:#8D98A6;--glass:rgba(255,255,255,.065);--edge:rgba(255,255,255,.11);--track:rgba(255,255,255,.1);--ok:#62EFC2;--ok2:#49C6F2;--need:#FFC95C;--over:#FF7F70;--zero:#6F7A88;--onok:#04221B;--bar:rgba(16,20,25,.72);--key:rgba(255,255,255,.07)}
+#aurora .light{--bg:radial-gradient(120% 55% at 0% 0%,#CFF3E6 0%,transparent 62%),radial-gradient(90% 50% at 100% 15%,#D5E4FB 0%,transparent 62%),#F1F4F6;--ink:#0D1418;--mute:#667382;--glass:rgba(255,255,255,.72);--edge:rgba(255,255,255,.95);--track:rgba(13,20,24,.08);--ok:#0FA57C;--ok2:#1284C9;--need:#B97A00;--over:#D9432F;--zero:#8B96A3;--onok:#fff;--bar:rgba(255,255,255,.78);--key:rgba(255,255,255,.8)}
+#aurora .disp{font-family:'Bricolage Grotesque',system-ui,sans-serif;font-weight:600;letter-spacing:-.035em}
+#aurora .cents{font-size:.5em;opacity:.6;font-weight:500;letter-spacing:-.01em}
+#aurora .glass{background:var(--glass);box-shadow:inset 0 0 0 1px var(--edge),0 18px 40px -24px rgba(0,0,0,.5);backdrop-filter:blur(24px)}
+#aurora .light .glass{box-shadow:inset 0 0 0 1px var(--edge),0 14px 30px -20px rgba(20,40,60,.28)}
+
+#aurora .top{display:flex;align-items:center;justify-content:space-between;padding:8px 20px 0}
+#aurora .month{display:flex;align-items:center;gap:6px;font-size:17px;font-weight:600;padding:9px 14px 9px 16px;border-radius:99px}
+#aurora .month span{color:var(--mute);font-weight:500}
+#aurora .round{width:40px;height:40px;border-radius:50%;display:grid;place-items:center}
+
+#aurora .hero{margin:14px 16px 0;border-radius:30px;padding:20px 22px 20px;position:relative;overflow:hidden}
+#aurora .hero:before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,var(--ok),var(--ok2));opacity:.16}
+#aurora .hero>*{position:relative}
+#aurora .hero .lab{font-size:13.5px;color:var(--mute);font-weight:500}
+#aurora .hero .amount{font-size:58px;line-height:1;margin:6px 0 16px}
+#aurora .flow{display:flex;height:8px;border-radius:99px;overflow:hidden;background:var(--track);gap:2px}
+#aurora .flow i{display:block;height:100%;border-radius:99px}
+#aurora .flow .s{background:var(--ink);opacity:.9}#aurora .flow .b{background:var(--ink);opacity:.38}#aurora .flow .f{background:linear-gradient(90deg,var(--ok),var(--ok2))}
+#aurora .flowkey{display:flex;justify-content:space-between;margin-top:10px;font-size:12px;color:var(--mute)}
+#aurora .flowkey b{color:var(--ink);font-weight:600}
+#aurora .assign{position:absolute!important;right:18px;top:18px;padding:10px 16px;border-radius:99px;background:linear-gradient(135deg,var(--ok),var(--ok2));color:var(--onok);font-size:14px;font-weight:700}
+
+#aurora .alert{margin:10px 16px 0;border-radius:20px;padding:12px 14px 12px 16px;display:flex;align-items:center;gap:10px;font-size:14px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--over) 45%,transparent);background:color-mix(in srgb,var(--over) 13%,transparent)}
+#aurora .alert b{font-weight:600}
+#aurora .alert .go{margin-left:auto;padding:7px 13px;border-radius:99px;background:var(--over);color:#1b0704;font-weight:700;font-size:13px}
+#aurora .light .alert .go{color:#fff}
+
+#aurora .gh{display:flex;justify-content:space-between;padding:16px 26px 8px;font-size:13px;font-weight:600;color:var(--mute)}
+#aurora .gh span:last-child{font-weight:500;font-variant-numeric:tabular-nums}
+#aurora .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px}
+#aurora .tile{border-radius:22px;padding:13px 14px 13px;min-width:0}
+#aurora .tile .h{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:500;color:var(--mute)}
+#aurora .tile .h .icon{color:var(--c)}
+#aurora .tile .amt{font-size:27px;line-height:1.05;margin:7px 0 9px;color:var(--c)}
+#aurora .tile .track{height:5px;border-radius:99px;background:var(--track);overflow:hidden}
+#aurora .tile .track i{display:block;height:100%;border-radius:99px;background:var(--c)}
+#aurora .tile .note{font-size:11.5px;color:var(--mute);margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#aurora .ok{--c:var(--ok)}#aurora .goal{--c:var(--ok2)}#aurora .needs{--c:var(--need)}#aurora .over{--c:var(--over)}#aurora .spent{--c:var(--zero)}
+#aurora .tile.ok .track i,#aurora .tile.goal .track i{background:linear-gradient(90deg,var(--ok),var(--ok2))}
+#aurora .tile.over{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--over) 50%,transparent),0 0 30px -10px var(--over)}
+#aurora .tile.over .note,#aurora .tile.needs .note{color:var(--c)}
+
+#aurora .dock{position:absolute;left:50%;transform:translateX(-50%);bottom:26px;height:64px;padding:0 8px;border-radius:99px;display:flex;align-items:center;gap:6px;background:var(--bar);box-shadow:inset 0 0 0 1px var(--edge),0 20px 40px -12px rgba(0,0,0,.55);backdrop-filter:blur(30px);z-index:10}
+#aurora .dock .t{height:48px;padding:0 18px;border-radius:99px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--mute)}
+#aurora .dock .t.on{background:var(--glass);color:var(--ink);box-shadow:inset 0 0 0 1px var(--edge)}
+#aurora .dock .add{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--ok),var(--ok2));color:var(--onok)}
+#aurora .fade{position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(to top,#07090C 20%,transparent);z-index:5}
+#aurora .light .fade{background:linear-gradient(to top,#F1F4F6 20%,transparent)}
+
+#aurora .bartop{display:flex;align-items:center;justify-content:space-between;padding:8px 16px 0}
+#aurora .bartop .t{font-size:16px;font-weight:600}
+#aurora .ringwrap{position:relative;width:236px;height:236px;margin:18px auto 0}
+#aurora .ringwrap .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#aurora .ringwrap .lab{font-size:13px;color:var(--mute);font-weight:500}
+#aurora .ringwrap .amount{font-size:50px;line-height:1.05;margin:4px 0 4px}
+#aurora .ringwrap .sub{font-size:13px;color:var(--ok);font-weight:600}
+#aurora .trio{display:flex;gap:10px;padding:18px 16px 0}
+#aurora .trio>div{flex:1;border-radius:18px;padding:12px 13px}
+#aurora .trio .k{font-size:11.5px;color:var(--mute);font-weight:500}
+#aurora .trio .v{font-size:19px;margin-top:4px}
+#aurora .days{margin:10px 16px 0;border-radius:22px;padding:14px 16px 12px}
+#aurora .days .k{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mute);font-weight:500}
+#aurora .days .k b{color:var(--ink);font-weight:600}
+#aurora .bars{display:flex;align-items:flex-end;gap:4px;height:58px;margin-top:10px}
+#aurora .bars i{flex:1;border-radius:4px;background:linear-gradient(180deg,var(--ok),var(--ok2));min-height:3px}
+#aurora .bars i.z{background:var(--track)}#aurora .bars i.f{background:var(--track);opacity:.5;height:3px;min-height:3px}
+#aurora .cta{display:flex;gap:10px;padding:12px 16px 0}
+#aurora .btn{flex:1;height:52px;border-radius:99px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--ok),var(--ok2));color:var(--onok)}
+#aurora .btn.g{background:var(--glass);color:var(--ink);box-shadow:inset 0 0 0 1px var(--edge)}
+#aurora .list{margin:12px 16px 0;border-radius:22px;padding:4px 16px}
+#aurora .li{display:flex;align-items:center;gap:12px;padding:11px 0}
+#aurora .li+.li{box-shadow:inset 0 1px 0 var(--track)}
+#aurora .li .av{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:var(--track);font-weight:700;font-size:14px}
+#aurora .li .p{font-size:14.5px;font-weight:600}#aurora .li .d{font-size:12px;color:var(--mute);margin-top:2px}
+#aurora .li .a{margin-left:auto;font-size:17px}
+
+#aurora .grab{width:38px;height:5px;border-radius:9px;background:var(--track);margin:6px auto 0}
+#aurora .sheet-top{display:flex;justify-content:space-between;align-items:center;padding:12px 22px 0;font-size:15.5px}
+#aurora .sheet-top .c{color:var(--mute)}#aurora .sheet-top .t{font-weight:600}
+#aurora .entry{text-align:center;padding:52px 0 0}
+#aurora .entry .amount{font-size:88px;line-height:1}
+#aurora .entry .who{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:9px 16px;border-radius:99px;font-size:14.5px;font-weight:600}
+#aurora .pick{margin:44px 16px 0;border-radius:24px;padding:14px 16px 15px}
+#aurora .pick .h{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600}
+#aurora .pick .h .icon{color:var(--ok)}
+#aurora .pick .h span{margin-left:auto;font-size:12.5px;color:var(--mute);font-weight:500;display:flex;align-items:center;gap:2px}
+#aurora .pick .track{height:8px;border-radius:99px;background:var(--track);margin:13px 0 9px;display:flex;overflow:hidden}
+#aurora .pick .track i{height:100%}
+#aurora .pick .track .was{background:var(--ink);opacity:.4}#aurora .pick .track .now{background:var(--need)}
+#aurora .pick .f{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mute)}
+#aurora .pick .f b{color:var(--ok);font-weight:600}
+#aurora .meta{display:flex;gap:10px;padding:10px 16px 0}
+#aurora .meta>div{flex:1;border-radius:18px;padding:11px 14px;display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+#aurora .meta .icon{color:var(--mute)}
+#aurora .pad{position:absolute;left:0;right:0;bottom:0;padding:0 26px 34px;display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+#aurora .pad b{height:60px;border-radius:20px;background:var(--key);box-shadow:inset 0 0 0 1px var(--edge);display:grid;place-items:center;font:600 24px/1 'Bricolage Grotesque',sans-serif}
+#aurora .pad b.fn{color:var(--mute)}
+#aurora .pad b.save{grid-row:span 2;height:auto;background:linear-gradient(160deg,var(--ok),var(--ok2));color:var(--onok);box-shadow:none}
+
+/* Colours corrected so every text colour passes WCAG AA (4.5:1) on a tile. See contrast.mjs. */
+#aurora .dark{--bg:radial-gradient(120% 60% at 0% 0%,#0F3231 0%,transparent 60%),radial-gradient(90% 50% at 100% 18%,#14254A 0%,transparent 62%),radial-gradient(100% 50% at 50% 100%,#0D2625 0%,transparent 70%),#07090C;--mute:#A9B3BF;--ok2:#5CCBF4;--over:#FF9A8D;--zero:#A2ACB8}
+#aurora .light{--mute:#5A6675;--ok:#067A5B;--ok2:#0B6BA8;--need:#8F5B00;--over:#C0341F;--zero:#677381}
+#aurora .tile .note{font-size:12px}
+#aurora .src .d .cents,#aurora .gh2 .cents,#aurora .sub .cents{font-size:1em;opacity:1}
+#aurora .tile .h span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+#aurora .hd{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 0 24px}
+#aurora .hd .disp{font-size:32px}
+#aurora .sub{font-size:13px;color:var(--mute);font-weight:500}
+#aurora .gh2{padding:18px 26px 8px;font-size:13px;font-weight:600;color:var(--mute);display:flex;justify-content:space-between}
+#aurora .chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:99px;font-size:12px;font-weight:600;background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}
+#aurora .chip i{width:6px;height:6px;border-radius:50%;background:var(--c)}
+#aurora .li .a.in{color:var(--ok)}
+#aurora .big{margin:14px 16px 0;border-radius:30px;padding:20px 22px;position:relative;overflow:hidden}
+#aurora .big:before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,var(--ok),var(--ok2));opacity:.16}
+#aurora .big>*{position:relative}
+#aurora .big .amount{font-size:50px;line-height:1;margin:6px 0 10px}
+
+/* Setup */
+#aurora .setup{padding:34px 24px 0}
+#aurora .setup .word{font-size:20px;display:flex;align-items:center;gap:9px}
+#aurora .setup .word i{width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,var(--ok),var(--ok2))}
+#aurora .setup h1{font-size:36px;line-height:1.05;margin:34px 0 12px}
+#aurora .setup p{font-size:15.5px;line-height:1.45;color:var(--mute)}
+#aurora .fld{margin:10px 16px 0;border-radius:20px;padding:12px 16px 13px;position:relative}
+#aurora .fld label{display:block;font-size:12px;color:var(--mute);font-weight:500}
+#aurora .fld div{font-size:16.5px;font-weight:600;margin-top:4px}
+#aurora .fld .chip{position:absolute;right:14px;top:18px}
+#aurora .opt{display:flex;align-items:center;gap:12px;padding:13px 0}
+#aurora .opt+.opt{box-shadow:inset 0 1px 0 var(--track)}
+#aurora .opt .n{font-size:15.5px;font-weight:600}#aurora .opt .d{font-size:12.5px;color:var(--mute);margin-top:2px}
+#aurora .radio{margin-left:auto;width:24px;height:24px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--track);display:grid;place-items:center;flex:none}
+#aurora .radio.on{box-shadow:none;background:linear-gradient(135deg,var(--ok),var(--ok2));color:var(--onok)}
+#aurora .bottom{position:absolute;left:16px;right:16px;bottom:34px}
+#aurora .bottom .btn{flex:none;width:100%;height:56px;font-size:16px}
+#aurora .bottom .fine{display:flex;align-items:center;justify-content:center;gap:7px;font-size:12.5px;color:var(--mute);margin-top:14px}
+
+/* Register */
+#aurora .strip{margin:10px 16px 0;border-radius:20px;padding:11px 12px 11px 16px;display:flex;align-items:center;gap:10px;font-size:14px;--c:var(--need);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 12%,transparent)}
+#aurora .strip b{font-weight:600}
+#aurora .strip .go{margin-left:auto;padding:7px 13px;border-radius:99px;background:var(--c);color:#221400;font-weight:700;font-size:13px}
+#aurora .light .strip .go{color:#fff}
+#aurora .split{display:flex;gap:18px;font-size:12.5px;color:var(--mute)}
+#aurora .split b{color:var(--ink);font-weight:600}
+#aurora .plusfab{position:absolute;right:20px;bottom:34px;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--ok),var(--ok2));color:var(--onok);box-shadow:0 16px 30px -10px rgba(0,0,0,.6);z-index:10}
+
+/* Sheets */
+#aurora .dim{position:absolute;inset:0;padding-top:54px;display:flex;flex-direction:column;opacity:.3;filter:blur(3px)}
+#aurora .dim>*{flex-shrink:0}
+#aurora .sheet{position:absolute;left:0;right:0;bottom:0;border-radius:34px 34px 0 0;padding:8px 16px 34px;background:var(--sheet);box-shadow:inset 0 1px 0 var(--edge),0 -30px 60px -20px rgba(0,0,0,.7);z-index:15}
+#aurora .dark{--sheet:#12171C}#aurora .light{--sheet:#FAFCFD}
+#aurora .sheet h2{font-size:27px;margin:16px 8px 6px}
+#aurora .sheet p{font-size:14.5px;color:var(--mute);margin:0 8px 14px;line-height:1.4}
+#aurora .sheet p b{color:var(--over);font-weight:600}
+#aurora .src{border-radius:20px;padding:12px 14px;margin-top:8px;display:flex;align-items:center;gap:12px}
+#aurora .src.on{box-shadow:inset 0 0 0 1.5px var(--ok),0 0 24px -10px var(--ok)}
+#aurora .src .n{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+#aurora .src .d{font-size:12.5px;color:var(--mute);margin-top:3px;font-variant-numeric:tabular-nums}
+#aurora .src .d b{color:var(--ink);font-weight:600}
+#aurora .src.off{opacity:.45}
+#aurora .sheet .btn{flex:none;width:100%;height:56px;font-size:16px;margin-top:16px}
+
+/* Assign */
+#aurora .give{display:flex;align-items:center;gap:12px;padding:12px 0}
+#aurora .give+.give{box-shadow:inset 0 1px 0 var(--track)}
+#aurora .give .icon{color:var(--c)}
+#aurora .give .n{font-size:15px;font-weight:600}#aurora .give .d{font-size:12.5px;color:var(--mute);margin-top:2px}
+#aurora .step{margin-left:auto;height:38px;border-radius:99px;display:flex;align-items:center;gap:10px;padding:0 6px;background:var(--track);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+#aurora .step i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--glass);box-shadow:inset 0 0 0 1px var(--edge);font-style:normal;color:var(--mute)}
+#aurora .step.set{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+#aurora .done{display:flex;justify-content:space-between;font-size:13.5px;color:var(--mute);margin:0 8px 12px}
+#aurora .done b{color:var(--ok);font-weight:600}
+
+/* Robustness variants */
+#aurora .solid .glass{backdrop-filter:none;background:var(--solid)}
+#aurora .dark{--solid:#151B20}#aurora .light{--solid:#FFFFFF}
+#aurora .solid .dock{backdrop-filter:none;background:var(--sheet)}
+#aurora .wrap .tile .h{align-items:flex-start}
+#aurora .wrap .tile .h span{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25}
+#aurora .wrap .tile .h .icon{margin-top:1px}
+#aurora .wrap .tile{display:flex;flex-direction:column}
+#aurora .wrap .tile .amt{margin-top:auto;padding-top:7px}
+#aurora .tile .amt.long{font-size:22px}
+#aurora .hero.bad:before{background:var(--over);opacity:.2}
+#aurora .hero.bad .amount{color:var(--over)}
+#aurora .hero.bad .assign{background:var(--over);color:#1b0704}
+#aurora .stale{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;padding:0 13px;height:40px;border-radius:99px;color:var(--need)}
+#aurora .xl .grid{grid-template-columns:1fr}
+#aurora .xl .tile{display:grid;grid-template-columns:1fr auto;column-gap:12px;padding:16px 18px}
+#aurora .xl .tile .h{font-size:18px;grid-column:1}
+#aurora .xl .tile .amt{font-size:32px;margin:0;grid-column:2;grid-row:1 / span 2;align-self:center}
+#aurora .xl .tile .note{font-size:15.5px;margin-top:5px;grid-column:1;white-space:normal}
+#aurora .xl .tile .track{grid-column:1 / -1;margin-top:13px;height:6px}
+#aurora .xl .gh{font-size:17px}
+#aurora .xl .month{font-size:21px}
+#aurora .xl .hero .lab{font-size:17px}#aurora .xl .hero .amount{font-size:64px}
+#aurora .xl .flowkey{display:none}
+#aurora .xl .assign{position:static!important;display:inline-block;margin-top:16px;font-size:17px;padding:12px 22px}
+#aurora .xl .alert{font-size:17px;flex-wrap:wrap}#aurora .xl .alert .go{font-size:16px;margin-left:0}
+#aurora .xl .dock .t{font-size:17px}
+
+/* The bar is the pot as it is now. The hatched end is what is about to leave (a bite) or
+   arrive (a gain). A bite bigger than the pot turns the whole bar coral. */
+#aurora .bite .bt{height:10px;border-radius:99px;background:var(--track);display:flex;overflow:hidden}
+#aurora .bite .bt i{height:100%;display:block}
+#aurora .bite .keep{background:linear-gradient(90deg,var(--ok),var(--ok2))}
+#aurora .bite .gone{background:repeating-linear-gradient(-55deg,var(--need) 0 3px,transparent 3px 6px);box-shadow:inset 2px 0 0 var(--need)}
+#aurora .bite .gain{background:repeating-linear-gradient(-55deg,var(--ok) 0 3px,transparent 3px 6px);box-shadow:inset -2px 0 0 var(--ok)}
+#aurora .bite .debt{background:var(--over);opacity:.55}
+#aurora .bite.bust .gone{background:repeating-linear-gradient(-55deg,var(--over) 0 3px,transparent 3px 6px);box-shadow:none}
+#aurora .bite .bl{display:flex;justify-content:space-between;margin-top:9px;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums}
+#aurora .bite .bl b{font-weight:600;color:var(--ok)}
+#aurora .bite.bust .bl b{color:var(--over)}
+#aurora .bite.sm .bt{height:6px}
+#aurora .bite.sm .bl{margin-top:6px;font-size:12.5px}
+#aurora .bite .cents{font-size:1em;opacity:1}
+
+#aurora .pot{margin:10px 16px 0;border-radius:24px;padding:14px 16px 15px}
+#aurora .pot .h{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600;margin-bottom:13px}
+#aurora .pot .h .icon{color:var(--c)}
+#aurora .pot .h span{margin-left:auto;font-size:12.5px;color:var(--mute);font-weight:500;display:flex;align-items:center;gap:2px}
+#aurora .pot .role{font-size:11.5px;font-weight:600;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+#aurora .pot.warn{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--over) 55%,transparent),0 0 30px -12px var(--over)}
+#aurora .fixit{margin:10px 16px 0;border-radius:20px;padding:11px 12px 11px 16px;display:flex;align-items:center;gap:10px;font-size:14px}
+#aurora .fixit .go{margin-left:auto;padding:7px 13px;border-radius:99px;background:var(--glass);box-shadow:inset 0 0 0 1px var(--edge);font-weight:600;font-size:13px;white-space:nowrap}
+#aurora .swap{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;margin:-12px auto -22px;position:relative;z-index:3;background:var(--sheet);box-shadow:inset 0 0 0 1px var(--edge);transform:rotate(90deg)}
+#aurora .src .bite{margin-top:9px}
+#aurora .src>div:first-child{flex:1;min-width:0}
+#aurora .give .bite{margin-top:8px;width:150px}
+#aurora .entry.tight{padding-top:22px}#aurora .entry.tight .amount{font-size:72px}
+#aurora .pad b.save.warn{background:var(--over);color:#1b0704}
+
+#aurora .mo{position:absolute;inset:0}
+#aurora .L{position:absolute;inset:0;padding-top:54px;display:flex;flex-direction:column;transition:transform 420ms cubic-bezier(.2,0,0,1),opacity 240ms cubic-bezier(.2,0,0,1),filter 240ms cubic-bezier(.2,0,0,1)}
+#aurora .L>*{flex-shrink:0}
+#aurora .L.up{top:44px;padding-top:0;border-radius:34px 34px 0 0;background:var(--sheet);box-shadow:inset 0 1px 0 var(--edge),0 -30px 60px -20px rgba(0,0,0,.7);z-index:15}
+#aurora .L.up.fit{top:auto;height:auto;display:block;padding:8px 16px 34px}
+#aurora [data-f="0"] .v:not([data-on~="0"]){display:none!important}
+#aurora [data-f="1"] .v:not([data-on~="1"]){display:none!important}
+#aurora [data-f="2"] .v:not([data-on~="2"]){display:none!important}
+#aurora [data-f="3"] .v:not([data-on~="3"]){display:none!important}
+#aurora .bite .bt i{transition:width 420ms cubic-bezier(.3,1.4,.5,1),opacity 240ms cubic-bezier(.2,0,0,1)}
+#aurora .tile,#aurora .hero .amount{transition:box-shadow 420ms cubic-bezier(.2,0,0,1),color 240ms cubic-bezier(.2,0,0,1)}
+#aurora .fold{overflow:hidden;transition:max-height 420ms cubic-bezier(.2,0,0,1),opacity 240ms cubic-bezier(.2,0,0,1);max-height:80px}
+#aurora .pulse{box-shadow:inset 0 0 0 1.5px var(--ok),0 0 34px -8px var(--ok)!important}
+#aurora .tap{position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(255,255,255,.28);box-shadow:0 0 0 2px rgba(255,255,255,.7);z-index:40}
+#aurora .pad b.save{transition:transform 120ms cubic-bezier(.2,0,0,1),filter 120ms}
+#aurora [data-f="2"] .pad b.save{transform:scale(.93);filter:brightness(.85)}
+#aurora .ghost{opacity:.3}
+
+/* Quick add: the sheet covers the Plan until it is saved. */
+#aurora .qa[data-f="0"] .plan,#aurora .qa[data-f="1"] .plan{opacity:.3;filter:blur(3px)}
+#aurora .qa[data-f="2"] .plan{opacity:.75}
+#aurora .qa[data-f="2"] .up{transform:translateY(34%)}
+#aurora .qa[data-f="3"] .up{transform:translateY(105%)}
+#aurora .qa[data-f="0"] .gone{width:0!important}#aurora .qa[data-f="0"] .keep{width:100%!important}
+#aurora .qa[data-f="2"] .gone{opacity:0}
+
+/* Cover: the sheet rises over the Plan, then the Plan settles. */
+#aurora .cv[data-f="0"] .up,#aurora .cv[data-f="3"] .up{transform:translateY(105%)}
+#aurora .cv[data-f="2"] .up{transform:translateY(86%)}
+#aurora .cv[data-f="1"] .plan{opacity:.3;filter:blur(3px)}
+#aurora .cv[data-f="2"] .plan{opacity:.8}
+#aurora .cv[data-f="3"] .fold{max-height:0;opacity:0}
+
+</style></head><body id="aurora" data-width="956" data-height="1230">
+<header class="board-head"><div class="kicker">Accrual · design round 3</div><h1>Aurora · motion, live</h1><p>The two storyboards, playing in a loop at real speed. Numbers switch instead of rolling, and there are no haptics, so treat this as a sketch of the timing and not the finished feel.</p></header>
+<div class="row">
+<figure class="shot">
+  <div class="phone dark"><div class="statusbar"><span>9:41</span><span class="sb-right">
+  <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx=".7"/><rect x="5" y="5.5" width="3" height="6.5" rx=".7"/><rect x="10" y="3" width="3" height="9" rx=".7"/><rect x="15" y="0" width="3" height="12" rx=".7"/></svg>
+  <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x=".5" y=".5" width="22" height="11" rx="3.2" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="19" height="8" rx="2" fill="currentColor"/><rect x="24" y="4" width="1.5" height="4" rx=".7" fill="currentColor" opacity=".4"/></svg>
+</span></div><div class="screen"><div class="mo qa" data-f="0">
+<div class="L plan">
+<div class="top">
+  <div class="month glass">November <span>2026</span><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9.5 6 6 6-6"/></svg></div>
+  <div class="round glass"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.500c.8-3.300 3.600-5 7-5s6.200 1.700 7 5"/></svg></div>
+</div><div class="hero glass">
+  <div class="lab">Ready to budget</div>
+  <div class="amount disp"><span class="money ">$312<span class="cents">.00</span></span></div>
+  <div class="flow"><i class="s" style="width:55%"></i><i class="b" style="width:40%"></i><i class="f" style="width:5%"></i></div>
+  <div class="flowkey"><span>Spent <b>$3,416</b></span><span>Still set aside <b>$2,463</b></span></div>
+  <div class="assign">Assign</div>
+</div><div class="alert"><span><b>Dining out</b> is $28.10 over</span><span class="go">Cover it</span></div>
+<div class="gh"><span>Bills</span><span>$220</span></div><div class="grid"><div class="tile glass spent">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z"/></svg><span>Rent</span></div>
+  <div class="amt disp"><span class="money ">$0<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:100%"></i></div>
+  <div class="note">Fully spent</div>
+</div><div class="tile glass ok">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/></svg><span>Electricity</span></div>
+  <div class="amt disp"><span class="money ">$120<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:0%"></i></div>
+  <div class="note">Funded · due 24 Nov</div>
+</div><div class="tile glass spent">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9.5a12.5 12.5 0 0 1 17 0M6.5 13a8 8 0 0 1 11 0M9.5 16.3a3.6 3.6 0 0 1 5 0"/><circle cx="12" cy="19.2" r=".6"/></svg><span>Internet</span></div>
+  <div class="amt disp"><span class="money ">$0<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:100%"></i></div>
+  <div class="note">Fully spent</div>
+</div><div class="tile glass needs">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 5 6v5.5c0 4.2 2.8 7.4 7 9 4.2-1.6 7-4.8 7-9V6z"/></svg><span>Insurance</span></div>
+  <div class="amt disp"><span class="money ">$100<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:71.42857142857143%"></i></div>
+  <div class="note">$40 needed by 5 Dec</div>
+</div></div><div class="gh"><span>Everyday</span><span>$297</span></div><div class="grid"><div data-on="0 1 2" class="v tile glass ok">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h16l-1.5 9.5a1 1 0 0 1-1 .8h-11a1 1 0 0 1-1-.8zM8.5 9.5 11 4.5M15.5 9.5 13 4.5"/></svg><span>Groceries</span></div>
+  <div class="amt disp"><span class="money ">$207<span class="cents">.62</span></span></div>
+  <div class="track"><i style="width:71.16388888888889%"></i></div>
+  <div class="note">$17 a day for 12 days</div>
+</div><div data-on="3" class="v tile pulse glass ok">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h16l-1.5 9.5a1 1 0 0 1-1 .8h-11a1 1 0 0 1-1-.8zM8.5 9.5 11 4.5M15.5 9.5 13 4.5"/></svg><span>Groceries</span></div>
+  <div class="amt disp"><span class="money ">$189<span class="cents">.22</span></span></div>
+  <div class="track"><i style="width:73.71944444444445%"></i></div>
+  <div class="note">$15 a day for 12 days</div>
+</div><div class="tile glass over">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5V10a2.5 2.5 0 0 0 5 0V3.500M9.5 3.5v17M17 20.5v-17c-2 1.200-3 3.500-3 6.500v2.500h3"/></svg><span>Dining out</span></div>
+  <div class="amt disp"><span class="money ">−$28<span class="cents">.10</span></span></div>
+  <div class="track"><i style="width:100%"></i></div>
+  <div class="note">Overspent</div>
+</div><div class="tile glass ok">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3.5" width="12" height="13" rx="3"/><path d="M6 11h12M9 20.5l1.500-4M15 20.5l-1.500-4"/></svg><span>Transport</span></div>
+  <div class="amt disp"><span class="money ">$76<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:52.5%"></i></div>
+  <div class="note">On track</div>
+</div><div class="tile glass ok">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8.5h12V14a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5zM17 10h1.5a2.5 2.5 0 0 1 0 5H17M8.5 3.5v2M12 3.5v2"/></svg><span>Coffee</span></div>
+  <div class="amt disp"><span class="money ">$13<span class="cents">.50</span></span></div>
+  <div class="track"><i style="width:70%"></i></div>
+  <div class="note">On track</div>
+</div></div>
+<div class="fade"></div>
+<div class="dock"><div class="t on"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4.5" width="16" height="4.5" rx="1.5"/><rect x="4" y="11" width="16" height="4.5" rx="1.5"/><path d="M4 19.5h10"/></svg>Plan</div><div class="add"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></div><div class="t "><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3M4 7.500V17a2 2 0 0 0 2 2h13a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1H6.500A2.500 2.500 0 0 1 4 7.500z"/><circle cx="16.2" cy="13.5" r=".7"/></svg>Accounts</div></div></div>
+<div class="L up">
+  <div class="grab"></div><div class="sheet-top"><span class="c">Cancel</span><span class="t">New transaction</span><span class="c">Today</span></div>
+  <div class="entry"><div class="amount disp"><span class="v" data-on="0"><span class="ghost"><span class="money ">$0<span class="cents">.00</span></span></span></span><span class="v" data-on="1 2 3"><span class="money ">−$18<span class="cents">.40</span></span></span></div>
+    <div data-on="0" class="v who glass ghost">Who did you pay?</div><div data-on="1 2 3" class="v who glass"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.500 4.500L19 7.500"/></svg>Corner Bakery</div></div>
+  <div class="pot glass ok" style="margin-top:36px">
+    <div class="h"><svg class="icon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h16l-1.5 9.5a1 1 0 0 1-1 .8h-11a1 1 0 0 1-1-.8zM8.5 9.5 11 4.5M15.5 9.5 13 4.5"/></svg>Groceries<span>Suggested<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 6 6 6-6 6"/></svg></span></div>
+    <div class="bite  "><div class="bt"><i class="keep" style="width:91.13765533185628%"></i><i class="gone" style="width:8.862344668143724%"></i></div></div>
+    <div class="bite"><div class="bl"><span class="v" data-on="0 1"><span><span class="money ">$207<span class="cents">.62</span></span></span></span><span class="v" data-on="2 3"><span><span class="money ">$189<span class="cents">.22</span></span></span></span><span class="v" data-on="1"><b><span class="money ">$189<span class="cents">.22</span></span> after</b></span><span class="v" data-on="2 3"><b>Saved</b></span></div></div>
+  </div>
+  <div class="pad">
+  <b>1</b><b>2</b><b>3</b><b class="fn"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5.500-6zM12 9.500l5 5M17 9.500l-5 5"/></svg></b>
+  <b>4</b><b>5</b><b>6</b><b class="fn">+/−</b>
+  <b>7</b><b>8</b><b>9</b><b class="save "><svg class="icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.500 4.500L19 7.500"/></svg></b>
+  <b>.</b><b>0</b><b>00</b>
+</div>
+</div>
+<div class="tap v" data-on="1" style="left:206px;top:612px"></div>
+</div></div><div class="homebar"></div></div>
+  <figcaption>Quick add: the bite</figcaption>
+</figure>
+<figure class="shot">
+  <div class="phone dark"><div class="statusbar"><span>9:41</span><span class="sb-right">
+  <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx=".7"/><rect x="5" y="5.5" width="3" height="6.5" rx=".7"/><rect x="10" y="3" width="3" height="9" rx=".7"/><rect x="15" y="0" width="3" height="12" rx=".7"/></svg>
+  <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x=".5" y=".5" width="22" height="11" rx="3.2" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="19" height="8" rx="2" fill="currentColor"/><rect x="24" y="4" width="1.5" height="4" rx=".7" fill="currentColor" opacity=".4"/></svg>
+</span></div><div class="screen"><div class="mo cv" data-f="0">
+<div class="L plan">
+<div class="top">
+  <div class="month glass">November <span>2026</span><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9.5 6 6 6-6"/></svg></div>
+  <div class="round glass"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.500c.8-3.300 3.600-5 7-5s6.200 1.700 7 5"/></svg></div>
+</div><div class="hero glass">
+  <div class="lab">Ready to budget</div>
+  <div class="amount disp"><span class="v" data-on="0 1"><span class="money ">$312<span class="cents">.00</span></span></span><span class="v" data-on="2 3"><span class="money ">$283<span class="cents">.90</span></span></span></div>
+  <div class="flow"><i class="s" style="width:55%"></i><i class="b" style="width:40%"></i><i class="f" style="width:5%"></i></div>
+  <div class="flowkey"><span>Spent <b>$3,416</b></span><span>Still set aside <b>$2,463</b></span></div>
+  <div class="assign">Assign</div>
+</div><div class="fold"><div class="alert"><span><b>Dining out</b> is $28.10 over</span><span class="go">Cover it</span></div></div>
+<div class="gh"><span>Bills</span><span>$220</span></div><div class="grid"><div class="tile glass spent">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z"/></svg><span>Rent</span></div>
+  <div class="amt disp"><span class="money ">$0<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:100%"></i></div>
+  <div class="note">Fully spent</div>
+</div><div class="tile glass ok">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/></svg><span>Electricity</span></div>
+  <div class="amt disp"><span class="money ">$120<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:0%"></i></div>
+  <div class="note">Funded · due 24 Nov</div>
+</div><div class="tile glass spent">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9.5a12.5 12.5 0 0 1 17 0M6.5 13a8 8 0 0 1 11 0M9.5 16.3a3.6 3.6 0 0 1 5 0"/><circle cx="12" cy="19.2" r=".6"/></svg><span>Internet</span></div>
+  <div class="amt disp"><span class="money ">$0<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:100%"></i></div>
+  <div class="note">Fully spent</div>
+</div><div class="tile glass needs">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 5 6v5.5c0 4.2 2.8 7.4 7 9 4.2-1.6 7-4.8 7-9V6z"/></svg><span>Insurance</span></div>
+  <div class="amt disp"><span class="money ">$100<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:71.42857142857143%"></i></div>
+  <div class="note">$40 needed by 5 Dec</div>
+</div></div><div class="gh"><span>Everyday</span><span>$297</span></div><div class="grid"><div class="tile glass ok">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h16l-1.5 9.5a1 1 0 0 1-1 .8h-11a1 1 0 0 1-1-.8zM8.5 9.5 11 4.5M15.5 9.5 13 4.5"/></svg><span>Groceries</span></div>
+  <div class="amt disp"><span class="money ">$207<span class="cents">.62</span></span></div>
+  <div class="track"><i style="width:71.16388888888889%"></i></div>
+  <div class="note">$17 a day for 12 days</div>
+</div><div data-on="0 1" class="v tile glass over">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5V10a2.5 2.5 0 0 0 5 0V3.500M9.5 3.5v17M17 20.5v-17c-2 1.200-3 3.500-3 6.500v2.500h3"/></svg><span>Dining out</span></div>
+  <div class="amt disp"><span class="money ">−$28<span class="cents">.10</span></span></div>
+  <div class="track"><i style="width:100%"></i></div>
+  <div class="note">Overspent</div>
+</div><div data-on="2" class="v tile pulse glass ok">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5V10a2.5 2.5 0 0 0 5 0V3.500M9.5 3.5v17M17 20.5v-17c-2 1.200-3 3.500-3 6.500v2.500h3"/></svg><span>Dining out</span></div>
+  <div class="amt disp"><span class="money ">$0<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:100%"></i></div>
+  <div class="note">Covered</div>
+</div><div data-on="3" class="v tile glass spent">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5V10a2.5 2.5 0 0 0 5 0V3.500M9.5 3.5v17M17 20.5v-17c-2 1.200-3 3.500-3 6.500v2.500h3"/></svg><span>Dining out</span></div>
+  <div class="amt disp"><span class="money ">$0<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:100%"></i></div>
+  <div class="note">Covered · fully spent</div>
+</div><div class="tile glass ok">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3.5" width="12" height="13" rx="3"/><path d="M6 11h12M9 20.5l1.500-4M15 20.5l-1.500-4"/></svg><span>Transport</span></div>
+  <div class="amt disp"><span class="money ">$76<span class="cents">.00</span></span></div>
+  <div class="track"><i style="width:52.5%"></i></div>
+  <div class="note">On track</div>
+</div><div class="tile glass ok">
+  <div class="h"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8.5h12V14a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5zM17 10h1.5a2.5 2.5 0 0 1 0 5H17M8.5 3.5v2M12 3.5v2"/></svg><span>Coffee</span></div>
+  <div class="amt disp"><span class="money ">$13<span class="cents">.50</span></span></div>
+  <div class="track"><i style="width:70%"></i></div>
+  <div class="note">On track</div>
+</div></div>
+<div class="fade"></div>
+<div class="dock"><div class="t on"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4.5" width="16" height="4.5" rx="1.5"/><rect x="4" y="11" width="16" height="4.5" rx="1.5"/><path d="M4 19.5h10"/></svg>Plan</div><div class="add"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></div><div class="t "><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3M4 7.500V17a2 2 0 0 0 2 2h13a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1H6.500A2.500 2.500 0 0 1 4 7.500z"/><circle cx="16.2" cy="13.5" r=".7"/></svg>Accounts</div></div></div>
+<div class="L up fit">
+  <div class="grab"></div>
+  <h2 class="disp" style="font-size:27px;margin:16px 8px 6px">Cover Dining out</h2>
+  <div class="pot glass over" style="margin:10px 0 16px"><div class="h" style="margin-bottom:11px"><svg class="icon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5V10a2.5 2.5 0 0 0 5 0V3.500M9.5 3.5v17M17 20.5v-17c-2 1.200-3 3.500-3 6.500v2.500h3"/></svg>Dining out</div><div class="bite  "><div class="bt"><i class="gain" style="width:100%"></i><i class="debt" style="width:0%"></i></div><div class="bl"><span><span class="money ">−$28<span class="cents">.10</span></span></span><b><span class="money ">$0<span class="cents">.00</span></span> after</b></div></div></div>
+  <p style="font-size:14.5px;color:var(--mute);margin:0 8px 4px">Take $28.10 from</p>
+  <div class="src glass on"><div><div class="n"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="7.5" rx="7" ry="3"/><path d="M5 7.5v4.5c0 1.7 3.100 3 7 3s7-1.300 7-3V7.500M5 12v4.500c0 1.700 3.100 3 7 3s7-1.300 7-3V12"/></svg>Ready to budget</div><div class="bite  sm"><div class="bt"><i class="keep" style="width:90.99358974358975%"></i><i class="gone" style="width:9.006410256410255%"></i></div><div class="bl"><span><span class="money ">$312<span class="cents">.00</span></span></span><b><span class="money ">$283<span class="cents">.90</span></span> after</b></div></div></div><div class="radio on"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.500 4.500L19 7.500"/></svg></div></div>
+  <div class="src glass"><div><div class="n"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3.5" width="12" height="13" rx="3"/><path d="M6 11h12M9 20.5l1.500-4M15 20.5l-1.500-4"/></svg>Transport</div><div class="bite  sm"><div class="bt"><i class="keep" style="width:63.026315789473685%"></i><i class="gone" style="width:36.973684210526315%"></i></div><div class="bl"><span><span class="money ">$76<span class="cents">.00</span></span></span><b><span class="money ">$47<span class="cents">.90</span></span> after</b></div></div></div><div class="radio"></div></div>
+  <div class="btn" style="flex:none;width:100%;height:56px;font-size:16px;margin-top:16px">Cover $28.10</div>
+</div>
+<div class="tap v" data-on="0" style="left:330px;top:296px"></div><div class="tap v" data-on="1" style="left:195px;top:778px"></div>
+</div></div><div class="homebar"></div></div>
+  <figcaption>Cover overspending</figcaption>
+</figure></div>
+<script>
+    const holds = [1500, 1600, 900, 2200];
+    for (const el of document.querySelectorAll('.mo')) {
+      let f = 0;
+      const step = () => { el.dataset.f = f; const wait = holds[f]; f = (f + 1) % 4; setTimeout(step, wait); };
+      step();
+    }</script>
+</body></html>
