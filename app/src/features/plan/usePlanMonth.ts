@@ -106,11 +106,15 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
   // The sync running now, sync and read after it together, or null. Only one runs at a time:
   // a pull or a save that comes while one runs waits for it rather than starting another.
   const running = useRef<Promise<void> | null>(null);
+  // A save made while a sync ran may not be in that sync, so it is owed one more when it ends.
+  // A flag, not a queue: any number of saves during one sync owe exactly one more.
+  const owed = useRef(false);
 
   // The one sync path, for a pull and after a save: what a failed sync shows, and signing out
   // when the session has expired, are decided here only.
-  const syncOnce = useCallback(async () => {
-    if (!engine) return;
+  /** Returns false when the session has expired and the person is being signed out. */
+  const syncOnce = useCallback(async (): Promise<boolean> => {
+    if (!engine) return false;
     let synced = false;
     try {
       await engine.sync();
@@ -121,36 +125,57 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
       if (code === 'token-expired' && onSessionExpired) {
         setRefreshing(false);
         onSessionExpired();
-        return;
+        return false;
       }
       setSync(code === 'network-failure' ? 'offline' : 'failed');
     }
     // Keep showing the numbers while they are read again. A sync can add months.
     await Promise.all([read(shown.current, false), synced ? readBounds() : null]);
+    return true;
   }, [engine, read, readBounds, onSessionExpired]);
 
-  /** Syncs then reads, or joins the sync already running. `spinner`: a pull, which shows it until done. */
+  // Starts a sync. When it ends, successfully or not, a sync owed by a save runs once more,
+  // through this same path, and its result is what the Plan shows. A signed-out session owes nothing.
+  const startSync = useCallback((): Promise<void> => {
+    // Those waiting on this sync (a pull's spinner) are done when it ends, not when the one owed does.
+    const run = syncOnce().then(stillSignedIn => {
+      running.current = null;
+      const again = owed.current && stillSignedIn;
+      owed.current = false;
+      if (again) void startSync();
+    });
+    running.current = run;
+    return run;
+  }, [syncOnce]);
+
+  /**
+   * Syncs then reads, or joins the sync already running. `spinner`: a pull, which shows it
+   * until the sync it joined is done. `afterSave`: the change may not be in a sync already
+   * running, so one more is owed after it.
+   */
   const syncThenRead = useCallback(
-    async (spinner: boolean) => {
+    async (spinner: boolean, afterSave = false) => {
       if (!engine) return;
       if (spinner) setRefreshing(true);
       try {
-        running.current ??= syncOnce().finally(() => {
-          running.current = null;
-        });
-        await running.current;
+        if (running.current) {
+          if (afterSave) owed.current = true;
+          await running.current;
+        } else {
+          await startSync();
+        }
       } finally {
         if (spinner) setRefreshing(false);
       }
     },
-    [engine, syncOnce],
+    [engine, startSync],
   );
 
   const refresh = useCallback(() => syncThenRead(true), [syncThenRead]);
 
   const afterSave = useCallback(async () => {
     await read(shown.current, false);
-    await syncThenRead(false);
+    await syncThenRead(false, true);
   }, [read, syncThenRead]);
 
   const reload = useCallback(() => void read(month, true), [read, month]);

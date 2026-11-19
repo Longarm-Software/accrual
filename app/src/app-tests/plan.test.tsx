@@ -631,7 +631,7 @@ it('reads the month again on each save, not on each render', async () => {
   await waitFor(() => expect(getPlanMonth).toHaveBeenCalledTimes(reads + 2));
 });
 
-it('joins a pull already syncing after a save, rather than starting a second sync', async () => {
+it('a save during a pull joins its sync, which ends the pull as before, then owes one more', async () => {
   let finishSync!: () => void;
   const { engine, sync, getPlanMonth } = spendingEngine({
     sync: jest.fn(() => new Promise<void>(resolve => (finishSync = () => resolve()))),
@@ -652,9 +652,13 @@ it('joins a pull already syncing after a save, rather than starting a second syn
     finishSync();
     await pull;
   });
+  // The pull ends with its own sync and read, as a pull did before.
   expect(refreshControl().props.refreshing).toBe(false);
-  expect(sync).toHaveBeenCalledTimes(1);
-  expect(getPlanMonth).toHaveBeenCalledTimes(reads + 1);
+  expect(getPlanMonth.mock.calls.length).toBeGreaterThanOrEqual(reads + 1);
+  // Then the sync the save is owed starts, in the background.
+  await waitFor(() => expect(sync).toHaveBeenCalledTimes(2));
+  expect(refreshControl().props.refreshing).toBe(false);
+  await act(async () => finishSync());
 });
 
 it('a pull during the sync after a save joins it, and shows its spinner until it ends', async () => {
@@ -690,4 +694,92 @@ it('syncs again for a later save once the earlier sync has finished', async () =
   await waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
   await act(async () => announceSaved());
   await waitFor(() => expect(sync).toHaveBeenCalledTimes(2));
+});
+
+// --- A save made while a sync runs is owed one more sync, so it reaches the server ---
+
+/** A sync that waits to be told how to end, then syncs that end at once as `rest` says. */
+function heldThen(rest: () => Promise<void>) {
+  let end!: (error?: Error) => void;
+  const ends = jest
+    .fn<Promise<void>, []>()
+    .mockImplementationOnce(() => new Promise<void>((resolve, reject) => (end = e => (e ? reject(e) : resolve()))))
+    .mockImplementation(rest);
+  return { ends, end: (error?: Error) => end(error) };
+}
+
+/** Starts a pull and returns, wrapped so that awaiting this does not wait for the pull itself. */
+const startPull = async (): Promise<{ pull: Promise<void> }> => {
+  let pull!: Promise<void>;
+  await act(async () => {
+    pull = screen.getByTestId('plan-scroll').props.refreshControl.props.onRefresh();
+  });
+  return { pull };
+};
+
+it('runs one more sync after the running one for any number of saves made during it', async () => {
+  const held = heldThen(async () => {});
+  const { engine, sync } = spendingEngine({ sync: held.ends });
+  await showPlan(engine);
+  await screen.findByText('$207');
+  const { pull } = await startPull();
+  await act(async () => announceSaved());
+  await act(async () => announceSaved());
+  expect(sync).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    held.end();
+    await pull;
+  });
+  await waitFor(() => expect(sync).toHaveBeenCalledTimes(2));
+  await act(async () => {});
+  expect(sync).toHaveBeenCalledTimes(2);
+});
+
+it('runs the owed sync even when the running one fails, and shows the owed one’s result', async () => {
+  const held = heldThen(async () => {});
+  const { engine, sync } = spendingEngine({ sync: held.ends });
+  await showPlan(engine);
+  await screen.findByText('$207');
+  const { pull } = await startPull();
+  await act(async () => announceSaved());
+  await act(async () => {
+    held.end(new EngineError('network-failure', 'x'));
+    await pull;
+  });
+  await waitFor(() => expect(sync).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(screen.queryByText('Offline')).toBeNull());
+});
+
+it('does not keep syncing when the owed sync fails too', async () => {
+  const held = heldThen(async () => {
+    throw new EngineError('internal', 'x');
+  });
+  const { engine, sync } = spendingEngine({ sync: held.ends });
+  await showPlan(engine);
+  await screen.findByText('$207');
+  const { pull } = await startPull();
+  await act(async () => announceSaved());
+  await act(async () => {
+    held.end(new EngineError('network-failure', 'x'));
+    await pull;
+  });
+  await waitFor(() => expect(sync).toHaveBeenCalledTimes(2));
+  expect(await screen.findByText('Not synced')).toBeTruthy();
+  await act(async () => {});
+  expect(sync).toHaveBeenCalledTimes(2);
+});
+
+it('a pull during a running sync owes nothing', async () => {
+  const held = heldThen(async () => {});
+  const { engine, sync } = spendingEngine({ sync: held.ends });
+  await showPlan(engine);
+  await screen.findByText('$207');
+  const { pull: first } = await startPull();
+  const { pull: second } = await startPull();
+  await act(async () => {
+    held.end();
+    await Promise.all([first, second]);
+  });
+  await act(async () => {});
+  expect(sync).toHaveBeenCalledTimes(1);
 });
