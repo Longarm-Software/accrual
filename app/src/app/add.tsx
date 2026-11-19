@@ -45,7 +45,8 @@ function Sheet({ engine, today }: { engine: Engine; today: Date }) {
   return (
     <AuroraBackground>
       <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
-        <Header />
+        {/* Once Save is pressed the transaction is being saved; Cancel cannot undo it. */}
+        <Header cancelDisabled={quick.state === 'ready' && quick.saving} />
         {quick.state === 'loading' && (
           <Centre>
             <Spinner />
@@ -71,7 +72,7 @@ function Sheet({ engine, today }: { engine: Engine; today: Date }) {
   );
 }
 
-function Header() {
+function Header({ cancelDisabled }: { cancelDisabled: boolean }) {
   const theme = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.sm }}>
@@ -79,13 +80,15 @@ function Header() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Cancel"
+          accessibilityState={{ disabled: cancelDisabled }}
+          disabled={cancelDisabled}
           onPress={close}
           style={({ pressed }) => ({
             minHeight: size.touch,
             minWidth: size.touch,
             paddingHorizontal: space.sm,
             justifyContent: 'center',
-            opacity: pressed ? tint.pressed : 1,
+            opacity: cancelDisabled ? tint.disabled : pressed ? tint.pressed : 1,
           })}
         >
           <Text style={[type.row, { color: theme.color.mute }]}>Cancel</Text>

@@ -61,9 +61,14 @@ export function withCategory(draft: Draft, categoryId: string | null): Draft {
   return { ...draft, categoryId, categoryChosenByHand: true };
 }
 
-/** Expense and income categories are different lists, so the category goes with the switch. */
-export function toggleIncome(draft: Draft): Draft {
-  return { ...draft, income: !draft.income, categoryId: null, categoryChosenByHand: false };
+/**
+ * Expense and income categories are different lists, so the category goes with the switch.
+ * Back to an expense, a picked payee suggests its category again, by the same rule as `withPayee`.
+ */
+export function toggleIncome(draft: Draft, payees: PayeeChoice[], validCategoryIds: Set<string>): Draft {
+  const next = { ...draft, income: !draft.income, categoryId: null, categoryChosenByHand: false };
+  const payee = next.income || next.payeeId === null ? undefined : payees.find(p => p.id === next.payeeId);
+  return payee ? withPayee(next, payee, validCategoryIds) : next;
 }
 
 /** One day back or forward; never later than today. */

@@ -2,9 +2,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
+import { Alert } from 'react-native';
 
 import type { Engine, NewTransaction, PlanMonth } from '../engine/types';
-import { setPlanToday } from '../features/plan/quickAddSignal';
+import { onSaved, setPlanToday } from '../features/plan/quickAddSignal';
 import { fakeBudgets, fakeEngine, fakePlanMonth, fakeQuickAddLists } from '../session/fakeEngine';
 import { SessionProvider, useSession } from '../session/SessionProvider';
 import { saveSession } from '../session/storage';
@@ -221,12 +222,68 @@ it('saves only once, however often Save is pressed', async () => {
   await showSheet(fakeEngine({ addTransaction }));
   await ready();
   await type('5');
-  await fireEvent.press(save());
-  await fireEvent.press(save());
+  // Both presses land on the enabled Save, before React re-renders it disabled: only the
+  // hook's own guard can stop the second.
+  const button = save();
+  await act(async () => {
+    void fireEvent.press(button);
+    void fireEvent.press(button);
+  });
   expect(save().props.accessibilityState).toMatchObject({ disabled: true });
   await act(async () => finish());
   expect(addTransaction).toHaveBeenCalledTimes(1);
   expect(router.back).toHaveBeenCalledTimes(1);
+});
+
+it('cannot be cancelled while the save is in flight', async () => {
+  let finish!: () => void;
+  const addTransaction = jest.fn(() => new Promise<void>(resolve => (finish = resolve)));
+  await showSheet(fakeEngine({ addTransaction }));
+  await ready();
+  await type('5');
+  await fireEvent.press(save());
+  const cancel = screen.getByRole('button', { name: 'Cancel' });
+  expect(cancel.props.accessibilityState).toMatchObject({ disabled: true });
+  await fireEvent.press(cancel);
+  expect(router.back).not.toHaveBeenCalled();
+  await act(async () => finish());
+  expect(router.back).toHaveBeenCalledTimes(1);
+});
+
+it('still tells the Plan, and does not navigate, when the sheet was dismissed before the write finished', async () => {
+  let finish!: () => void;
+  const addTransaction = jest.fn(() => new Promise<void>(resolve => (finish = resolve)));
+  const saved = jest.fn();
+  const stop = onSaved(saved);
+  await showSheet(fakeEngine({ addTransaction }));
+  await ready();
+  await type('5');
+  await fireEvent.press(save());
+  // Swiped down, or the back button: the router removes the sheet.
+  await screen.unmount();
+  await act(async () => finish());
+  expect(saved).toHaveBeenCalledTimes(1);
+  expect(router.back).not.toHaveBeenCalled();
+  stop();
+});
+
+it('says so in an alert when the write fails after the sheet was dismissed', async () => {
+  let fail!: (e: Error) => void;
+  const addTransaction = jest.fn(() => new Promise<void>((_resolve, reject) => (fail = reject)));
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const saved = jest.fn();
+  const stop = onSaved(saved);
+  await showSheet(fakeEngine({ addTransaction }));
+  await ready();
+  await type('5');
+  await fireEvent.press(save());
+  await screen.unmount();
+  await act(async () => fail(new Error('disk full')));
+  expect(alert).toHaveBeenCalledWith('Not saved', 'Could not save that transaction. Add it again.');
+  expect(saved).not.toHaveBeenCalled();
+  expect(router.back).not.toHaveBeenCalled();
+  stop();
+  alert.mockRestore();
 });
 
 it('stays open with a message, and keeps the form, when the save fails', async () => {
@@ -286,4 +343,12 @@ it('says so, and tries again, when the lists cannot be read', async () => {
 it('sends a deep link with no open budget to the Plan', async () => {
   await render(<SessionProvider create={async () => fakeEngine()}><Add /></SessionProvider>);
   await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+});
+
+it('sends a deep link to the Plan when the budget is open but the Plan is not showing', async () => {
+  setPlanToday(null);
+  const getQuickAddLists = jest.fn(async () => fakeQuickAddLists);
+  await showSheet(fakeEngine({ getQuickAddLists }));
+  await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+  expect(getQuickAddLists).not.toHaveBeenCalled();
 });

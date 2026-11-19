@@ -630,3 +630,64 @@ it('reads the month again on each save, not on each render', async () => {
   await waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(getPlanMonth).toHaveBeenCalledTimes(reads + 2));
 });
+
+it('joins a pull already syncing after a save, rather than starting a second sync', async () => {
+  let finishSync!: () => void;
+  const { engine, sync, getPlanMonth } = spendingEngine({
+    sync: jest.fn(() => new Promise<void>(resolve => (finishSync = () => resolve()))),
+  });
+  await showPlan(engine);
+  await screen.findByText('$207');
+  const refreshControl = () => screen.getByTestId('plan-scroll').props.refreshControl;
+  let pull!: Promise<void>;
+  await act(async () => {
+    pull = refreshControl().props.onRefresh();
+  });
+  await act(async () => announceSaved());
+  expect(sync).toHaveBeenCalledTimes(1);
+  // The pull still shows its spinner until the one sync, and the read after it, are done.
+  expect(refreshControl().props.refreshing).toBe(true);
+  const reads = getPlanMonth.mock.calls.length;
+  await act(async () => {
+    finishSync();
+    await pull;
+  });
+  expect(refreshControl().props.refreshing).toBe(false);
+  expect(sync).toHaveBeenCalledTimes(1);
+  expect(getPlanMonth).toHaveBeenCalledTimes(reads + 1);
+});
+
+it('a pull during the sync after a save joins it, and shows its spinner until it ends', async () => {
+  let finishSync!: () => void;
+  const { engine, sync } = spendingEngine({
+    sync: jest.fn(() => new Promise<void>(resolve => (finishSync = () => resolve()))),
+  });
+  await showPlan(engine);
+  await screen.findByText('$207');
+  await act(async () => announceSaved());
+  await waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+  const refreshControl = () => screen.getByTestId('plan-scroll').props.refreshControl;
+  expect(refreshControl().props.refreshing).toBe(false);
+  let pull!: Promise<void>;
+  await act(async () => {
+    pull = refreshControl().props.onRefresh();
+  });
+  expect(refreshControl().props.refreshing).toBe(true);
+  expect(sync).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    finishSync();
+    await pull;
+  });
+  expect(refreshControl().props.refreshing).toBe(false);
+  expect(sync).toHaveBeenCalledTimes(1);
+});
+
+it('syncs again for a later save once the earlier sync has finished', async () => {
+  const { engine, sync } = spendingEngine();
+  await showPlan(engine);
+  await screen.findByText('$207');
+  await act(async () => announceSaved());
+  await waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+  await act(async () => announceSaved());
+  await waitFor(() => expect(sync).toHaveBeenCalledTimes(2));
+});

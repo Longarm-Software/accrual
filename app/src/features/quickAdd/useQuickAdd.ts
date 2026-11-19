@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert } from 'react-native';
 
 import type { AccountChoice, Engine, PayeeChoice, PlanMonth, QuickAddLists } from '../../engine/types';
 import { currentMonth } from '../../lib/month';
@@ -12,6 +13,7 @@ import {
 import { matchPayees } from './payees';
 
 export const SAVE_FAILED = 'Could not save that. Try again.';
+export const SAVE_FAILED_CLOSED = 'Could not save that transaction. Add it again.';
 
 /** Everything the sheet draws once its lists are read, already decided. */
 export type QuickAddReady = {
@@ -109,11 +111,17 @@ export function useQuickAdd(engine: Engine, today: Date, { onSaved }: { onSaved(
       if (mounted.current) {
         setSaving(false);
         setError(SAVE_FAILED);
+      } else {
+        // The sheet was swiped away (or Back pressed) while the write ran: there is no form left
+        // to show the message on, so say it where the person is now.
+        Alert.alert('Not saved', SAVE_FAILED_CLOSED);
       }
       return;
     }
-    // Saved: Save stays disabled while the sheet closes.
-    onSaved();
+    // Saved. The Plan reads its month again whether or not the sheet is still open: the
+    // transaction exists. Closing is only for a sheet that is still showing; one already
+    // dismissed must not send the Plan back. Save stays disabled while the sheet closes.
+    if (mounted.current) onSaved();
     announceSaved();
   }, [engine, loaded, draft, onSaved]);
 
@@ -142,7 +150,7 @@ export function useQuickAdd(engine: Engine, today: Date, { onSaved }: { onSaved(
     saving,
     error,
     press: key => change(d => ({ ...d, entry: press(d.entry, key) })),
-    toggleSign: () => change(toggleIncome),
+    toggleSign: () => change(d => toggleIncome(d, lists.payees, expenseIds)),
     typePayee: text => change(d => withPayeeText(d, text)),
     pickPayee: payee => change(d => withPayee(d, payee, expenseIds)),
     pickCategory: id => change(d => withCategory(d, id)),

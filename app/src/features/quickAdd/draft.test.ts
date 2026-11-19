@@ -63,7 +63,7 @@ describe('withPayee', () => {
     expect(d).toMatchObject({ categoryId: 'cat-dining', categoryChosenByHand: true });
   });
   it('suggests nothing for income', () => {
-    const d = withPayee(toggleIncome(fresh()), employer, new Set(['cat-salary']));
+    const d = withPayee(toggleIncome(fresh(), lists.payees, expenseIds), employer, new Set(['cat-salary']));
     expect(d.categoryId).toBeNull();
   });
 });
@@ -91,10 +91,27 @@ describe('withCategory', () => {
 });
 
 describe('toggleIncome', () => {
+  it("back to an expense, re-applies the chosen payee's suggestion", () => {
+    const income = toggleIncome(withPayee(fresh(), cornerShop, expenseIds), lists.payees, expenseIds);
+    expect(income).toMatchObject({ income: true, categoryId: null, payeeId: 'payee-corner-shop' });
+    const back = toggleIncome(income, lists.payees, expenseIds);
+    expect(back).toMatchObject({ income: false, categoryId: 'cat-groceries', categoryChosenByHand: false });
+    expect(isSuggested(back)).toBe(true);
+  });
+  it('back to an expense, suggests nothing for a payee with no usable suggestion, or no payee', () => {
+    const viaEmployer = toggleIncome(withPayee(fresh(), employer, expenseIds), lists.payees, expenseIds);
+    expect(toggleIncome(viaEmployer, lists.payees, expenseIds).categoryId).toBeNull();
+    const typedOnly = toggleIncome(withPayeeText(fresh(), 'Corner Shop'), lists.payees, expenseIds);
+    expect(toggleIncome(typedOnly, lists.payees, expenseIds).categoryId).toBeNull();
+  });
+  it('back to an expense after an income category was chosen by hand, still suggests from the payee', () => {
+    const income = withCategory(toggleIncome(withPayee(fresh(), cornerShop, expenseIds), lists.payees, expenseIds), 'cat-salary');
+    expect(toggleIncome(income, lists.payees, expenseIds)).toMatchObject({ categoryId: 'cat-groceries', categoryChosenByHand: false });
+  });
   it('flips income and clears the category, by hand or not', () => {
-    const d = toggleIncome(withCategory(fresh(), 'cat-rent'));
+    const d = toggleIncome(withCategory(fresh(), 'cat-rent'), lists.payees, expenseIds);
     expect(d).toMatchObject({ income: true, categoryId: null, categoryChosenByHand: false });
-    expect(toggleIncome(d).income).toBe(false);
+    expect(toggleIncome(d, lists.payees, expenseIds).income).toBe(false);
   });
 });
 
@@ -171,7 +188,7 @@ describe('toTransaction', () => {
     });
   });
   it('income with no payee and no category', () => {
-    const d = { ...amount(toggleIncome(fresh())), accountId: 'acct-savings' };
+    const d = { ...amount(toggleIncome(fresh(), lists.payees, expenseIds)), accountId: 'acct-savings' };
     const result = toTransaction(withPayeeText(d, '   '));
     expect(result).toEqual({ accountId: 'acct-savings', transaction: { date: '2026-11-19', amount: 1840, cleared: false } });
     expect(Object.keys(result.transaction).sort()).toEqual(['amount', 'cleared', 'date']);
@@ -241,7 +258,7 @@ describe('cardView', () => {
     expect(cardView(oct, lists, plan)).toEqual({ name: 'Groceries', suggested: false, bite: null });
   });
   it('income: the income category by name, no bite', () => {
-    const d = withCategory(typed(toggleIncome(fresh()), '5'), 'cat-salary');
+    const d = withCategory(typed(toggleIncome(fresh(), lists.payees, expenseIds), '5'), 'cat-salary');
     expect(cardView(d, lists, plan)).toEqual({ name: 'Salary', suggested: false, bite: null });
   });
 });
@@ -258,6 +275,6 @@ describe('categoryChoices', () => {
     expect(choices[3]).toEqual({ id: 'cat-groceries', name: 'Groceries' });
   });
   it('for income, the income categories', () => {
-    expect(categoryChoices(toggleIncome(fresh()), lists, plan)).toEqual(lists.incomeCategories);
+    expect(categoryChoices(toggleIncome(fresh(), lists.payees, expenseIds), lists, plan)).toEqual(lists.incomeCategories);
   });
 });

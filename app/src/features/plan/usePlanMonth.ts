@@ -103,11 +103,14 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
     };
   }, [readBounds]);
 
+  // The sync running now, sync and read after it together, or null. Only one runs at a time:
+  // a pull or a save that comes while one runs waits for it rather than starting another.
+  const running = useRef<Promise<void> | null>(null);
+
   // The one sync path, for a pull and after a save: what a failed sync shows, and signing out
   // when the session has expired, are decided here only.
-  const syncThenRead = useCallback(async (spinner: boolean) => {
+  const syncOnce = useCallback(async () => {
     if (!engine) return;
-    if (spinner) setRefreshing(true);
     let synced = false;
     try {
       await engine.sync();
@@ -122,13 +125,26 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
       }
       setSync(code === 'network-failure' ? 'offline' : 'failed');
     }
-    try {
-      // Keep showing the numbers while they are read again. A sync can add months.
-      await Promise.all([read(shown.current, false), synced ? readBounds() : null]);
-    } finally {
-      if (spinner) setRefreshing(false);
-    }
+    // Keep showing the numbers while they are read again. A sync can add months.
+    await Promise.all([read(shown.current, false), synced ? readBounds() : null]);
   }, [engine, read, readBounds, onSessionExpired]);
+
+  /** Syncs then reads, or joins the sync already running. `spinner`: a pull, which shows it until done. */
+  const syncThenRead = useCallback(
+    async (spinner: boolean) => {
+      if (!engine) return;
+      if (spinner) setRefreshing(true);
+      try {
+        running.current ??= syncOnce().finally(() => {
+          running.current = null;
+        });
+        await running.current;
+      } finally {
+        if (spinner) setRefreshing(false);
+      }
+    },
+    [engine, syncOnce],
+  );
 
   const refresh = useCallback(() => syncThenRead(true), [syncThenRead]);
 
