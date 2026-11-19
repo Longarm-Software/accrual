@@ -1,6 +1,7 @@
 import { BricolageGrotesque_600SemiBold } from '@expo-google-fonts/bricolage-grotesque';
 import { Geist_400Regular, Geist_500Medium, Geist_600SemiBold } from '@expo-google-fonts/geist';
 import { useFonts } from 'expo-font';
+import { NavigationBar } from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -24,6 +25,8 @@ export default function RootLayout() {
     <SessionProvider>
       {/* Android draws the page under the status bar: its icons follow the theme, dark on the light page. */}
       <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+      {/* The same for Android's three-button navigation bar, which is also drawn over the page. */}
+      <NavigationBar style={theme.isDark ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
     </SessionProvider>
   );

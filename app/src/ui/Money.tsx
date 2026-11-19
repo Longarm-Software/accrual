@@ -36,7 +36,7 @@ export function Money({ cents, size = amount.tile, color, testID, accessible = t
       accessibilityLabel={accessible ? (sign === '+' ? '+' : '') + formatMoney(cents) : undefined}
       importantForAccessibility={accessible ? 'auto' : 'no'}
       {...(fit && { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: MIN_FIT_SCALE, maxFontSizeMultiplier: 1 })}
-      style={{ fontFamily: font.display, fontSize: size, letterSpacing: -size * 0.035, color: ink, fontVariant: ['tabular-nums'] }}
+      style={{ fontFamily: font.number, fontSize: size, letterSpacing: -size * 0.035, color: ink, fontVariant: ['tabular-nums'] }}
     >
       <Text>{sign + parts.dollars}</Text>
       <Text style={{ fontSize: size * 0.5, opacity: tint.cents }}>{'.' + parts.cents}</Text>
