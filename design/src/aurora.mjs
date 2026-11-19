@@ -115,35 +115,41 @@ export const css = `
 #aurora .pad b.save{grid-row:span 2;height:auto;background:linear-gradient(160deg,var(--ok),var(--ok2));color:var(--onok);box-shadow:none}
 `;
 
-const tile = c => `<div class="tile glass ${c.status}">
-  <div class="h">${icon(c.icon, 17, 1.9)}${c.name}</div>
+export const tile = c => `<div class="tile glass ${c.status}">
+  <div class="h">${icon(c.icon, 17, 1.9)}<span>${c.name}</span></div>
   <div class="amt disp">${money(c.balance)}</div>
   <div class="track"><i style="width:${fill(c)}%"></i></div>
   <div class="note">${c.note}</div>
 </div>`;
 
-const free = summary.income - summary.budgeted;
-const plan = `
-<div class="top">
+export const topBar = `<div class="top">
   <div class="month glass">${today.month} <span>${today.year}</span>${icon('chevD', 16, 2.2)}</div>
   <div class="round glass">${icon('user', 20)}</div>
-</div>
-<div class="hero glass">
+</div>`;
+
+export const hero = `<div class="hero glass">
   <div class="lab">Ready to budget</div>
   <div class="amount disp">${money(summary.toBudget)}</div>
-  <div class="flow"><i class="s" style="width:${(summary.spent / summary.income) * 100}%"></i><i class="b" style="width:${((summary.budgeted - summary.spent) / summary.income) * 100}%"></i><i class="f" style="width:${(free / summary.income) * 100}%"></i></div>
+  <div class="flow"><i class="s" style="width:${(summary.spent / summary.income) * 100}%"></i><i class="b" style="width:${((summary.budgeted - summary.spent) / summary.income) * 100}%"></i><i class="f" style="width:${(summary.toBudget / summary.income) * 100}%"></i></div>
   <div class="flowkey"><span>Spent <b>${dollars(summary.spent)}</b></span><span>Still set aside <b>${dollars(summary.budgeted - summary.spent)}</b></span><span>Free <b>${dollars(summary.toBudget)}</b></span></div>
   <div class="assign">Assign</div>
-</div>
-<div class="alert"><span><b>Dining out</b> is $28.10 over</span><span class="go">Cover it</span></div>
-${groups
-  .map(
-    g => `<div class="gh"><span>${g.name}</span><span>${dollars(g.categories.reduce((n, c) => n + Math.max(0, c.balance), 0))}</span></div>
-<div class="grid">${g.categories.map(tile).join('')}</div>`,
-  )
-  .join('')}
-<div class="fade"></div>
-<div class="dock"><div class="t on">${icon('plan', 20, 2)}Plan</div><div class="add">${icon('plus', 24, 2.4)}</div><div class="t">${icon('wallet', 20, 2)}Accounts</div></div>`;
+</div>`;
+
+export const alert = `<div class="alert"><span><b>Dining out</b> is $28.10 over</span><span class="go">Cover it</span></div>`;
+
+export const groupHead = g =>
+  `<div class="gh"><span>${g.name}</span><span>${dollars(g.categories.reduce((n, c) => n + Math.max(0, c.balance), 0))}</span></div>`;
+
+export const dock = on => `<div class="fade"></div>
+<div class="dock"><div class="t ${on === 'plan' ? 'on' : ''}">${icon('plan', 20, 2)}Plan</div><div class="add">${icon('plus', 24, 2.4)}</div><div class="t ${on === 'accounts' ? 'on' : ''}">${icon('wallet', 20, 2)}Accounts</div></div>`;
+
+/** The Plan screen for any set of groups, with any hero and notice above them. */
+export const planFor = (gs, { top = topBar, head = hero, notice = alert, each = tile } = {}) => `
+${top}${head}${notice}
+${gs.map(g => `${groupHead(g)}<div class="grid">${g.categories.map(each).join('')}</div>`).join('')}
+${dock('plan')}`;
+
+const plan = planFor(groups);
 
 function ring() {
   const r = 104, c = 2 * Math.PI * r, part = groceries.spent / groceries.budgeted;

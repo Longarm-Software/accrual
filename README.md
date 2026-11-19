@@ -27,7 +27,7 @@ and [docs/plan.md](docs/plan.md).
 | [docs/business.md](docs/business.md) | Open source plus paid App Store build, naming, licensing |
 | [docs/spike-results.md](docs/spike-results.md) | What the Phase 0 spike found |
 | [docs/decisions/](docs/decisions/) | Architecture decision records |
-| [design/](design/README.md) | UI mockups. Round 1: three directions, awaiting a pick |
+| [design/](design/README.md) | UI mockups. Direction chosen: Aurora. Round 2 awaiting review |
 
 ## What never goes in this repo
 

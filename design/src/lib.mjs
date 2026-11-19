@@ -30,6 +30,13 @@ const paths = {
   del: '<path d="M9 6h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5.500-6zM12 9.500l5 5M17 9.500l-5 5"/>',
   cal: '<rect x="4" y="5.5" width="16" height="14" rx="2.5"/><path d="M4 10h16M8.500 3.500V7M15.500 3.500V7"/>',
   dots: '<circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/>',
+  search: '<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/>',
+  close: '<path d="m6 6 12 12M18 6 6 18"/>',
+  card: '<rect x="3.5" y="6" width="17" height="12.5" rx="2.5"/><path d="M3.5 10.5h17M7 15h3"/>',
+  coins: '<ellipse cx="12" cy="7.5" rx="7" ry="3"/><path d="M5 7.5v4.5c0 1.7 3.100 3 7 3s7-1.300 7-3V7.500M5 12v4.500c0 1.700 3.100 3 7 3s7-1.300 7-3V12"/>',
+  house: '<path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M9.500 20v-5.500h5V20"/>',
+  chart: '<path d="M4 19.500h16M7 16v-4M12 16V7.500M17 16v-6"/>',
+  cloudoff: '<path d="M7 18.500a4 4 0 0 1-.6-7.950A5.500 5.500 0 0 1 16.900 9.500 4.500 4.500 0 0 1 19 17.800M4 4l16 16"/>',
   user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.500c.8-3.300 3.600-5 7-5s6.200 1.700 7 5"/>',
 };
 export const icon = (name, size = 20, stroke = 1.7) =>
@@ -47,7 +54,7 @@ export const phone = (theme, caption, body) => `
   <figcaption>${caption}</figcaption>
 </figure>`;
 
-export const page = ({ id, title, blurb, fonts, css, shots }) => `<!doctype html>
+export const page = ({ id, title, blurb, fonts, css, shots, round = 1 }) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Accrual · ${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&${fonts}&display=block" rel="stylesheet">
@@ -68,8 +75,13 @@ body{background:#E9E7E2;font-family:'Geist',system-ui,sans-serif;padding:56px 64
 .screen>*{flex-shrink:0}
 .money{font-variant-numeric:tabular-nums;white-space:nowrap}
 .icon{flex:none;display:block}
+/* A generic Android phone: squarer corners, a punch-hole camera, a thinner gesture bar. */
+.phone.android{border-radius:40px}
+.phone.android .statusbar{padding:17px 26px 0 28px;font-weight:500;font-size:15px}
+.phone.android:before{content:'';position:absolute;top:15px;left:50%;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#000;z-index:25}
+.phone.android .homebar{width:108px;height:4px;margin-left:-54px;bottom:9px;opacity:.6}
 ${css}
 </style></head><body id="${id}">
-<header class="board-head"><div class="kicker">Accrual · design round 1</div><h1>${title}</h1><p>${blurb}</p></header>
+<header class="board-head"><div class="kicker">Accrual · design round ${round}</div><h1>${title}</h1><p>${blurb}</p></header>
 <div class="row">${shots.join('')}</div>
 </body></html>`;
