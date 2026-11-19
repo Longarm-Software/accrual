@@ -1,0 +1,14 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true
+  },
+  "exclude": [
+    "harness",
+    "node_modules",
+    "modules/*/test",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "jest.setup.ts"
+  ]
+}

@@ -173,5 +173,6 @@ GoogleService-Info.plist
 *.sqlite3
 budgets/
 fixtures/real/
-# Spike: throwaway server data, downloaded budgets, local secrets
-spike/**/data/
+# Throwaway test-server data and budgets the harness downloads
+app/harness/data/
+tools/test-server/data/

@@ -58,8 +58,9 @@ Phone app ──HTTPS──► bridge (Node + @actual-app/api) ──► actual-
 
 ## Security principles
 
-- The server password goes in iOS Keychain or Android Keystore only. It never appears in logs,
-  crash reports or analytics.
+- The server password is never stored. Only the session token the server returns is kept, in
+  iOS Keychain or Android Keystore. Neither appears in logs, error messages, crash reports or
+  analytics.
 - No telemetry by default. If crash reporting is ever added, it's opt-in and strips amounts,
   payees and notes.
 - Payee names, notes and imported data are treated as untrusted text and shown as text only.

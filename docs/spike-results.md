@@ -3,7 +3,7 @@
 - **Date:** 2026-11-18 (off-device and on-device runs)
 - **Versions:** Actual 26.11.0 (`@actual-app/core`, `@actual-app/api`, `@actual-app/sync-server`),
   Expo SDK 58, React Native 0.88.1 (Hermes), expo-sqlite 58
-- **Code:** [`spike/`](../spike/README.md)
+- **Code:** [`app/`](../app/README.md) and [`tools/test-server/`](../tools/test-server/)
 
 ## Verdict
 
@@ -44,9 +44,9 @@ Two differences from the wording in plan.md:
 ## On-device run
 
 Done on a Mac with `npx expo run:ios` and `npx expo run:android`, against the throwaway server
-and the two fake budgets. The app ran a scripted version of the checks (`src/autorun.ts`) and
+and the two fake budgets. The app ran a scripted version of the checks (`src/dev/autorun.ts`) and
 the host compared what it read with `@actual-app/api` (`harness/device-check.ts`). See
-"Scripted run" in [`spike/README.md`](../spike/README.md).
+"Scripted run" in [`app/README.md`](../app/README.md).
 
 All checks pass on the iOS simulator (debug and release builds) and the Android emulator (debug
 build): the same checks as the Node harness, on both budgets, including text search and
@@ -152,7 +152,7 @@ JavaScript, mostly date-fns (1.6 MB), hyperformula (1.6 MB) and loot-core itself
    them, and neither expo-sqlite nor op-sqlite can register JavaScript functions.
 
    They are now provided by a native SQLite extension,
-   [`accrual-sqlite-functions`](../spike/app/modules/accrual-sqlite-functions/README.md): about
+   [`accrual-sqlite-functions`](../app/modules/accrual-sqlite-functions/README.md): about
    400 lines of C on top of QuickJS's regular-expression engine and Unicode tables, so results
    match JavaScript exactly. It agrees with loot-core's own functions on all 183,819
    test inputs, and search results match `@actual-app/api` on the iOS simulator and the Android

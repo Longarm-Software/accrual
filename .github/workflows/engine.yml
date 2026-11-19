@@ -19,11 +19,11 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: |
-            spike/server/package-lock.json
-            spike/app/package-lock.json
+            tools/test-server/package-lock.json
+            app/package-lock.json
 
       - name: Start the test server and seed fake budgets
-        working-directory: spike/server
+        working-directory: tools/test-server
         run: |
           npm ci
           npm run server > server.log 2>&1 &
@@ -31,28 +31,32 @@ jobs:
           npm run seed
 
       - name: Install the app's dependencies
-        working-directory: spike/app
+        working-directory: app
         run: npm ci
 
       - name: SQL functions match loot-core's JavaScript
-        working-directory: spike/app
+        working-directory: app
         run: |
           npm run sqlfn:build
           npm run sqlfn:test
 
       - name: Build the engine bundle
-        working-directory: spike/app
+        working-directory: app
         run: npm run engine:build
 
       # After the build: the shims import a file the build generates.
       - name: Typecheck
-        working-directory: spike/app
+        working-directory: app
         run: npm run typecheck
 
+      - name: Unit tests
+        working-directory: app
+        run: npm test
+
       - name: Engine matches @actual-app/api and syncs both ways
-        working-directory: spike/app
+        working-directory: app
         run: npm run engine:verify
 
       - name: Server log
         if: failure()
-        run: tail -n 100 spike/server/server.log
+        run: tail -n 100 tools/test-server/server.log
