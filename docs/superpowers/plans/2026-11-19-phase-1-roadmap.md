@@ -55,6 +55,7 @@ last because it touches every screen.
 | A monthly goal's note ("$40.00 more needed") ignores money carried in from last month. Settle it with goals and Cover. | Plan 4 |
 | The top card shows "Free $7,007" under "Ready to budget $7,006.86": the same figure, rounded differently, on one card. | Plan 6 |
 | The pull-to-refresh spinner draws over the month switcher's next arrow while it turns. | Plan 6 |
+| On Android with three-button navigation, the system buttons are invisible in light mode and faint in dark mode. The fix is the `expo-navigation-bar` package (a new native dependency) with its style following the theme. | Next build for the owner's phone, once the dependency is approved |
 | At the largest text size with the Offline chip showing, the top bar may overflow; not yet tried. | Plan 6 |
 
 ## Settled
@@ -65,7 +66,7 @@ last because it touches every screen.
   experimental Actual feature most budgets do not have, so this is the main case. (Plan 2.)
 - **Pace is shown**, as "$17 a day for 12 days", for a category in the current month that has
   money left and has been spent from. It is our own sum: what is left, divided by the days left
-  including today. Checked by hand against the emulator's numbers. (Plan 2.)
+  including today, rounded down to a whole dollar so it never promises more than is left. Checked by hand against the emulator's numbers. (Plan 2.)
 
 ## Not in Phase 1
 
