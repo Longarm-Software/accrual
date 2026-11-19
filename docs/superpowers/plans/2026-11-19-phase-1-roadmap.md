@@ -53,12 +53,19 @@ last because it touches every screen.
 | The top card shows "Free $7,007" under "Ready to budget $7,006.86": the same figure, rounded differently, on one card. | Plan 6 |
 | The pull-to-refresh spinner draws over the month switcher's next arrow while it turns. | Plan 6 |
 | At the largest text size with the Offline chip showing, the top bar may overflow; not yet tried. | Plan 6 |
-| Quick add on a small screen (360 × 640 points): the category card runs under the keypad, and the account and date need a scroll. 360 × 800 fits. Needs a more compact sheet: a smaller amount, the payee as a pill under it as in the design, less space between rows. | Plan 6 |
-| Changing the system text size while the quick-add sheet is open closes it on Android and loses what was typed (Android restarts the screen). Dark mode does not. | Plan 6 |
-| The quick-add amount always shows two decimals, so deleting the last digit of `18.40` changes nothing visible. Show the digits as typed ("18.4") until the amount is saved? | Plan 6 |
+| Actual's rules run when a transaction is added, so a rule can change the payee or category after Save; quick add's preview (the suggested category, the bite) does not show this. | Plan 5 |
+| A save that finishes after the sheet was swiped away says nothing when it succeeds. The transaction exists and the Plan updates; a confirmation belongs with the transaction list. | Plan 5 |
+| The engine check (`npm run engine:verify`) does not yet check that transfer payees are left out of quick add's payees, or that income categories are offered. | Plan 5 |
+| Quick add's account name is cut short ("Everyday Ch…") at large text, and at normal text on a 360-point-wide screen. The picker shows the full name. | Plan 6 |
+| On a tall phone there is an empty band between quick add's date row and the keypad; the design packs the keypad up under the form. Decide between that and keeping the keypad in thumb reach. | Plan 6 |
+| Quick add's payee is a tall labelled field, heavier than the design's small pill under the amount. The compact sheet tightens it but keeps its shape. | Plan 6 |
+| Changing the system text size while the quick-add sheet is open closes it on Android and loses what was typed (Android restarts the screen; it needs native `configChanges`). Dark mode does not. | Plan 6 |
+| The bite's spring was still moving a second after the last key (debug build). Measure it in a release build first, with the motion spec. | Plan 6 |
 | Quick add's header has no "Today" at its right, where the design has one; the date is in the row with the account instead. | Plan 6 |
-| A save that finishes after the sheet was swiped away says nothing when it succeeds. | Plan 5 |
-| An open quick-add sheet keeps the day it opened with, so one left open across midnight dates the transaction the day before. | Plan 6 |
+| Quick add's date label never shows the year ("Tue 17 Nov"); only reachable by stepping back past 1 January a day at a time. | Plan 6 |
+| Android may read the quick-add warning ("That is … more than … has") twice: once as the card's label and once from its live region. | Plan 6 |
+| Reopening a budget syncs with no time limit (`openBudget`), where every other sync gives up after 15 seconds. Rare, because sign-in, which is bounded, has just succeeded. | Plan 6 |
+| Quick add's lists (`getQuickAddLists`) have never been timed on a large budget; measure with the first-download time on a mid-range phone. The sheet shows a spinner meanwhile. | Plan 6 |
 
 ## Settled
 
@@ -67,6 +74,11 @@ last because it touches every screen.
   (Plan 3.)
 - **Android's three-button navigation** is drawn by `expo-navigation-bar` with its buttons
   following the theme; seen in light and dark on the emulator. (Plan 3's branch; see below.)
+- **Quick add, fixed before plan 3's merge** (final review): an open sheet follows the Plan's day,
+  so one left open past midnight calls its date "Yesterday" rather than dating it the day before
+  under "Today"; a short screen (360 × 640 points) gets a compact sheet with the category card and
+  its bite above the keypad; the amount shows what was typed ("$18.", "$18.4"); and the
+  category list draws an overspent balance coral, by the Plan's own rule. (Plan 3.)
 
 - **A category with no goal template** describes itself from its own numbers: "Not spent yet",
   "Fully spent", "$150.00 left over" in a past month, "Budgeted" in a future one, "Nothing

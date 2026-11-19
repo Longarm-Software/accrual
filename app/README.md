@@ -75,12 +75,15 @@ app/                               (was spike/app)
         MonthSwitcher.tsx          previous and next month, stopping at the budget's ends
         AccountMenu.tsx            the budget's name and Sign out
       quickAdd/                    the quick-add sheet's parts
-        amountEntry.ts             keypad keys -> the amount, as digit strings, then cents
+        amountEntry.ts             keypad keys -> the amount, as digit strings, then cents; what
+                                   to draw for it as typed ("−$18.4")
+        sheetLayout.ts             regular or compact sheet from the window height and text size;
+                                   whether the form runs on below its fade
         bite.ts                    what an expense does to a category: kept, taken, after, warning
         draft.ts                   the draft transaction: payee, suggested category, account, date
         payees.ts                  payee matches for typed text; the exact match
         useQuickAdd.ts             reads the lists and the month, holds the draft, saves
-        AmountDisplay.tsx          "−$18.40" at the hero size, one height, fitted to one line
+        AmountDisplay.tsx          the amount as typed at the hero size, one height, one line
         Keypad.tsx                 1-9, ".", 0, 00, delete (held: repeats), +/−, the tall Save
         PayeeField.tsx             the payee field and up to six matches
         CategoryCard.tsx           the category, Suggested or Change, the bite bar, what is left
@@ -178,6 +181,7 @@ November 2026. Each server-side result was read back with `@actual-app/api`, the
 | 8 | With the server stopped, Save works and the Plan shows the new balance and **Offline**; with it back, pull to refresh sends the transaction up | Not run | Passed |
 | 9 | Income: `+/−`, an income category, Save; Ready to budget goes up by the amount | Not run | Passed |
 | 10 | At the largest text size nothing on the sheet is cut off or overlapping | Not run | Passed; the account name is shortened with "…" |
+| 10b | On a small screen (360 × 640 points, normal text) the amount, payee, category card with its bite, and the account and date sit above the keypad; with the over-budget warning the form scrolls and a fade shows there is more | Not run | Passed, after a fix (below) |
 | 11 | Leaving the app and coming back: no error, no spinner, the Plan as it was | Not run | Passed |
 
 **iOS:** built with Xcode 26.6, installed on the simulator and launched; one screenshot of its first
@@ -203,6 +207,15 @@ What was entered and seen on Android (fake figures throughout):
   The amount, payee, category card, warning line, account and date all fit above the keypad.
 - **11:** Home, eight seconds, then the app again: the Plan came back at the same scroll position
   with the same figures, and no spinner in screenshots taken 0.7 and 4 seconds after.
+- **10b** (same day, after the final review's fixes): `adb shell wm size 1080x1920` and
+  `wm density 480` (360 × 640 points), put back with `wm size reset` and `wm density reset`
+  after. Empty, and with $18.40 against Coffee ($186.41, "$168.01 after"), everything down to
+  the account and date fits above the keypad, in light and dark. Against Electricity (−$298.80)
+  the warning line pushes the account and date under a fade; scrolling brings them up and the
+  fade goes. At 1080 × 2400 the sheet was unchanged. Typing 1, 8, ".", 4 showed `−$1`, `−$18`,
+  `−$18.` and `−$18.4`, the dollars not moving. The category list drew Electricity, Groceries
+  and Subscriptions coral, the three the Plan's notice counts ("3 categories are $800.24 over"),
+  and no scrollbar.
 
 Fixed during the run, each with a test:
 
@@ -216,16 +229,25 @@ Fixed during the run, each with a test:
 - **In the light theme the keys were nearly invisible**: white faces on a near-white page, with
   a white edge. The keys now have a faint dark edge in the light theme (a `keyEdge` token).
 
+Fixed after the final review, each with a test:
+
+- **On a small screen the category card ran under the keypad** (check 10b). Below about 780
+  points of height (more with larger text) the sheet is now compact: 48-point keys, a smaller
+  amount, tighter gaps, all from the `sheet` tokens. What still does not fit scrolls, with a fade.
+- **The amount always showed two decimals**, so "." and deleting a trailing digit changed nothing
+  on screen. It now shows what was typed; a screen reader still hears the full amount.
+- **A sheet left open past midnight kept the old day**: it said "Today" and saved yesterday's
+  date. It now follows the Plan's day; the draft keeps its date, which then reads "Yesterday".
+- **The category list drew overspent balances grey**; they are coral by the Plan's own rule, so a
+  category with rollover overspending stays quiet. The list's scrollbar, drawn inside the card's
+  rounded edge, is gone.
+
 Seen and not changed:
 
-- On a small screen (360 × 640 points, a little smaller than the smallest current iPhone's 375 × 667) the category card runs
-  under the keypad and the account and date need a scroll. 360 × 800 fits. Making it fit means
-  a more compact layout, which is a design decision.
 - Changing the system text size while the sheet is open (Android) closes it and loses what was
   typed: Android restarts the screen. Changing dark mode does not.
-- The amount always shows two decimals, so deleting the last digit of `18.40` changes nothing
-  that can be seen until the next key.
 - The bite's spring was still moving a second after the last key in this debug build.
+- The account name is cut short ("Everyday Ch…") on a 360-point-wide screen at normal text.
 
 ### The Plan (plan 2)
 
