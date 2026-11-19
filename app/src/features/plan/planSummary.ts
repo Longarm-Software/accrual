@@ -1,4 +1,4 @@
-import type { PlanMonth } from '../../engine/types';
+import type { PlanGroup, PlanMonth } from '../../engine/types';
 import { formatMoney, formatWholeMoney } from '../../lib/money';
 
 /** One part of the flow key: the quiet words, then the amount drawn in ink. */
@@ -48,4 +48,18 @@ export function overspentNotice(month: PlanMonth): string | null {
   if (over.length === 1) return `${over[0].name} is ${formatMoney(-over[0].balance)} over`;
   const total = over.reduce((sum, c) => sum - c.balance, 0);
   return `${over.length} categories are ${formatMoney(total)} over`;
+}
+
+/**
+ * What a group's categories have left between them, for its header: the sum of the
+ * positive balances. An overspent category is left out, so it does not hide money that
+ * is still there in the others; the notice and the tile say what is over.
+ */
+export function groupAvailable(group: PlanGroup): number {
+  return group.categories.reduce((sum, c) => sum + Math.max(0, c.balance), 0);
+}
+
+/** False when the budget has no expense categories to show. */
+export function hasCategories(month: PlanMonth): boolean {
+  return month.groups.some(g => g.categories.length > 0);
 }

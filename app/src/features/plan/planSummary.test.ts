@@ -1,6 +1,6 @@
 import type { PlanMonth } from '../../engine/types';
 import { fakePlanMonth } from '../../session/fakeEngine';
-import { heroLabel, heroView, overspentNotice } from './planSummary';
+import { groupAvailable, hasCategories, heroLabel, heroView, overspentNotice } from './planSummary';
 
 const month = (over: Partial<PlanMonth>): PlanMonth => ({ ...fakePlanMonth, ...over });
 
@@ -75,5 +75,29 @@ describe('overspentNotice', () => {
     const rent = { ...bills.categories[0], balance: -1000 };
     const two = month({ groups: [{ ...bills, categories: [rent] }, everyday] });
     expect(overspentNotice(two)).toBe('2 categories are $38.10 over');
+  });
+});
+
+describe('groupAvailable', () => {
+  const group = fakePlanMonth.groups[1];
+  it('adds what the categories have left', () => {
+    expect(groupAvailable(fakePlanMonth.groups[0])).toBe(22000);
+  });
+  it('leaves out an overspent category, so it does not hide money left elsewhere', () => {
+    expect(groupAvailable(group)).toBe(20762);
+  });
+  it('is 0 for a group with nothing left', () => {
+    expect(groupAvailable({ ...group, categories: [group.categories[1]] })).toBe(0);
+    expect(groupAvailable({ ...group, categories: [] })).toBe(0);
+  });
+});
+
+describe('hasCategories', () => {
+  it('is true for the fake month', () => {
+    expect(hasCategories(fakePlanMonth)).toBe(true);
+  });
+  it('is false with no groups, or only empty groups', () => {
+    expect(hasCategories(month({ groups: [] }))).toBe(false);
+    expect(hasCategories(month({ groups: [{ id: 'g', name: 'Empty', categories: [] }] }))).toBe(false);
   });
 });
