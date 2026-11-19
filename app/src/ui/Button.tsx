@@ -19,7 +19,7 @@ export function Button({ title, onPress, variant = 'primary', disabled = false, 
       onPress={onPress}
       style={({ pressed }) => [
         styles.base,
-        !primary && { backgroundColor: theme.color.glass, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.color.edge },
+        !primary && { backgroundColor: theme.color.glass, borderWidth: size.border, borderColor: theme.color.line },
         { opacity: disabled ? 0.4 : pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
       ]}
     >

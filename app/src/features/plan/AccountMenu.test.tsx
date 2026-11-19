@@ -1,6 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
+import { shadow, size, themes, tint, withAlpha } from '../../theme/tokens';
 import { AccountMenu } from './AccountMenu';
+
+jest.mock('../../theme/useTheme', () => ({ useTheme: () => jest.requireActual('../../theme/tokens').themes.light }));
+const light = themes.light;
 
 // The card waits until the button has been measured. Jest's stand-in View never answers a
 // measurement, so answer it here: a 40-point button in the top-right corner.
@@ -43,4 +47,29 @@ it('hides when pressing outside', async () => {
   // The backdrop is hidden from screen readers while the menu is modal; they close it with escape or Back.
   await fireEvent.press(screen.getByLabelText('Close menu', { includeHiddenElements: true }));
   expect(screen.queryByText('Household')).toBeNull();
+});
+
+it('dims the page behind the menu, and the backdrop is a button that closes it', async () => {
+  await render(<AccountMenu budgetName="Household" onSignOut={() => {}} />);
+  await fireEvent.press(screen.getByRole('button', { name: 'Account' }));
+  const backdrop = screen.getByRole('button', { name: 'Close menu', includeHiddenElements: true });
+  expect(backdrop).toHaveStyle({ backgroundColor: withAlpha(light.color.shade, tint.scrim) });
+});
+
+it('lifts the card off the page with a shadow', async () => {
+  await render(<AccountMenu budgetName="Household" onSignOut={() => {}} />);
+  await fireEvent.press(screen.getByRole('button', { name: 'Account' }));
+  expect(screen.getByTestId('account-menu')).toHaveStyle({
+    elevation: shadow.menu.elevation,
+    shadowColor: light.color.shade,
+    shadowOpacity: tint.shadow,
+    shadowRadius: shadow.menu.blur,
+    shadowOffset: { width: 0, height: shadow.menu.y },
+  });
+});
+
+it('gives Sign out a visible edge', async () => {
+  await render(<AccountMenu budgetName="Household" onSignOut={() => {}} />);
+  await fireEvent.press(screen.getByRole('button', { name: 'Account' }));
+  expect(screen.getByRole('button', { name: 'Sign out' })).toHaveStyle({ borderWidth: size.border, borderColor: light.color.line });
 });

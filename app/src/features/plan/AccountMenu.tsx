@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { HostInstance } from 'react-native';
 
-import { radius, size, space, tint, type } from '../../theme/tokens';
+import { radius, shadow, size, space, tint, type, withAlpha } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { Button } from '../../ui/Button';
 import { Glass } from '../../ui/Glass';
@@ -46,10 +46,16 @@ export function AccountMenu({ budgetName, onSignOut }: Props) {
         )}
       </Pressable>
       <Modal visible={open} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={close}>
-        <Pressable accessibilityLabel="Close menu" style={StyleSheet.absoluteFill} onPress={close} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close menu"
+          style={[StyleSheet.absoluteFill, { backgroundColor: withAlpha(theme.color.shade, tint.scrim) }]}
+          onPress={close}
+        />
         {/* The backdrop is there from the first frame, so the menu can be closed before the card appears. */}
         {anchor && (
           <View
+            testID="account-menu"
             accessibilityViewIsModal
             onAccessibilityEscape={close}
             style={{
@@ -63,6 +69,11 @@ export function AccountMenu({ budgetName, onSignOut }: Props) {
               backgroundColor: theme.color.sheet,
               borderWidth: StyleSheet.hairlineWidth,
               borderColor: theme.color.edge,
+              shadowColor: theme.color.shade,
+              shadowOpacity: tint.shadow,
+              shadowRadius: shadow.menu.blur,
+              shadowOffset: { width: 0, height: shadow.menu.y },
+              elevation: shadow.menu.elevation,
             }}
           >
             <View style={{ gap: space.xs }}>

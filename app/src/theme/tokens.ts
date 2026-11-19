@@ -8,6 +8,10 @@ export type Theme = {
     ok: string; goal: string; need: string; over: string; zero: string;
     page: string; pageGlow: string;
     glass: string; solid: string; edge: string; track: string; sheet: string;
+    /** A hairline that must show on a sheet or tile: a quiet button's edge. */
+    line: string;
+    /** #RRGGBB. What dims the page behind a menu, and the colour of shadows. */
+    shade: string;
     onAccent: string;
   };
   /** Mint to blue: buttons, progress, the logo. */
@@ -23,6 +27,7 @@ export const themes: { dark: Theme; light: Theme } = {
       page: '#07090C', pageGlow: '#0F3231',
       glass: 'rgba(255,255,255,0.065)', solid: '#151B20', edge: 'rgba(255,255,255,0.11)',
       track: 'rgba(255,255,255,0.10)', sheet: '#12171C',
+      line: 'rgba(255,255,255,0.22)', shade: '#000000',
       onAccent: '#04221B',
     },
     gradient: ['#62EFC2', '#5CCBF4'],
@@ -35,6 +40,7 @@ export const themes: { dark: Theme; light: Theme } = {
       page: '#F1F4F6', pageGlow: '#CFF3E6',
       glass: 'rgba(255,255,255,0.72)', solid: '#FFFFFF', edge: 'rgba(255,255,255,0.95)',
       track: 'rgba(13,20,24,0.08)', sheet: '#FAFCFD',
+      line: 'rgba(13,20,24,0.16)', shade: '#0D1418',
       onAccent: '#FFFFFF',
     },
     gradient: ['#067A5B', '#0B6BA8'],
@@ -117,6 +123,15 @@ export const tint = {
   disabled: 0.35,
   pressed: 0.85,
   cents: 0.6,
+  /** The page behind an open menu, dimmed with `shade`. */
+  scrim: 0.4,
+  /** A shadow's strength, in `shade`. */
+  shadow: 0.22,
+} as const;
+
+/** Shadows, for things that float over the page. `y` and `blur` are iOS's; `elevation` Android's. */
+export const shadow = {
+  menu: { y: 8, blur: 24, elevation: 12 },
 } as const;
 
 /** A `#RRGGBB` colour at the given opacity, as `rgba(...)`. */
