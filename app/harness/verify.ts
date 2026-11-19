@@ -19,6 +19,7 @@ if (!password) throw new Error('SPIKE_SERVER_PASSWORD is not set (see app/README
 if (/:5006\b/.test(serverURL)) throw new Error('Refusing to run against port 5006');
 
 const mode = process.argv[2] ?? 'full';
+const budgetsExpected = 2;
 const dataDir = path.join(here, 'data', 'engine');
 if (mode === 'full') fs.rmSync(dataDir, { recursive: true, force: true });
 fs.mkdirSync(dataDir, { recursive: true });
@@ -88,6 +89,19 @@ async function main() {
     Intl.NumberFormat.prototype.formatToParts !== nativeFormatToParts && wrong.length === 0,
     wrong.length ? `(differ: ${wrong.join(', ')})` : `(${locales.length} locales)`);
 
+  // Session tokens: the app stores this, never the password.
+  const first = await createEngine({ serverURL, password, dataDir });
+  const token = await first.sessionToken();
+  check('sign-in yields a session token', typeof token === 'string' && token.length > 10);
+  const byToken = await createEngine({ serverURL, sessionToken: token, dataDir });
+  check('a saved token signs in without the password', (await byToken.listBudgets()).length === budgetsExpected);
+
+  // Errors carry a code the UI can explain.
+  const failure = await createEngine({ serverURL, password: 'not-the-password', dataDir }).catch((e: any) => e);
+  check('a wrong password fails with code invalid-password', failure?.code === 'invalid-password', `(${failure?.code})`);
+  const expired = await createEngine({ serverURL, sessionToken: 'not-a-token', dataDir }).catch((e: any) => e);
+  check('a bad token fails with code token-expired', expired?.code === 'token-expired', `(${expired?.code})`);
+
   const engine = await timed('init + sign in', () => createEngine({ serverURL, password, dataDir }));
   const budgets = await engine.listBudgets();
   const small = budgets.find((b: any) => b.name === 'Spike Small');
@@ -95,7 +109,9 @@ async function main() {
   check('signed in and listed budgets', Boolean(small && large), budgets.map((b: any) => b.name).join(', '));
 
   if (mode === 'cold') {
-    await timed('large: open local copy + sync', () => engine.openBudget(large.groupId));
+    const stages: string[] = [];
+    await timed('large: open local copy + sync', () => engine.openBudget(large, s => void stages.push(s)));
+    check('reopening skips the download', stages.join(' ') === 'opening syncing', `(${stages.join(' ')})`);
     await timed('large: read current month', () => engine.getMonth(monthsBack(1)[0]));
     await timed('large: sync (nothing new)', () => engine.sync());
     await engine.close();
@@ -104,7 +120,9 @@ async function main() {
   }
 
   // --- Small budget: correctness and two-way sync
-  await timed('small: download + open', () => engine.openBudget(small.groupId));
+  const stages: string[] = [];
+  await timed('small: download + open', () => engine.openBudget(small, s => void stages.push(s)));
+  check('first open reports downloading, opening, syncing', stages.join(' ') === 'downloading opening syncing', `(${stages.join(' ')})`);
   await compareMonths(engine, small.groupId, monthsBack(4), 'small');
 
   const accounts = await engine.getAccounts();
@@ -150,7 +168,7 @@ async function main() {
   check('added transaction stored once', payeeCount === 1);
 
   // --- Large budget: correctness and timing
-  await timed('large: download + open', () => engine.openBudget(large.groupId));
+  await timed('large: download + open', () => engine.openBudget(large));
   await timed('large: read current month', () => engine.getMonth(month));
   await compareMonths(engine, large.groupId, monthsBack(36), 'large');
   const largeChecking = (await engine.getAccounts()).find((a: any) => a.name === 'Everyday Checking');

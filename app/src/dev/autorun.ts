@@ -75,7 +75,7 @@ export async function autorun(say: (line: string) => void) {
     const today = new Date().toISOString().slice(0, 10);
 
     if (cold) {
-      await timed('large: open local copy + sync', () => engine.openBudget(large.groupId));
+      await timed('large: open local copy + sync', () => engine.openBudget(large));
       await timed('large: read current month', () => engine.getMonth(month));
       await timed('large: sync (nothing new)', () => engine.sync());
       await engine.close();
@@ -90,7 +90,7 @@ export async function autorun(say: (line: string) => void) {
     const checkingIn = async () => (await engine.getAccounts()).find(a => a.name === 'Everyday Checking')!;
 
     // --- Small budget: numbers, engine -> server, and the native SQL functions
-    await timed('small: download + open', () => engine.openBudget(small.groupId));
+    await timed('small: download + open', () => engine.openBudget(small));
     const smallChecking = await checkingIn();
     const smallGroceries = await groceriesIn();
     await engine.addTransaction(smallChecking.id, {
@@ -117,7 +117,7 @@ export async function autorun(say: (line: string) => void) {
     });
 
     // --- Large budget: timings, numbers, then wait for an edit from another client
-    await timed('large: download + open', () => engine.openBudget(large.groupId));
+    await timed('large: download + open', () => engine.openBudget(large));
     await timed('large: read current month', () => engine.getMonth(month));
     const largeChecking = await checkingIn();
     const largeGroceries = await groceriesIn();
