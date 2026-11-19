@@ -5,6 +5,7 @@
 //   npm run engine:verify -- cold    cold start on already-downloaded budgets
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
@@ -70,6 +71,38 @@ async function compareMonths(engine: any, groupId: string, months: string[], lab
   }
   check(`${label}: ${months.length} months identical to @actual-app/api`, mismatches === 0,
     `(${cells} budgeted/spent/balance cells)`);
+}
+
+// getPlanMonth against getMonth (api/budget-month) for the same month: the Plan screen's read
+// must show the numbers the reference-checked read shows, minus income and hidden rows.
+async function comparePlanMonth(engine: any, month: string, label: string) {
+  const plan = await engine.getPlanMonth(month);
+  const raw = await engine.getMonth(month);
+  const expected = raw.categoryGroups
+    .filter((g: any) => !g.is_income && !g.hidden)
+    .map((g: any) => ({ id: g.id, categories: g.categories.filter((c: any) => !c.hidden) }));
+  const totals = ['toBudget', 'totalIncome', 'totalSpent'].filter(k => plan[k] !== raw[k]);
+  // loot-core reports total-budgeted negated; the plan month gives it as a positive amount, never -0.
+  if (plan.totalBudgeted !== 0 - raw.totalBudgeted || Object.is(plan.totalBudgeted, -0)) totals.push('totalBudgeted');
+  check(`${label}: plan month totals equal getMonth`, plan.month === month && totals.length === 0,
+    totals.length ? `(differ: ${totals.join(', ')})` : '');
+  check(`${label}: plan month has no income group`,
+    !plan.groups.some((g: any) => raw.categoryGroups.find((r: any) => r.id === g.id)?.is_income));
+  const order = (groups: any[]) => groups.map(g => `${g.id}:${g.categories.map((c: any) => c.id).join(',')}`).join('|');
+  check(`${label}: plan month groups and categories in Actual's order`, order(plan.groups) === order(expected));
+  const rawCategories = new Map<string, any>(expected.flatMap((g: any) => g.categories).map((c: any) => [c.id, c]));
+  const planCategories = plan.groups.flatMap((g: any) => g.categories);
+  const differ = planCategories.filter((c: any) => {
+    const r = rawCategories.get(c.id);
+    return !r || c.budgeted !== r.budgeted || c.spent !== r.spent || c.balance !== r.balance;
+  });
+  check(`${label}: plan month budgeted/spent/balance equal getMonth`,
+    differ.length === 0 && planCategories.length === rawCategories.size,
+    `(${planCategories.length} categories${differ.length ? `, ${differ.length} differ` : ''})`);
+  const badGoals = planCategories.filter((c: any) =>
+    !(c.goal === null || (Number.isInteger(c.goal) && c.goal > 0)) || typeof c.longGoal !== 'boolean');
+  check(`${label}: every goal is null or a positive integer, longGoal a boolean`, badGoals.length === 0);
+  return plan;
 }
 
 async function main() {
@@ -157,6 +190,12 @@ async function main() {
   check('server -> engine: transaction and budget edit from another client arrive',
     mine.length === 1 && mine[0].amount === -4321 && after.budgeted === 55555);
   await compareMonths(engine, small.groupId, monthsBack(4), 'small, after two-way sync');
+  // Seeded by tools/test-server/scripts/seed.mjs: "#template 150" on Insurance, applied to every
+  // month the budget had when it ran (up to a year ahead of it).
+  const insurance = (await comparePlanMonth(engine, month, 'small')).groups
+    .flatMap((g: any) => g.categories).find((c: any) => c.name === 'Insurance');
+  check('small: a templated category carries its goal', insurance?.goal === 15000 && insurance?.longGoal === false,
+    `(${insurance?.goal}, ${insurance?.longGoal}${insurance?.goal == null ? '; run `npm run seed`' : ''})`);
   // Text search and payee matching go through the native SQL functions.
   await engine.addTransaction(checking.id, {
     date: today, amount: -999, payee_name: 'ZOË’S BAKERY', notes: `${tag}-upper`,
@@ -180,13 +219,65 @@ async function main() {
   await timed('large: download + open', () => engine.openBudget(large));
   await timed('large: read current month', () => engine.getMonth(month));
   await compareMonths(engine, large.groupId, monthsBack(36), 'large');
+  await comparePlanMonth(engine, month, 'large');
+  const bounds = await engine.getMonthBounds();
+  const isMonth = (m: unknown) => typeof m === 'string' && /^\d{4}-\d{2}$/.test(m);
+  check('month bounds are YYYY-MM, in order, and include this month',
+    isMonth(bounds.start) && isMonth(bounds.end) && bounds.start <= bounds.end &&
+      bounds.start <= month && month <= bounds.end, `(${bounds.start} to ${bounds.end})`);
   const largeChecking = (await engine.getAccounts()).find((a: any) => a.name === 'Everyday Checking');
   const count = (await engine.getTransactions(undefined as any, '2000-01-01', today)).length;
   check('large budget has 10,000+ transactions', count >= 10000, `(${count})`);
   await engine.addTransaction(largeChecking.id, { date: today, amount: -100, notes: `${tag}-timing` });
   await timed('large: sync after adding 1 transaction', () => engine.sync());
   await timed('large: sync (nothing new)', () => engine.sync());
+  const savedToken = await engine.sessionToken();
+  const onlinePlan = await engine.getPlanMonth(month);
   await engine.close();
+
+  // --- Offline: a saved token and the copies downloaded above, with no server to reach.
+  const nowhere = 'http://127.0.0.1:59999';
+  const offline = await timed('offline: sign in', () =>
+    createEngine({ serverURL: nowhere, sessionToken: savedToken, dataDir }));
+  check('offline: a saved token signs in with offline === true', offline.offline === true);
+  const offlineStages: string[] = [];
+  await timed('offline: open local copy', () => offline.openBudget(large, (s: string) => void offlineStages.push(s)));
+  check('offline: opening reports only "opening" and does not sync', offlineStages.join(' ') === 'opening',
+    `(${offlineStages.join(' ')})`);
+  check('offline: the plan month equals the online one',
+    isDeepStrictEqual(await offline.getPlanMonth(month), onlinePlan));
+  const syncFailure = await offline.sync().then(() => null, (e: any) => e);
+  check('offline: sync fails with code network-failure', syncFailure?.code === 'network-failure',
+    `(${syncFailure?.code})`);
+  check('offline: the budget still reads after a failed sync',
+    isDeepStrictEqual(await offline.getPlanMonth(month), onlinePlan));
+  const missing = { name: 'Not on this phone', groupId: 'no-such-group', cloudFileId: 'no-such-file', encrypted: false };
+  const openFailure = await offline.openBudget(missing).then(() => null, (e: any) => e);
+  check('offline: a budget with no local copy fails with code network-failure',
+    openFailure?.code === 'network-failure', `(${openFailure?.code})`);
+  await offline.close();
+
+  // A server that accepts the connection and never answers, like an address whose network drops
+  // packets: sign-in must give up after its timeout and open offline, not wait for the platform's.
+  const sockets = new Set<net.Socket>();
+  const silent = net.createServer(socket => void sockets.add(socket));
+  await new Promise<void>(resolve => silent.listen(0, '127.0.0.1', resolve));
+  const silentURL = `http://127.0.0.1:${(silent.address() as net.AddressInfo).port}`;
+  const signInTimeoutMs = 300;
+  const t0 = performance.now();
+  const stalled = await createEngine({ serverURL: silentURL, sessionToken: savedToken, dataDir, signInTimeoutMs })
+    .catch((e: any) => e);
+  const elapsed = Math.round(performance.now() - t0);
+  check('a server that never answers: sign-in gives up after its timeout and opens offline',
+    stalled?.offline === true && elapsed >= signInTimeoutMs && elapsed < signInTimeoutMs + 2000,
+    `(${elapsed} ms, timeout ${signInTimeoutMs} ms)`);
+  for (const socket of sockets) socket.destroy();
+  await new Promise<void>(resolve => silent.close(() => resolve()));
+
+  // Back to the real server, so whatever runs next has a working session.
+  const again = await createEngine({ serverURL, password, dataDir });
+  check('signs in to the server again after the offline checks',
+    again.offline === false && (await again.listBudgets()).length === budgetsExpected);
 
   console.table(timings);
   if (failures) {

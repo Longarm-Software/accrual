@@ -1,0 +1,118 @@
+import type { PlanMonth } from '../../engine/types';
+import { fakePlanMonth } from '../../session/fakeEngine';
+import { groupAvailable, hasCategories, heroLabel, heroView, overspentNotice, syncLabel } from './planSummary';
+
+const month = (over: Partial<PlanMonth>): PlanMonth => ({ ...fakePlanMonth, ...over });
+
+describe('heroView', () => {
+  it('the fake month is ready, with shares that sum to 1', () => {
+    const v = heroView(fakePlanMonth);
+    expect(v.state).toBe('ready');
+    expect(v.label).toBe('Ready to budget');
+    expect(v.amount).toBe(31200);
+    expect(v.flow.spent + v.flow.setAside + v.flow.free).toBeCloseTo(1);
+    expect(v.flow.spent).toBeCloseTo(341617 / 619200);
+    expect(v.flow.setAside).toBeCloseTo(246383 / 619200);
+    expect(v.flow.free).toBeCloseTo(31200 / 619200);
+    expect(v.keys).toEqual({
+      spent: { words: 'Spent', amount: '$3,416' },
+      setAside: { words: 'Still set aside', amount: '$2,464' },
+      free: { words: 'Free', amount: '$312' },
+    });
+  });
+  it('is even when toBudget is 0', () => {
+    const v = heroView(month({ toBudget: 0 }));
+    expect(v.state).toBe('even');
+    expect(v.label).toBe('Every dollar has a job');
+    expect(v.flow.free).toBe(0);
+  });
+  it('is over when toBudget is negative, with no free share', () => {
+    const v = heroView(month({ toBudget: -12000 }));
+    expect(v.state).toBe('over');
+    expect(v.label).toBe('Overbudgeted');
+    expect(v.amount).toBe(-12000);
+    expect(v.flow.free).toBe(0);
+    expect(v.keys.free).toEqual({ words: 'Free', amount: '$0' });
+    expect(v.flow.spent + v.flow.setAside).toBeCloseTo(1);
+  });
+  it('shows all zeros for an empty month without dividing by zero', () => {
+    const v = heroView(month({ toBudget: 0, totalBudgeted: 0, totalSpent: 0, totalIncome: 0 }));
+    expect(v.flow).toEqual({ spent: 0, setAside: 0, free: 0 });
+  });
+  it('a net-refund month has no negative share', () => {
+    const v = heroView(month({ toBudget: 10000, totalBudgeted: 0, totalSpent: 5000 }));
+    const { spent, setAside, free } = v.flow;
+    for (const s of [spent, setAside, free]) {
+      expect(s).toBeGreaterThanOrEqual(0);
+      expect(s).toBeLessThanOrEqual(1);
+    }
+    expect(spent + setAside + free).toBeCloseTo(1);
+    expect(v.keys.spent).toEqual({ words: 'Spent', amount: '$0' });
+  });
+  it('never sets aside a negative amount when spending exceeds the budget', () => {
+    const v = heroView(month({ toBudget: 0, totalBudgeted: 1000, totalSpent: -3000 }));
+    expect(v.flow).toEqual({ spent: 1, setAside: 0, free: 0 });
+  });
+});
+
+describe('heroLabel', () => {
+  it('reads the label and the exact amount', () => {
+    expect(heroLabel(heroView(fakePlanMonth))).toBe('Ready to budget, $312.00');
+    expect(heroLabel(heroView(month({ toBudget: -12000 })))).toBe('Overbudgeted, −$120.00');
+  });
+});
+
+describe('overspentNotice', () => {
+  it('is null when nothing is overspent', () => {
+    const calm = month({ groups: [{ ...fakePlanMonth.groups[0] }] });
+    expect(overspentNotice(calm)).toBeNull();
+  });
+  it('names a single overspent category', () => {
+    expect(overspentNotice(fakePlanMonth)).toBe('Dining out is $28.10 over');
+  });
+  it('counts several', () => {
+    const [bills, everyday] = fakePlanMonth.groups;
+    const rent = { ...bills.categories[0], balance: -1000 };
+    const two = month({ groups: [{ ...bills, categories: [rent] }, everyday] });
+    expect(overspentNotice(two)).toBe('2 categories are $38.10 over');
+  });
+});
+
+describe('groupAvailable', () => {
+  const group = fakePlanMonth.groups[1];
+  it('adds what the categories have left', () => {
+    expect(groupAvailable(fakePlanMonth.groups[0])).toBe(22000);
+  });
+  it('leaves out an overspent category, so it does not hide money left elsewhere', () => {
+    expect(groupAvailable(group)).toBe(20762);
+  });
+  it('is 0 for a group with nothing left', () => {
+    expect(groupAvailable({ ...group, categories: [group.categories[1]] })).toBe(0);
+    expect(groupAvailable({ ...group, categories: [] })).toBe(0);
+  });
+});
+
+describe('hasCategories', () => {
+  it('is true for the fake month', () => {
+    expect(hasCategories(fakePlanMonth)).toBe(true);
+  });
+  it('is false with no groups, or only empty groups', () => {
+    expect(hasCategories(month({ groups: [] }))).toBe(false);
+    expect(hasCategories(month({ groups: [{ id: 'g', name: 'Empty', categories: [] }] }))).toBe(false);
+  });
+});
+
+describe('syncLabel', () => {
+  it('says nothing when the last sync was fine', () => {
+    expect(syncLabel({ offline: false, syncFailed: false })).toBeNull();
+  });
+  it('says Offline when the server could not be reached', () => {
+    expect(syncLabel({ offline: true, syncFailed: false })).toBe('Offline');
+  });
+  it('says Not synced when the sync failed for another reason', () => {
+    expect(syncLabel({ offline: false, syncFailed: true })).toBe('Not synced');
+  });
+  it('prefers Offline if both are set', () => {
+    expect(syncLabel({ offline: true, syncFailed: true })).toBe('Offline');
+  });
+});

@@ -9,6 +9,18 @@ Chosen on 19 November 2026, from the three directions in round 1 below. Dark fir
 tiles two to a row, and colour for state: mint is funded, blue is a savings goal, amber needs
 money, coral is overspent, grey is spent as planned.
 
+### Where the built Plan screen differs, on purpose
+
+Plan 2 built the Plan screen from round 1 B. It leaves out three things the mockups show:
+
+- **No icons on the tiles.** Actual stores no icon for a category, so there is nothing to show.
+  Anyone who wants one can put an emoji in the category's name, and it shows as part of the name.
+- **No Assign button on the top card and no Cover it button on the notice, yet.** Both arrive
+  with plan 4 (moving money). Until then the top card and the notice only inform: a button that
+  does nothing is worse than no button.
+- **No dock (Plan, +, Accounts) yet.** Quick add comes in plan 3 and Accounts in plan 5. The dock
+  appears when there is a second place to go.
+
 ## Round 3: the bite, motion and a logo
 
 **Status:** reviewed and accepted on 19 November 2026. The logo is 1 · Ring; its files are in

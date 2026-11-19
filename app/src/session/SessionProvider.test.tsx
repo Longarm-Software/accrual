@@ -118,3 +118,22 @@ it('a failed Keychain read is treated as signed out', async () => {
   const { result } = await renderHook(useSession, { wrapper: wrap().wrapper });
   await waitFor(() => expect(result.current.status).toBe('signedOut'));
 });
+
+it('keeps an online engine whose open failed, and reuses it for the retry', async () => {
+  await saveSession({ serverURL: 'https://budget.example.com', sessionToken: 'token-for-tests', budget: fakeBudgets[0] });
+  const openBudget = jest
+    .fn<Promise<void>, []>()
+    .mockRejectedValueOnce(new EngineError('internal', 'x'))
+    .mockResolvedValue(undefined);
+  const engine = fakeEngine({ openBudget });
+  const create = jest.fn(async () => engine);
+  const { result } = await renderHook(useSession, { wrapper: wrap(create).wrapper });
+  await waitFor(() => expect(result.current.status).toBe('closed'));
+  await act(async () => { await expect(result.current.open()).rejects.toMatchObject({ code: 'internal' }); });
+  await act(async () => { await result.current.open(); });
+  // Signed in online, it can reach the server, so there is no reason to sign in again.
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(openBudget).toHaveBeenCalledTimes(2);
+  expect(result.current.status).toBe('open');
+  expect(result.current.engine).toBe(engine);
+});

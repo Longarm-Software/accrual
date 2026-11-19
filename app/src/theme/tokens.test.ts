@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { contrastRatio } from './contrast';
-import { themes } from './tokens';
+import { themes, withAlpha } from './tokens';
 
 const textColours = ['ink', 'mute', 'ok', 'goal', 'need', 'over', 'zero'] as const;
 
@@ -23,4 +23,8 @@ describe.each(['dark', 'light'] as const)('%s theme', name => {
 it('contrastRatio matches known values', () => {
   expect(contrastRatio('#000000', '#FFFFFF')).toBeCloseTo(21, 1);
   expect(contrastRatio('#777777', '#FFFFFF')).toBeCloseTo(4.48, 1);
+});
+
+it('withAlpha turns a hex colour into rgba', () => {
+  expect(withAlpha('#FF9A8D', 0.5)).toBe('rgba(255,154,141,0.5)');
 });

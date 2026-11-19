@@ -7,8 +7,8 @@ on port 5007. Never point it at a real server or a real budget.
 
 ## Layout
 
-After the [foundation plan](../docs/superpowers/plans/2026-11-19-foundation.md), with what each
-file is for:
+After the [foundation plan](../docs/superpowers/plans/2026-11-19-foundation.md) and plan 2 (the
+Plan screen), with what each file is for:
 
 ```
 app/                               (was spike/app)
@@ -20,22 +20,25 @@ app/                               (was spike/app)
   engine/                          unchanged from the spike, except:
     entry.ts                       + getSessionToken(), onBudgetLoaded()
     shims/async-storage.ts         header comment only: what is kept in memory, what on disk
-  harness/                         unchanged, except verify.ts (new checks) and paths updated
-                                   for the move
+  harness/                         unchanged, except verify.ts (new checks: plan month, month
+                                   bounds, opening offline) and paths updated for the move
   modules/accrual-sqlite-functions/   unchanged
   src/
     app/                           Expo Router routes (screens only, no logic)
       _layout.tsx                  fonts, splash screen, session provider, Stack
-      index.tsx                    Home: Ready to budget; redirects when not ready, or to
-                                   dev-check when the scripted run is on
+      index.tsx                    the Plan: month switcher, top card, notice, groups of tiles,
+                                   pull to refresh, Offline chip; redirects when not ready, or
+                                   to dev-check when the scripted run is on
       connect.tsx                  server address, password, budget list
-      opening.tsx                  first-download and reopen progress
+      opening.tsx                  first-download and reopen progress; opens the copy on the
+                                   phone when the server cannot be reached
       dev-check.tsx                developer route for the scripted check (dev/autorun.ts);
                                    the one place a literal colour is allowed
     app-tests/                     screen tests: Expo Router bundles every file under src/app
                                    as a route, so tests cannot live there (a test checks this)
     engine/
-      types.ts                     Engine, RemoteBudget, BudgetMonth, OpenStage, EngineError
+      types.ts                     Engine, RemoteBudget, PlanMonth, MonthBounds, OpenStage,
+                                   EngineError
       adapter.ts                   createEngine(): the only file that touches the bundle
     session/
       serverUrl.ts                 normalizeServerUrl()
@@ -45,6 +48,17 @@ app/                               (was spike/app)
     features/
       connect/errors.ts            engine error code -> sentence for a person
       opening/stageCopy.ts         OpenStage -> the line shown on the progress screen
+      plan/                        the Plan screen's parts
+        categoryView.ts            what a tile says: status, note ("$17 a day for 12 days"), fill
+        planSummary.ts             the top card, the overspent notice, a group's total
+        tile.ts                    status -> colour, a tile's screen-reader label
+        usePlanMonth.ts            loads a month, refresh, offline and month bounds
+        CategoryTile.tsx           one category: two to a row, or a full-width row at large text
+        HeroCard.tsx               Ready to budget, the spent / set aside / free bar
+        Notice.tsx                 "3 categories are $551.52 over" (informs only, no button)
+        GroupHeader.tsx            group name and what its categories have left
+        MonthSwitcher.tsx          previous and next month, stopping at the budget's ends
+        AccountMenu.tsx            the budget's name and Sign out
     theme/
       tokens.ts                    Aurora colours (dark, light), radii, spacing, type
       contrast.ts                  WCAG contrast ratio
@@ -55,10 +69,12 @@ app/                               (was spike/app)
       Text.tsx                     Body, Label, Display
       Money.tsx                    "$207" with a smaller ".62"
       Button.tsx                   primary (gradient) and quiet (glass)
+      Chip.tsx                     a small status pill ("Offline")
+      ProgressBar.tsx              a tile's bar
       Spinner.tsx                  a ring that turns on the native thread
     lib/
-      money.ts                     splitMoney(), formatMoney()
-      month.ts                     currentMonth()
+      money.ts                     splitMoney(), formatMoney(), formatWholeMoney()
+      month.ts                     currentMonth(), addMonths(), monthLabel(), daysLeftInMonth()
     dev/
       autorun.ts, digest.ts        the spike's scripted on-device run, kept for regression
 tools/test-server/                 (was spike/server)
@@ -111,26 +127,41 @@ below instead of the app. To use the app itself, move that file aside and restar
 
 ## What works
 
-The eight checks from the foundation plan, run by hand on 2026-11-19 against the test server.
+The nine checks from plan 2 (the Plan screen), run by hand on 2026-11-19 against the test
+server, with the fake budget "Spike Small". The emulator's date was 19 November 2026.
 
 | # | Check | iOS simulator | Android emulator |
 |---|---|---|---|
-| 1 | First launch shows **Connect to your Actual server** | Passed | Passed |
-| 2 | An `http://` address without **Allow plain HTTP** says the address is not encrypted | Not run | Passed |
-| 3 | With **Allow plain HTTP** on, "Spike Small" and "Spike Large" are listed | Not run | Passed |
-| 4 | A wrong password says "That password is not right." | Not run | Passed |
-| 5 | **Open Spike Large** shows "Downloading", then "Syncing", with the ring turning | Not run | Passed |
-| 6 | Home shows "Spike Large" and Ready to budget, matching `@actual-app/api` to the cent | Not run | Passed |
-| 7 | After the app is closed and reopened: "Opening", then "Syncing", then Home, no password | Not run | Passed |
-| 8 | **Sign out** returns to Connect, and the app still opens on Connect afterwards | Not run | Passed |
+| 1 | The Plan shows the top card, group headers and two columns of tiles, in the Aurora style | Not run | Passed |
+| 2 | Ready to budget and three categories' balances match the reference client for the month | Not run | Passed |
+| 3 | Previous and next month change the month name and the numbers, and stop at the budget's first and last month | Not run | Passed |
+| 4 | Pull to refresh shows a budget change made by another client | Not run | Passed |
+| 5 | With the server stopped, pull to refresh shows **Offline** and the tiles stay | Not run | Passed |
+| 6 | With the server still stopped, closing and reopening the app opens the Plan with **Offline** | Not run | Passed |
+| 7 | With the server back, pull to refresh removes **Offline** | Not run | Passed |
+| 8 | At the largest system text size the tiles go one to a row, with nothing cut off | Not run | Passed, after a fix (below) |
+| 9 | **Account**, then **Sign out**, returns to Connect | Not run | Passed |
 
-**iOS:** the app was built (Xcode 26.6), installed and launched on the simulator, and check 1
-was confirmed from a screenshot. Checks 2 to 8 were not run: nothing on the build machine can tap
-or type on the simulator.
+**iOS:** the app was built with Xcode 26.6, installed and launched on the simulator, and its
+first screen (Connect) was seen in a screenshot. That is all: checks 1 to 9 were not run, because
+nothing on the build machine can tap or type on the simulator, so it never reached the Plan.
 
-**Android:** check 6 was compared with the reference client in `tools/test-server`
-(`scripts/reference.mjs months`) rather than the web app. For check 7 the app was stopped with
-`adb shell am force-stop`, which ends the process as closing it from the app switcher does.
+**Android:** numbers were compared with the reference client in `tools/test-server`
+(`scripts/reference.mjs months`): Ready to budget, and the balances of Water, Phone, Electricity
+(overspent), Groceries (overspent) and Coffee, all to the cent. One pace note was worked by hand
+(Water: $28.95 left, 12 days left including the 19th, $2.41 a day, shown as "$2 a day for 12
+days"). For check 4 the reference client's `edit` command raised Water's budget by $100.00, and
+after pulling to refresh Water and Ready to budget had both moved by $100.00. For check 6 the app
+was stopped with `adb shell am force-stop`. For check 8 the font scale was set with
+`adb shell settings put system font_scale 1.3` and put back to 1.0 afterwards.
+
+Check 8 failed at first: at 1.3 the tiles stayed two to a row. Android keeps the font scale as a
+32-bit float, so 1.3 reaches the app as 1.2999999523, just under the 1.3 the screen tested for.
+The threshold is now 1.29, and a test covers that value.
+
+The first and last months are the budget's own bounds. On the emulator they were May 2026 and
+November 2027; the reference client's copy of the same budget ends at October 2027, one month
+earlier.
 
 ### Scripted run
 

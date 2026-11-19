@@ -1,5 +1,6 @@
 // The scripted on-device engine check (src/dev/autorun.ts). Only reachable when
 // .env.local sets EXPO_PUBLIC_SPIKE_AUTORUN=1; see "Scripted run" in app/README.md.
+// Developer-only, so it is exempt from the token rules: literal colours and sizes are allowed here.
 import { Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, Text } from 'react-native';
