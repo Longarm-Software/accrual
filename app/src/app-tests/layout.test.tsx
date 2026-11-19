@@ -15,6 +15,18 @@ jest.mock('expo-router', () => {
   const { Text } = require('react-native');
   return { Stack: () => createElement(Text, null, 'stack') };
 });
+const mockStatusBar = jest.fn();
+jest.mock('expo-status-bar', () => ({
+  StatusBar: (props: { style?: string }) => {
+    mockStatusBar(props);
+    return null;
+  },
+}));
+let mockDark = false;
+jest.mock('../theme/useTheme', () => {
+  const { themes } = jest.requireActual('../theme/tokens');
+  return { useTheme: () => (mockDark ? themes.dark : themes.light) };
+});
 jest.mock('../session/SessionProvider', () => ({
   SessionProvider: ({ children }: { children: ReactNode }) => children,
 }));
@@ -22,7 +34,10 @@ jest.mock('../session/SessionProvider', () => ({
 const mockUseFonts = useFonts as jest.Mock;
 const mockHideAsync = SplashScreen.hideAsync as jest.Mock;
 
-beforeEach(() => mockHideAsync.mockClear());
+beforeEach(() => {
+  mockHideAsync.mockClear();
+  mockStatusBar.mockClear();
+});
 
 it('hides the splash screen and renders with system fonts when a font fails to load', async () => {
   mockUseFonts.mockReturnValue([false, new Error('x')]);
@@ -36,4 +51,15 @@ it('renders nothing and keeps the splash screen while fonts are loading', async 
   await render(<RootLayout />);
   expect(mockHideAsync).not.toHaveBeenCalled();
   expect(screen.queryByText('stack')).toBeNull();
+});
+
+// Android draws the status bar over the page (edge to edge): its icons must contrast with the theme.
+it.each([
+  [false, 'dark'],
+  [true, 'light'],
+])('draws the status bar for the theme (dark theme: %s, icons: %s)', async (dark, style) => {
+  mockDark = dark;
+  mockUseFonts.mockReturnValue([true, null]);
+  await render(<RootLayout />);
+  expect(mockStatusBar).toHaveBeenLastCalledWith(expect.objectContaining({ style }));
 });
