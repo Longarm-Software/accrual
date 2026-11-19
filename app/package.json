@@ -67,9 +67,9 @@
     ],
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/modules/",
-      "/harness/",
-      "/engine/"
+      "<rootDir>/modules/",
+      "<rootDir>/harness/",
+      "<rootDir>/engine/"
     ]
   }
 }

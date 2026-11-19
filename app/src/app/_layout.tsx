@@ -10,11 +10,13 @@ import { SessionProvider } from '../session/SessionProvider';
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [loaded] = useFonts({ BricolageGrotesque_600SemiBold, Geist_400Regular, Geist_500Medium, Geist_600SemiBold });
+  const [loaded, error] = useFonts({ BricolageGrotesque_600SemiBold, Geist_400Regular, Geist_500Medium, Geist_600SemiBold });
+  // A font that fails to load must not keep the splash screen up: carry on with system fonts.
+  const ready = loaded || error != null;
   useEffect(() => {
-    if (loaded) void SplashScreen.hideAsync();
-  }, [loaded]);
-  if (!loaded) return null;
+    if (ready) void SplashScreen.hideAsync();
+  }, [ready]);
+  if (!ready) return null;
   return (
     <SessionProvider>
       <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
