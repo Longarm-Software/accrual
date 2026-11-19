@@ -10,10 +10,17 @@ jest.mock('expo-splash-screen', () => ({
   preventAutoHideAsync: jest.fn(async () => true),
   hideAsync: jest.fn(async () => true),
 }));
+const mockScreen = jest.fn();
 jest.mock('expo-router', () => {
   const { createElement } = require('react');
   const { Text } = require('react-native');
-  return { Stack: () => createElement(Text, null, 'stack') };
+  const Screen = (props: object) => {
+    mockScreen(props);
+    return null;
+  };
+  const Stack = ({ children }: { children?: unknown }) => createElement(Text, null, 'stack', children);
+  Stack.Screen = Screen;
+  return { Stack };
 });
 const mockStatusBar = jest.fn();
 jest.mock('expo-status-bar', () => ({
@@ -72,4 +79,10 @@ it.each([
   expect(mockStatusBar).toHaveBeenLastCalledWith(expect.objectContaining({ style }));
   // The three-button navigation bar is drawn over the page too.
   expect(mockNavigationBar).toHaveBeenLastCalledWith(expect.objectContaining({ style }));
+});
+
+it('presents quick add as a modal over the Plan', async () => {
+  mockUseFonts.mockReturnValue([true, null]);
+  await render(<RootLayout />);
+  expect(mockScreen).toHaveBeenCalledWith(expect.objectContaining({ name: 'add', options: expect.objectContaining({ presentation: 'modal' }) }));
 });

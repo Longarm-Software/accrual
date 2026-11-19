@@ -27,7 +27,11 @@ export default function RootLayout() {
       <StatusBar style={theme.isDark ? 'light' : 'dark'} />
       {/* The same for Android's three-button navigation bar, which is also drawn over the page. */}
       <NavigationBar style={theme.isDark ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
+      <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+        {/* Quick add slides up over the Plan. Swiping it down (iOS) or the back button (Android)
+            closes it, as Cancel does. */}
+        <Stack.Screen name="add" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+      </Stack>
     </SessionProvider>
   );
 }

@@ -1,6 +1,9 @@
-import type { NewTransaction, PayeeChoice, QuickAddLists } from '../../engine/types';
+import type { NewTransaction, PayeeChoice, PlanCategory, PlanMonth, QuickAddLists } from '../../engine/types';
+import { formatMoney } from '../../lib/money';
 import { addDays, localDay } from '../../lib/month';
 import { emptyEntry, entryCents, type Entry } from './amountEntry';
+import { bite, type Bite } from './bite';
+import { exactPayee } from './payees';
 
 /** The quick-add form as data. The sheet draws it; these functions are the only way it changes. */
 export type Draft = {
@@ -94,4 +97,68 @@ export function toTransaction(draft: Draft): { accountId: string; transaction: N
   if (draft.payeeId !== null) transaction.payee = draft.payeeId;
   else if (name !== '') transaction.payee_name = name;
   return { accountId: draft.accountId, transaction };
+}
+
+/**
+ * Typed text that is an existing payee's name (ignoring case, outer spaces and normalisation)
+ * means that payee: Save sends its id rather than creating a second payee of the same name.
+ * The category is left as it is.
+ */
+export function resolvePayee(draft: Draft, payees: PayeeChoice[]): Draft {
+  if (draft.payeeId !== null) return draft;
+  const match = exactPayee(payees, draft.payeeText);
+  return match ? { ...draft, payeeId: match.id, payeeText: match.name } : draft;
+}
+
+export function withAccount(draft: Draft, accountId: string): Draft {
+  return { ...draft, accountId };
+}
+
+/** Whether the date's forward arrow can move: only on a day before today. */
+export function canStepForward(draft: Draft, today: Date): boolean {
+  return draft.date < localDay(today);
+}
+
+const planCategories = (plan: PlanMonth): PlanCategory[] => plan.groups.flatMap(group => group.categories);
+
+/** The expense categories the sheet offers: every category in the plan's groups. */
+export function expenseCategoryIds(plan: PlanMonth): Set<string> {
+  return new Set(planCategories(plan).map(category => category.id));
+}
+
+/** The plan's balances are for its month only; a draft dated in another month must not show them. */
+const balancesApply = (draft: Draft, plan: PlanMonth): boolean => draft.date.slice(0, 7) === plan.month;
+
+export type CardView = { name: string | null; suggested: boolean; bite: Bite | null };
+
+/**
+ * What the category card shows. An expense in the plan's month shows the bite against the
+ * category's balance now; income, or a date in another month, shows the name only.
+ */
+export function cardView(draft: Draft, lists: QuickAddLists, plan: PlanMonth): CardView {
+  const none: CardView = { name: null, suggested: false, bite: null };
+  if (draft.categoryId === null) return none;
+  const suggested = isSuggested(draft);
+  if (draft.income) {
+    const income = lists.incomeCategories.find(c => c.id === draft.categoryId);
+    return income ? { name: income.name, suggested, bite: null } : none;
+  }
+  const category = planCategories(plan).find(c => c.id === draft.categoryId);
+  if (!category) return none;
+  const shown = balancesApply(draft, plan) ? bite(category, entryCents(draft.entry)) : null;
+  return { name: category.name, suggested, bite: shown };
+}
+
+export type CategoryChoice = { id: string; name: string; detail?: string };
+
+/**
+ * The category list: for an expense, the plan's categories group by group, in order, each with
+ * its balance (when the draft is in the plan's month); for income, the income categories.
+ */
+export function categoryChoices(draft: Draft, lists: QuickAddLists, plan: PlanMonth): CategoryChoice[] {
+  if (draft.income) return lists.incomeCategories;
+  const withBalance = balancesApply(draft, plan);
+  return planCategories(plan).map(({ id, name, balance }) =>
+    withBalance ? { id, name, detail: formatMoney(balance) } : { id, name },
+  );
 }

@@ -34,6 +34,12 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
   reload(): void;
   /** Sync with the server, then read the month (and the bounds) again. A failed sync keeps the numbers. */
   refresh(): Promise<void>;
+  /**
+   * A transaction was just saved on the phone: read the month at once, so it shows, then sync
+   * in the background and read again, as `refresh` does but without the pull spinner. A failed
+   * sync is handled exactly as a pull's is.
+   */
+  afterSave(): Promise<void>;
 } {
   // The load is kept with the month it belongs to, so a render after the month changed,
   // but before its read started, never shows the old month's numbers as the new one's.
@@ -97,9 +103,11 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
     };
   }, [readBounds]);
 
-  const refresh = useCallback(async () => {
+  // The one sync path, for a pull and after a save: what a failed sync shows, and signing out
+  // when the session has expired, are decided here only.
+  const syncThenRead = useCallback(async (spinner: boolean) => {
     if (!engine) return;
-    setRefreshing(true);
+    if (spinner) setRefreshing(true);
     let synced = false;
     try {
       await engine.sync();
@@ -118,12 +126,19 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
       // Keep showing the numbers while they are read again. A sync can add months.
       await Promise.all([read(shown.current, false), synced ? readBounds() : null]);
     } finally {
-      setRefreshing(false);
+      if (spinner) setRefreshing(false);
     }
   }, [engine, read, readBounds, onSessionExpired]);
+
+  const refresh = useCallback(() => syncThenRead(true), [syncThenRead]);
+
+  const afterSave = useCallback(async () => {
+    await read(shown.current, false);
+    await syncThenRead(false);
+  }, [read, syncThenRead]);
 
   const reload = useCallback(() => void read(month, true), [read, month]);
 
   const load: PlanLoad = result && result.month === month ? result.load : { state: 'loading' };
-  return { load, bounds, offline: sync === 'offline', syncFailed: sync === 'failed', refreshing, reload, refresh };
+  return { load, bounds, offline: sync === 'offline', syncFailed: sync === 'failed', refreshing, reload, refresh, afterSave };
 }

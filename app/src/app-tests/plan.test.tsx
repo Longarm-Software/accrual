@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
-import { useEffect } from 'react';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Dimensions } from 'react-native';
 
 import { EngineError } from '../engine/types';
@@ -8,7 +9,9 @@ import type { Engine, PlanMonth } from '../engine/types';
 import { fakeBudgets, fakeEngine, fakePlanMonth } from '../session/fakeEngine';
 import { SessionProvider, useSession } from '../session/SessionProvider';
 import { loadSession, saveSession } from '../session/storage';
-import { space } from '../theme/tokens';
+import { announceSaved } from '../features/plan/quickAddSignal';
+import { size, space } from '../theme/tokens';
+import Add from '../app/add';
 import Home from '../app/index';
 
 const mockRedirect = jest.fn();
@@ -17,7 +20,7 @@ jest.mock('expo-router', () => ({
     mockRedirect(href);
     return null;
   },
-  router: { replace: jest.fn() },
+  router: { replace: jest.fn(), push: jest.fn(), back: jest.fn() },
 }));
 
 // Three-button navigation on Android: the page is drawn under a 48-point bar.
@@ -152,10 +155,12 @@ it('draws the amounts in a row at one size, so they share a baseline', async () 
   expect(sizeOf('$154')).toBe(sizeOf('$1,207'));
 });
 
-it('keeps the last tile clear of the navigation bar', async () => {
+it('keeps the last tile clear of the navigation bar and of the add button', async () => {
   await showPlan(fakeEngine());
   await screen.findByText('Groceries');
-  expect(screen.getByTestId('plan-scroll').props.contentContainerStyle).toMatchObject({ paddingBottom: space.lg + 48 });
+  expect(screen.getByTestId('plan-scroll').props.contentContainerStyle).toMatchObject({
+    paddingBottom: space.lg + 48 + size.fab + space.lg,
+  });
 });
 
 it('uses one column when the text is large', async () => {
@@ -471,4 +476,157 @@ it('signs out when the sync says the session has expired', async () => {
   await waitFor(() => expect(status).toBe('signedOut'));
   await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/connect'));
   expect(await loadSession()).toBeNull();
+});
+
+// --- Quick add: the way in, and the Plan after a save ---
+
+it('floats a + button above the navigation bar that opens quick add', async () => {
+  await showPlan(fakeEngine());
+  await screen.findByText('Groceries');
+  const button = screen.getByRole('button', { name: 'Add a transaction' });
+  expect(screen.getByTestId('add-button')).toHaveStyle({ position: 'absolute', right: space.lg, bottom: 48 + space.lg });
+  await fireEvent.press(button);
+  expect(router.push).toHaveBeenCalledWith('/add');
+});
+
+it('shows the + button in another month too', async () => {
+  await showPlan(fakeEngine({ getPlanMonth: async month => (month === '2026-12' ? December : fakePlanMonth) }));
+  await screen.findByText('Groceries');
+  await fireEvent.press(screen.getByRole('button', { name: 'Next month' }));
+  await screen.findByText('December');
+  expect(screen.getByRole('button', { name: 'Add a transaction' })).toBeTruthy();
+});
+
+/** A budget whose Groceries balance goes down by what is saved, as Actual's would. */
+function spendingEngine(overrides: Partial<Engine> = {}) {
+  let groceries = 20762;
+  const order: string[] = [];
+  const getPlanMonth = jest.fn(async (month: string) => {
+    order.push('read');
+    const [bills, everyday, goals] = fakePlanMonth.groups;
+    const [, dining] = everyday.categories;
+    const grocery = { ...everyday.categories[0], balance: groceries };
+    return { ...fakePlanMonth, month, groups: [bills, { ...everyday, categories: [grocery, dining] }, goals] };
+  });
+  const addTransaction = jest.fn(async (_account: string, t: { amount: number }) => {
+    groceries += t.amount;
+  });
+  // The sync records when it starts; `overrides.sync`, if given, decides how it ends.
+  const { sync: ends, ...rest } = overrides;
+  const sync = jest.fn(async () => {
+    order.push('sync');
+    await ends?.();
+  });
+  return { engine: fakeEngine({ getPlanMonth, addTransaction, sync, ...rest }), getPlanMonth, sync, order };
+}
+
+/** The Plan with the sheet over it while it is open: "+" opens it, Save closes it. */
+async function showPlanWithSheet(engine: Engine) {
+  let setOpen!: (open: boolean) => void;
+  function App() {
+    const [open, set] = useState(false);
+    setOpen = set;
+    return (
+      <>
+        <OpenThenHome />
+        {open && <Add />}
+      </>
+    );
+  }
+  (router.push as jest.Mock).mockImplementation(() => setOpen(true));
+  (router.back as jest.Mock).mockImplementation(() => setOpen(false));
+  await saveOpenable();
+  await render(<SessionProvider create={async () => engine}><App /></SessionProvider>);
+}
+
+const addGroceries = async (...keys: string[]) => {
+  await fireEvent.press(screen.getByRole('button', { name: 'Add a transaction' }));
+  await screen.findByRole('button', { name: 'Save' });
+  for (const k of keys) await fireEvent.press(screen.getByRole('button', { name: k }));
+  await fireEvent.press(screen.getByRole('button', { name: 'No category, choose one' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Groceries, $207.62' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Save' })).toBeNull());
+};
+
+it('reads the month again after a save, then syncs once in the background, with no pull spinner', async () => {
+  let finishSync!: () => void;
+  const { engine, getPlanMonth, sync, order } = spendingEngine({
+    sync: jest.fn(() => new Promise<void>(resolve => (finishSync = () => resolve()))),
+  });
+  await showPlanWithSheet(engine);
+  expect(await screen.findByText('$207')).toBeTruthy();
+  const readsBefore = getPlanMonth.mock.calls.length;
+  await addGroceries('5', '0');
+  // The new balance shows while the sync is still running.
+  expect(await screen.findByText('$157')).toBeTruthy();
+  expect(screen.getByTestId('plan-scroll').props.refreshControl.props.refreshing).toBe(false);
+  await act(async () => finishSync());
+  await waitFor(() => expect(getPlanMonth.mock.calls.length).toBe(readsBefore + 3));
+  expect(sync).toHaveBeenCalledTimes(1);
+  // The sheet's own read of the month, then the Plan's: at once, and after the sync.
+  expect(order.slice(-3)).toEqual(['read', 'sync', 'read']);
+});
+
+it('does not read the month again when the sheet is cancelled', async () => {
+  const { engine, getPlanMonth, sync } = spendingEngine();
+  await showPlanWithSheet(engine);
+  await screen.findByText('$207');
+  await fireEvent.press(screen.getByRole('button', { name: 'Add a transaction' }));
+  await screen.findByRole('button', { name: 'Save' });
+  const reads = getPlanMonth.mock.calls.length;
+  await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+  expect(getPlanMonth).toHaveBeenCalledTimes(reads);
+  expect(sync).not.toHaveBeenCalled();
+});
+
+it('says Offline when the sync after a save cannot reach the server, and keeps the new balance', async () => {
+  const { engine } = spendingEngine({
+    sync: jest.fn(async () => {
+      throw new EngineError('network-failure', 'x');
+    }),
+  });
+  await showPlanWithSheet(engine);
+  await screen.findByText('$207');
+  await addGroceries('5', '0');
+  expect(await screen.findByText('Offline')).toBeTruthy();
+  expect(screen.getByText('$157')).toBeTruthy();
+});
+
+it('says Not synced when the sync after a save fails another way', async () => {
+  const { engine } = spendingEngine({
+    sync: jest.fn(async () => {
+      throw new EngineError('internal', 'x');
+    }),
+  });
+  await showPlanWithSheet(engine);
+  await screen.findByText('$207');
+  await addGroceries('5', '0');
+  expect(await screen.findByText('Not synced')).toBeTruthy();
+});
+
+it('signs out when the sync after a save says the session has expired', async () => {
+  const { engine } = spendingEngine({
+    sync: jest.fn(async () => {
+      throw new EngineError('token-expired', 'x');
+    }),
+  });
+  await showPlanWithSheet(engine);
+  await screen.findByText('$207');
+  await addGroceries('5', '0');
+  await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/connect'));
+  expect(await loadSession()).toBeNull();
+});
+
+it('reads the month again on each save, not on each render', async () => {
+  const { engine, getPlanMonth, sync } = spendingEngine();
+  await showPlan(engine);
+  await screen.findByText('$207');
+  const reads = getPlanMonth.mock.calls.length;
+  await fireEvent.press(screen.getByRole('button', { name: 'Account' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Account' }));
+  expect(getPlanMonth).toHaveBeenCalledTimes(reads);
+  await act(async () => announceSaved());
+  await waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(getPlanMonth).toHaveBeenCalledTimes(reads + 2));
 });

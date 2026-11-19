@@ -165,6 +165,9 @@ export const size = {
   deleteMark: 16,
   /** The date stepper's label at text scale 1: wide enough for "Wed 30 Sep". Multiply by the font scale. */
   dateLabel: 92,
+  /** The round "+" that floats over the Plan, and the length of its arms. */
+  fab: 60,
+  fabPlus: 22,
 } as const;
 
 /**
@@ -205,6 +208,8 @@ export const tint = {
 /** Shadows, for things that float over the page. `y` and `blur` are iOS's; `elevation` Android's. */
 export const shadow = {
   menu: { y: 8, blur: 24, elevation: 12 },
+  /** The "+" floating over the Plan's tiles. */
+  fab: { y: 6, blur: 18, elevation: 8 },
 } as const;
 
 /** A `#RRGGBB` colour at the given opacity, as `rgba(...)`. */

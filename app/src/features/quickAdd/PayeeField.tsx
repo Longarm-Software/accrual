@@ -8,7 +8,14 @@ import { useTheme } from '../../theme/useTheme';
 import { Glass } from '../../ui/Glass';
 import { Label } from '../../ui/Text';
 
-type Props = { text: string; matches: PayeeChoice[]; onChangeText(text: string): void; onPick(payee: PayeeChoice): void };
+type Props = {
+  text: string;
+  matches: PayeeChoice[];
+  onChangeText(text: string): void;
+  onPick(payee: PayeeChoice): void;
+  /** The field gained (true) or lost (false) focus: the sheet puts its keypad away while the keyboard is up. */
+  onFocusChange?(focused: boolean): void;
+};
 
 const MAX_MATCHES = 6;
 
@@ -20,7 +27,7 @@ const MAX_MATCHES = 6;
  * The matches are pressed while the keyboard is up: a scroll view around this needs
  * `keyboardShouldPersistTaps="handled"`, or the first tap only closes the keyboard.
  */
-export function PayeeField({ text, matches, onChangeText, onPick }: Props) {
+export function PayeeField({ text, matches, onChangeText, onPick, onFocusChange }: Props) {
   const theme = useTheme();
   const input = useRef<TextInputInstance>(null);
   const [focused, setFocused] = useState(false);
@@ -38,8 +45,14 @@ export function PayeeField({ text, matches, onChangeText, onPick }: Props) {
           accessibilityLabel="Payee"
           value={text}
           onChangeText={onChangeText}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={() => {
+            setFocused(true);
+            onFocusChange?.(true);
+          }}
+          onBlur={() => {
+            setFocused(false);
+            onFocusChange?.(false);
+          }}
           autoCapitalize="words"
           autoCorrect={false}
           spellCheck={false}

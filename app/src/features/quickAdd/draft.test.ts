@@ -1,9 +1,9 @@
 import type { PayeeChoice, QuickAddLists } from '../../engine/types';
-import { fakeQuickAddLists } from '../../session/fakeEngine';
+import { fakePlanMonth, fakeQuickAddLists } from '../../session/fakeEngine';
 import { emptyEntry } from './amountEntry';
 import {
-  canSave, dateLabel, isSuggested, newDraft, stepDate, toggleIncome, toTransaction,
-  withCategory, withPayee, withPayeeText, type Draft,
+  canSave, canStepForward, cardView, categoryChoices, dateLabel, expenseCategoryIds, isSuggested, newDraft,
+  resolvePayee, stepDate, toggleIncome, toTransaction, withAccount, withCategory, withPayee, withPayeeText, type Draft,
 } from './draft';
 
 const nov19 = new Date(2026, 10, 19, 21, 30); // evening, when UTC is already the next day in some zones
@@ -182,5 +182,82 @@ describe('toTransaction', () => {
   it('refuses a draft that cannot be saved', () => {
     expect(() => toTransaction(fresh())).toThrow();
     expect(() => toTransaction({ ...amount(fresh()), accountId: null })).toThrow();
+  });
+});
+
+// --- Task 4: what the sheet shows, and the payee sent on Save ---
+
+const plan = fakePlanMonth; // November 2026
+const typed = (d: Draft, digits: string): Draft => ({ ...d, entry: { digits, decimals: null } });
+
+describe('resolvePayee', () => {
+  it('turns typed text that is an existing payee into that payee, so Save does not create a duplicate', () => {
+    const d = resolvePayee(withPayeeText(fresh(), '  noodle BAR '), lists.payees);
+    expect(d).toMatchObject({ payeeId: 'payee-noodle-bar', payeeText: 'Noodle Bar' });
+    expect(toTransaction(typed(d, '5')).transaction).toEqual({ date: '2026-11-19', amount: -500, cleared: false, payee: 'payee-noodle-bar' });
+  });
+  it('leaves a new name, and the category, alone', () => {
+    const d = withCategory(withPayeeText(fresh(), 'Night Owl Cafe'), 'cat-dining');
+    expect(resolvePayee(d, lists.payees)).toBe(d);
+  });
+  it('leaves a picked payee alone', () => {
+    const d = withPayee(fresh(), cornerShop, expenseIds);
+    expect(resolvePayee(d, lists.payees)).toBe(d);
+  });
+});
+
+describe('withAccount', () => {
+  it('sets the account', () => expect(withAccount(fresh(), 'acct-card').accountId).toBe('acct-card'));
+});
+
+describe('canStepForward', () => {
+  it('is false on today and true on an earlier day', () => {
+    expect(canStepForward(fresh(), nov19)).toBe(false);
+    expect(canStepForward(stepDate(fresh(), -1, nov19), nov19)).toBe(true);
+  });
+});
+
+describe('expenseCategoryIds', () => {
+  it("is every category in the plan's groups", () => {
+    expect(expenseCategoryIds(plan)).toEqual(new Set(['cat-rent', 'cat-electricity', 'cat-insurance', 'cat-groceries', 'cat-dining', 'cat-emergency']));
+  });
+});
+
+describe('cardView', () => {
+  it('no category', () => {
+    expect(cardView(typed(fresh(), '5'), lists, plan)).toEqual({ name: null, suggested: false, bite: null });
+  });
+  it('a suggested expense category with the bite against this month', () => {
+    const view = cardView(typed(withPayee(fresh(), cornerShop, expenseIds), '18'), lists, plan);
+    expect(view).toMatchObject({ name: 'Groceries', suggested: true });
+    expect(view.bite).toMatchObject({ state: 'fits', before: '$207.62', after: '$189.62 after', warning: null });
+  });
+  it('more than the category has', () => {
+    const view = cardView(typed(withCategory(fresh(), 'cat-electricity'), '150'), lists, plan);
+    expect(view.bite).toMatchObject({ state: 'over', warning: 'That is $30.00 more than Electricity has' });
+  });
+  it('a date in an earlier month: the name, no bite', () => {
+    const oct = { ...withCategory(typed(fresh(), '5'), 'cat-groceries'), date: '2026-10-31' };
+    expect(cardView(oct, lists, plan)).toEqual({ name: 'Groceries', suggested: false, bite: null });
+  });
+  it('income: the income category by name, no bite', () => {
+    const d = withCategory(typed(toggleIncome(fresh()), '5'), 'cat-salary');
+    expect(cardView(d, lists, plan)).toEqual({ name: 'Salary', suggested: false, bite: null });
+  });
+});
+
+describe('categoryChoices', () => {
+  it("for an expense, the plan's categories in order, each with its balance", () => {
+    const choices = categoryChoices(fresh(), lists, plan);
+    expect(choices.map(c => c.name)).toEqual(['Rent', 'Electricity', 'Insurance', 'Groceries', 'Dining out', 'Emergency fund']);
+    expect(choices[3]).toEqual({ id: 'cat-groceries', name: 'Groceries', detail: '$207.62' });
+    expect(choices[4].detail).toBe('−$28.10');
+  });
+  it('for a date in an earlier month, no balances', () => {
+    const choices = categoryChoices({ ...fresh(), date: '2026-10-31' }, lists, plan);
+    expect(choices[3]).toEqual({ id: 'cat-groceries', name: 'Groceries' });
+  });
+  it('for income, the income categories', () => {
+    expect(categoryChoices(toggleIncome(fresh()), lists, plan)).toEqual(lists.incomeCategories);
   });
 });

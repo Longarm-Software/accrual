@@ -66,3 +66,11 @@ it('keeps match rows at least 48 points high', async () => {
   const style = [screen.getByRole('button', { name: 'Corner Bakery' }).props.style].flat(Infinity).reduce((all, s) => ({ ...all, ...s }), {});
   expect(style.minHeight).toBeGreaterThanOrEqual(48);
 });
+
+it('tells the parent when it gains and loses focus', async () => {
+  const onFocusChange = jest.fn();
+  await render(<PayeeField text="" matches={[]} onChangeText={jest.fn()} onPick={jest.fn()} onFocusChange={onFocusChange} />);
+  await fireEvent(screen.getByLabelText('Payee'), 'focus');
+  await fireEvent(screen.getByLabelText('Payee'), 'blur');
+  expect(onFocusChange.mock.calls).toEqual([[true], [false]]);
+});
