@@ -5,6 +5,8 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
+import { SessionProvider } from '../session/SessionProvider';
+
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -13,5 +15,9 @@ export default function RootLayout() {
     if (loaded) void SplashScreen.hideAsync();
   }, [loaded]);
   if (!loaded) return null;
-  return <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />;
+  return (
+    <SessionProvider>
+      <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
+    </SessionProvider>
+  );
 }
