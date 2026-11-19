@@ -66,6 +66,7 @@ last because it touches every screen.
 | Android may read the quick-add warning ("That is … more than … has") twice: once as the card's label and once from its live region. | Plan 6 |
 | Reopening a budget syncs with no time limit (`openBudget`), where every other sync gives up after 15 seconds. Rare, because sign-in, which is bounded, has just succeeded. | Plan 6 |
 | Quick add's lists (`getQuickAddLists`) have never been timed on a large budget; measure with the first-download time on a mid-range phone. The sheet shows a spinner meanwhile. | Plan 6 |
+| On a short phone with the over-budget warning showing, opening a picker and closing it leaves the form scrolled to the top without the fade that says there is more below. | Plan 6 |
 
 ## Settled
 

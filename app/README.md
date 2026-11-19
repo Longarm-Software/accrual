@@ -210,7 +210,7 @@ What was entered and seen on Android (fake figures throughout):
 - **10b** (same day, after the final review's fixes): `adb shell wm size 1080x1920` and
   `wm density 480` (360 × 640 points), put back with `wm size reset` and `wm density reset`
   after. Empty, and with $18.40 against Coffee ($186.41, "$168.01 after"), everything down to
-  the account and date fits above the keypad, in light and dark. Against Electricity (−$298.80)
+  the account and date fits above the keypad (seen in light; the empty and over-budget cases were also seen in dark). Against Electricity (−$298.80)
   the warning line pushes the account and date under a fade; scrolling brings them up and the
   fade goes. At 1080 × 2400 the sheet was unchanged. Typing 1, 8, ".", 4 showed `−$1`, `−$18`,
   `−$18.` and `−$18.4`, the dollars not moving. The category list drew Electricity, Groceries
