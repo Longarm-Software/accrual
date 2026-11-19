@@ -34,6 +34,14 @@ describe('exactPayee', () => {
   it('finds the payee whose name equals the text, ignoring case and outer spaces', () => {
     expect(exactPayee(fakeQuickAddLists.payees, '  noodle BAR ')).toBe(fakeQuickAddLists.payees[1]);
   });
+  it('matches a name stored decomposed when the same name is typed composed, and the reverse', () => {
+    const composed = 'café';
+    const decomposed = 'café';
+    const stored = [p('Corner Shop'), p(decomposed)];
+    expect(exactPayee(stored, ` CAFÉ `)).toBe(stored[1]);
+    expect(exactPayee([p(composed)], decomposed)?.name).toBe(composed);
+    expect(names(matchPayees(stored, composed))).toEqual([decomposed]);
+  });
   it('is null for a partial match or empty text', () => {
     expect(exactPayee(fakeQuickAddLists.payees, 'Noodle')).toBeNull();
     expect(exactPayee(fakeQuickAddLists.payees, '')).toBeNull();

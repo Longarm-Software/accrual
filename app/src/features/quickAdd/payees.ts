@@ -1,6 +1,7 @@
 import type { PayeeChoice } from '../../engine/types';
 
-const normal = (text: string): string => text.trim().toLowerCase();
+// Names compare after Unicode NFC, so "café" stored decomposed matches "café" typed on a phone.
+const normal = (text: string): string => text.normalize('NFC').trim().toLowerCase();
 
 /** Payees for the typed text: names that start with it, then names that only contain it, each in the order given. */
 export function matchPayees(payees: PayeeChoice[], text: string, limit = 6): PayeeChoice[] {
@@ -16,7 +17,7 @@ export function matchPayees(payees: PayeeChoice[], text: string, limit = 6): Pay
   return [...starts, ...contains].slice(0, limit);
 }
 
-/** The payee whose name is the typed text, ignoring case and outer spaces, or null. */
+/** The payee whose name is the typed text, ignoring case, outer spaces and Unicode normalisation, or null. */
 export function exactPayee(payees: PayeeChoice[], text: string): PayeeChoice | null {
   const wanted = normal(text);
   if (wanted === '') return null;
