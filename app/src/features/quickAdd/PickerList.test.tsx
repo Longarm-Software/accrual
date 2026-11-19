@@ -1,11 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
+import { StyleSheet } from 'react-native';
+
+import { themes } from '../../theme/tokens';
+import type { RowDetail } from './draft';
 import { PickerList } from './PickerList';
 
-type Item = { id: string; name: string; balance: string };
+type Item = { id: string; name: string; balance: RowDetail };
 const items: Item[] = [
-  { id: 'a', name: 'Groceries', balance: '$207.62' },
-  { id: 'b', name: 'Coffee', balance: '$13.50' },
+  { id: 'a', name: 'Groceries', balance: { text: '$207.62', tone: 'mute' } },
+  { id: 'b', name: 'Coffee', balance: { text: '$13.50', tone: 'mute' } },
+  { id: 'c', name: 'Electricity', balance: { text: '−$298.80', tone: 'over' } },
 ];
 
 const draw = (props: { selectedId: string | null; none?: boolean; detail?: boolean }) => {
@@ -42,6 +47,18 @@ it('shows each item’s detail at the right, and reads it with the name', async 
   await draw({ selectedId: null, detail: true });
   expect(screen.getByText('$207.62')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Coffee, $13.50' })).toBeTruthy();
+});
+
+it('draws a detail in the colour its tone names: quiet, or coral for over', async () => {
+  await draw({ selectedId: null, detail: true });
+  // Jest's colour scheme is light.
+  expect(StyleSheet.flatten(screen.getByText('$207.62').props.style).color).toBe(themes.light.color.mute);
+  expect(StyleSheet.flatten(screen.getByText('−$298.80').props.style).color).toBe(themes.light.color.over);
+});
+
+it('draws no scrollbar: it would sit inside the card’s rounded edge', async () => {
+  await draw({ selectedId: null });
+  expect(screen.getByTestId('picker-list').props.showsVerticalScrollIndicator).toBe(false);
 });
 
 it('calls back with the item picked', async () => {

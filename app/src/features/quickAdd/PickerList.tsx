@@ -5,12 +5,14 @@ import { useTheme } from '../../theme/useTheme';
 import { Glass } from '../../ui/Glass';
 import { Tick } from '../../ui/Tick';
 import { Body, Label } from '../../ui/Text';
+import type { RowDetail } from './draft';
 
 type Props<T extends { id: string; name: string }> = {
   title: string;
   items: T[];
   selectedId: string | null;
-  detail?(item: T): string | undefined;
+  /** A row's detail, already decided (text and tone); the list only maps the tone to a colour. */
+  detail?(item: T): RowDetail | undefined;
   onPick(item: T): void;
   onClose(): void;
   /** A first row meaning "none of these"; it is the selected row when `selectedId` is null. */
@@ -59,7 +61,11 @@ export function PickerList<T extends { id: string; name: string }>({
       </View>
       <Glass radius={radius.tile} style={{ flexShrink: 1 }}>
         <FlatList
+          testID="picker-list"
           data={items}
+          // The bar would be drawn inside the card's rounded right edge; the list is short and
+          // its last row shows where it ends.
+          showsVerticalScrollIndicator={false}
           keyExtractor={item => item.id}
           keyboardShouldPersistTaps="handled"
           ItemSeparatorComponent={Separator}
@@ -80,21 +86,22 @@ export function PickerList<T extends { id: string; name: string }>({
   );
 }
 
-type RowProps = { name: string; detail?: string; selected: boolean; onPress: () => void };
+type RowProps = { name: string; detail?: RowDetail; selected: boolean; onPress: () => void };
 
 function Row({ name, detail, selected, onPress }: RowProps) {
   const theme = useTheme();
+  const toneColor = { over: theme.color.over, mute: theme.color.mute };
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={detail ? `${name}, ${detail}` : name}
+      accessibilityLabel={detail ? `${name}, ${detail.text}` : name}
       accessibilityState={{ selected }}
       onPress={onPress}
       style={({ pressed }) => [styles.row, { opacity: pressed ? tint.pressed : 1 }]}
     >
       <View style={styles.mark}>{selected && <Tick testID="picker-tick" size={size.tickSmall} color={theme.color.ok} />}</View>
       <Text style={[type.row, { flex: 1, color: theme.color.ink }]}>{name}</Text>
-      {detail !== undefined && <Text style={[type.figure, styles.detail, { color: theme.color.mute }]}>{detail}</Text>}
+      {detail !== undefined && <Text style={[type.figure, styles.detail, { color: toneColor[detail.tone] }]}>{detail.text}</Text>}
     </Pressable>
   );
 }

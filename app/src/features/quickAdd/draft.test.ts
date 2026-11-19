@@ -267,8 +267,21 @@ describe('categoryChoices', () => {
   it("for an expense, the plan's categories in order, each with its balance", () => {
     const choices = categoryChoices(fresh(), lists, plan);
     expect(choices.map(c => c.name)).toEqual(['Rent', 'Electricity', 'Insurance', 'Groceries', 'Dining out', 'Emergency fund']);
-    expect(choices[3]).toEqual({ id: 'cat-groceries', name: 'Groceries', detail: '$207.62' });
-    expect(choices[4].detail).toBe('−$28.10');
+    expect(choices[3]).toEqual({ id: 'cat-groceries', name: 'Groceries', detail: { text: '$207.62', tone: 'mute' } });
+    expect(choices[4].detail?.text).toBe('−$28.10');
+  });
+  it('an overspent balance is coral, as its tile on the Plan says Overspent', () => {
+    expect(categoryChoices(fresh(), lists, plan)[4].detail).toEqual({ text: '−$28.10', tone: 'over' });
+  });
+  it('a balance below zero with rollover overspending stays quiet, as its tile does', () => {
+    const rolling = {
+      ...plan,
+      groups: plan.groups.map(g => ({ ...g, categories: g.categories.map(c => (c.id === 'cat-dining' ? { ...c, carryover: true } : c)) })),
+    };
+    expect(categoryChoices(fresh(), lists, rolling)[4].detail).toEqual({ text: '−$28.10', tone: 'mute' });
+  });
+  it('a zero balance is quiet', () => {
+    expect(categoryChoices(fresh(), lists, plan)[0].detail).toEqual({ text: '$0.00', tone: 'mute' });
   });
   it('for a date in an earlier month, no balances', () => {
     const choices = categoryChoices({ ...fresh(), date: '2026-10-31' }, lists, plan);

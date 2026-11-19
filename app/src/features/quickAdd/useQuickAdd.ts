@@ -8,7 +8,7 @@ import { entryCents, press, type Key } from './amountEntry';
 import {
   canSave, canStepForward, cardView, categoryChoices, dateLabel, expenseCategoryIds, newDraft, resolvePayee, stepDate,
   toggleIncome, toTransaction, withAccount, withCategory, withPayee, withPayeeText,
-  type CardView, type CategoryChoice, type Draft,
+  type CardView, type CategoryRow, type Draft,
 } from './draft';
 import { matchPayees } from './payees';
 
@@ -25,7 +25,7 @@ export type QuickAddReady = {
   payeeText: string;
   payeeMatches: PayeeChoice[];
   card: CardView;
-  categories: CategoryChoice[];
+  categories: CategoryRow[];
   categoryId: string | null;
   accounts: AccountChoice[];
   accountId: string | null;

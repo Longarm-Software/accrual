@@ -1,6 +1,7 @@
 import type { NewTransaction, PayeeChoice, PlanCategory, PlanMonth, QuickAddLists } from '../../engine/types';
 import { formatMoney } from '../../lib/money';
 import { addDays, localDay } from '../../lib/month';
+import { isOverspent } from '../plan/categoryView';
 import { emptyEntry, entryCents, type Entry } from './amountEntry';
 import { bite, type Bite } from './bite';
 import { exactPayee } from './payees';
@@ -154,16 +155,23 @@ export function cardView(draft: Draft, lists: QuickAddLists, plan: PlanMonth): C
   return { name: category.name, suggested, bite: shown };
 }
 
-export type CategoryChoice = { id: string; name: string; detail?: string };
+/** A row's detail at its right, and how it is drawn: `over` coral, `mute` quiet. */
+export type RowDetail = { text: string; tone: 'over' | 'mute' };
+
+/** One row of quick add's category list. (Not the engine's `CategoryChoice`, which has no detail.) */
+export type CategoryRow = { id: string; name: string; detail?: RowDetail };
 
 /**
  * The category list: for an expense, the plan's categories group by group, in order, each with
  * its balance (when the draft is in the plan's month); for income, the income categories.
+ * A balance is coral exactly when the category's tile on the Plan says Overspent.
  */
-export function categoryChoices(draft: Draft, lists: QuickAddLists, plan: PlanMonth): CategoryChoice[] {
+export function categoryChoices(draft: Draft, lists: QuickAddLists, plan: PlanMonth): CategoryRow[] {
   if (draft.income) return lists.incomeCategories;
   const withBalance = balancesApply(draft, plan);
-  return planCategories(plan).map(({ id, name, balance }) =>
-    withBalance ? { id, name, detail: formatMoney(balance) } : { id, name },
-  );
+  return planCategories(plan).map(category => {
+    const { id, name, balance } = category;
+    if (!withBalance) return { id, name };
+    return { id, name, detail: { text: formatMoney(balance), tone: isOverspent(category) ? 'over' : 'mute' } };
+  });
 }
