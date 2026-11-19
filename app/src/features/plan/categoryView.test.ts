@@ -63,11 +63,17 @@ describe('categoryView', () => {
     const c = { ...base, budgeted: 1000, spent: -970, balance: 30 };
     expect(categoryView(c, nov19).note).toBe('$0.30 left for 12 days');
   });
-  it('rule 8: the smallest balance that still shows a pace (50 cents a day)', () => {
-    const just = { ...base, budgeted: 1000, spent: -400, balance: 600 };
-    const under = { ...base, budgeted: 1000, spent: -401, balance: 599 };
+  it('rule 8: the smallest balance that still shows a pace ($1 a day, rounded down)', () => {
+    const just = { ...base, budgeted: 2000, spent: -800, balance: 1200 };
+    const under = { ...base, budgeted: 2000, spent: -801, balance: 1199 };
     expect(categoryView(just, nov19).note).toBe('$1 a day for 12 days');
-    expect(categoryView(under, nov19).note).toBe('$5.99 left for 12 days');
+    // $0.99 a day rounds down to $0, so the note says what is left instead.
+    expect(categoryView(under, nov19).note).toBe('$11.99 left for 12 days');
+  });
+  it('rule 8: the pace rounds down, so it never promises more than is left', () => {
+    // $30.00 over 12 days is $2.50 a day; "$3 a day" would add up to $36.
+    const c = { ...base, budgeted: 5000, spent: -2000, balance: 3000 };
+    expect(categoryView(c, nov19).note).toBe('$2 a day for 12 days');
   });
   it('rule 7: not spent yet', () => {
     expect(categoryView(named('Electricity'), nov19)).toEqual({ status: 'ok', note: 'Not spent yet', fill: 0 });
@@ -80,7 +86,8 @@ describe('categoryView', () => {
   });
   it('rule 8: still applies on the second to last day', () => {
     const v = categoryView(named('Groceries'), { month: '2026-11', today: new Date(2026, 10, 29) });
-    expect(v.note).toBe('$104 a day for 2 days');
+    // $207.62 over 2 days is $103.81 a day: rounded down.
+    expect(v.note).toBe('$103 a day for 2 days');
   });
   it('rule 9: the last day', () => {
     const v = categoryView(named('Groceries'), { month: '2026-11', today: new Date(2026, 10, 30) });

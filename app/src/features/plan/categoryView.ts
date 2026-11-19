@@ -37,7 +37,8 @@ export function categoryView(category: PlanCategory, when: { month: string; toda
     if (used === 0) return view('ok', 'Not spent yet', 0);
     const n = daysLeftInMonth(when.month, when.today);
     if (n >= 2) {
-      const perDay = formatWholeMoney(balance / n);
+      // Whole dollars, rounded down: the pace must never add up to more than is left.
+      const perDay = formatWholeMoney(Math.floor(balance / n / 100) * 100);
       if (perDay === '$0') return view('ok', `${formatMoney(balance)} left for ${n} days`, share);
       return view('ok', `${perDay} a day for ${n} days`, share);
     }

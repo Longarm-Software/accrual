@@ -250,7 +250,7 @@ export function overspentNotice(month: PlanMonth): string | null;
 | 5 | `budgeted === 0`, `spent === 0`, `balance === 0` | `idle` | `Nothing budgeted` | 0 |
 | 6 | `balance === 0` | `spent` | `Fully spent` | 1 |
 | 7 | `month` is today's month and `used === 0` | `ok` | `Not spent yet` | 0 |
-| 8 | `month` is today's month and `daysLeftInMonth >= 2` | `ok` | `{perDay} a day for {n} days` where perDay is `formatWholeMoney(balance / n)`; if that rounds to `$0`, `{left} left for {n} days` with `formatMoney(balance)` | `used / (used + balance)` |
+| 8 | `month` is today's month and `daysLeftInMonth >= 2` | `ok` | `{perDay} a day for {n} days` where perDay is `balance / n` rounded **down** to whole dollars (amended in the final fix pass; it was rounded to the nearest, which can promise more than is left: $30.00 over 12 days showed "$3 a day", $36 in all); if that is `$0` (under $1 a day), `{left} left for {n} days` with `formatMoney(balance)` | `used / (used + balance)` |
 | 9 | `month` is today's month (so it is the last day) | `ok` | `{left} left today` with `formatMoney(balance)` | `used / (used + balance)` |
 | 10 | `month` is before today's month | `ok` | `{left} left over` with `formatMoney(balance)` | `used / (used + balance)` |
 | 11 | otherwise (a future month) | `ok` | `Budgeted` | `used / (used + balance)` |
@@ -258,8 +258,9 @@ export function overspentNotice(month: PlanMonth): string | null;
 > **Amended during implementation.** `used` is `max(0, -spent)`, so a net refund counts as not
 > spent from. "Not spent yet" (rule 7) applies only in the current month; a past month reads
 > "left over" and a future month "Budgeted" whether or not anything was spent. A pace that would
-> round to $0 a day says how much is left instead. Rule 3's percent is worked out in whole cents
-> (`floor(balance * 100 / goal)`), because the floating-point form shows 57% as 56%.
+> round to $0 a day says how much is left instead. In the final fix pass the pace was changed to
+> round down, never to the nearest dollar, so it never adds up to more than is left. Rule 3's percent is worked out in whole
+> cents (`floor(balance * 100 / goal)`), because the floating-point form shows 57% as 56%.
 
 `fill` is always clamped to 0–1. A category that met a monthly goal (rule 4 does not match because `budgeted >= goal`) falls through to rules 5 to 11 like any other.
 
