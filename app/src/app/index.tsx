@@ -1,11 +1,11 @@
 import { Redirect } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { autorunConfig } from '../dev/autorun';
-import type { Engine, MonthBounds, PlanCategory, PlanMonth } from '../engine/types';
+import type { Engine, PlanCategory, PlanMonth } from '../engine/types';
 import { AccountMenu } from '../features/plan/AccountMenu';
 import { CategoryTile } from '../features/plan/CategoryTile';
 import { categoryView } from '../features/plan/categoryView';
@@ -59,23 +59,11 @@ function Plan({ engine, budgetName, onSignOut }: PlanProps) {
   const { fontScale } = useWindowDimensions();
   const [today] = useState(() => new Date());
   const [month, setMonth] = useState(() => currentMonth(today));
-  const [bounds, setBounds] = useState<MonthBounds | null>(null);
-  const plan = usePlanMonth(engine, month);
-
-  useEffect(() => {
-    let current = true;
-    // Until the bounds arrive (or if they cannot be read) neither arrow moves.
-    engine
-      .getMonthBounds()
-      .then(b => current && setBounds(b))
-      .catch(() => {});
-    return () => {
-      current = false;
-    };
-  }, [engine]);
+  // Signing out when the session has expired is the same path as the menu's Sign out.
+  const plan = usePlanMonth(engine, month, { onSessionExpired: onSignOut });
+  const { load, bounds } = plan;
 
   const account = <AccountMenu budgetName={budgetName} onSignOut={onSignOut} />;
-  const { load } = plan;
 
   if (load.state === 'failed' && load.code === 'tracking-budget') {
     return (

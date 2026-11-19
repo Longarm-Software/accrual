@@ -7,7 +7,7 @@ import { EngineError } from '../engine/types';
 import type { Engine, PlanMonth } from '../engine/types';
 import { fakeBudgets, fakeEngine, fakePlanMonth } from '../session/fakeEngine';
 import { SessionProvider, useSession } from '../session/SessionProvider';
-import { saveSession } from '../session/storage';
+import { loadSession, saveSession } from '../session/storage';
 import Home from '../app/index';
 
 const mockRedirect = jest.fn();
@@ -304,4 +304,113 @@ it('ignores a month that arrives after the person has moved on', async () => {
   expect(screen.getByText('December')).toBeTruthy();
   expect(screen.getAllByText('$50').length).toBeGreaterThan(0);
   expect(screen.queryByText('$312')).toBeNull();
+});
+
+// --- Fix round 1: refresh and month changes, refresh failures, bounds, an expired token ---
+
+const nextEnabled = () =>
+  screen.getByRole('button', { name: 'Next month' }).props.accessibilityState.disabled === false;
+
+it('shows the new month when the person changes month during a refresh', async () => {
+  let finishSync!: () => void;
+  const sync = jest.fn(() => new Promise<void>(resolve => (finishSync = resolve)));
+  const getPlanMonth = jest.fn(async (month: string) => (month === '2026-12' ? December : fakePlanMonth));
+  await showPlan(fakeEngine({ sync, getPlanMonth }));
+  await screen.findByText('Groceries');
+  await waitFor(() => expect(nextEnabled()).toBe(true));
+  let done!: Promise<void>;
+  await act(async () => {
+    done = screen.getByTestId('plan-scroll').props.refreshControl.props.onRefresh();
+  });
+  await fireEvent.press(screen.getByRole('button', { name: 'Next month' }));
+  await act(async () => {
+    finishSync();
+    await done;
+  });
+  expect(screen.getByText('December')).toBeTruthy();
+  expect(screen.getAllByText('$50').length).toBeGreaterThan(0);
+  expect(screen.queryByText('$312')).toBeNull();
+  expect(screen.queryByLabelText('Working')).toBeNull();
+});
+
+it('never shows a refresh’s late read of the old month under the new month', async () => {
+  let releaseRefreshRead!: (month: PlanMonth) => void;
+  let novemberReads = 0;
+  const getPlanMonth = jest.fn((month: string) => {
+    if (month === '2026-12') return Promise.resolve(December);
+    novemberReads++;
+    return novemberReads === 1
+      ? Promise.resolve(fakePlanMonth)
+      : new Promise<PlanMonth>(resolve => (releaseRefreshRead = resolve));
+  });
+  await showPlan(fakeEngine({ getPlanMonth }));
+  await screen.findByText('Groceries');
+  await waitFor(() => expect(nextEnabled()).toBe(true));
+  let done!: Promise<void>;
+  await act(async () => {
+    done = screen.getByTestId('plan-scroll').props.refreshControl.props.onRefresh();
+  });
+  await waitFor(() => expect(novemberReads).toBe(2));
+  await fireEvent.press(screen.getByRole('button', { name: 'Next month' }));
+  expect(await screen.findAllByText('$50')).toBeTruthy();
+  await act(async () => {
+    releaseRefreshRead(fakePlanMonth);
+    await done;
+  });
+  expect(screen.getByText('December')).toBeTruthy();
+  expect(screen.getAllByText('$50').length).toBeGreaterThan(0);
+  expect(screen.queryByText('$312')).toBeNull();
+});
+
+it('keeps the numbers when the read after a refresh fails', async () => {
+  const getPlanMonth = jest
+    .fn<Promise<PlanMonth>, [string]>()
+    .mockResolvedValueOnce(fakePlanMonth)
+    .mockRejectedValue(new EngineError('internal', 'x'));
+  await showPlan(fakeEngine({ getPlanMonth }));
+  await screen.findByText('Groceries');
+  await pullToRefresh();
+  expect(getPlanMonth).toHaveBeenCalledTimes(2);
+  expect(screen.getByText('Groceries')).toBeTruthy();
+  expect(screen.queryByText('Could not read this month.')).toBeNull();
+});
+
+it('reads the month bounds again after a refresh, and keeps them if that read fails', async () => {
+  const getMonthBounds = jest
+    .fn<Promise<{ start: string; end: string }>, []>()
+    .mockResolvedValueOnce({ start: '2026-01', end: '2026-11' })
+    .mockResolvedValueOnce({ start: '2026-01', end: '2026-12' })
+    .mockRejectedValue(new EngineError('internal', 'x'));
+  await showPlan(fakeEngine({ getMonthBounds }));
+  await screen.findByText('Groceries');
+  await waitFor(() => expect(getMonthBounds).toHaveBeenCalledTimes(1));
+  expect(nextEnabled()).toBe(false);
+  await pullToRefresh();
+  await waitFor(() => expect(nextEnabled()).toBe(true));
+  await pullToRefresh();
+  expect(getMonthBounds).toHaveBeenCalledTimes(3);
+  expect(nextEnabled()).toBe(true);
+});
+
+it('signs out when the sync says the session has expired', async () => {
+  let status = '';
+  function Watch() {
+    status = useSession().status;
+    return null;
+  }
+  const sync = jest.fn(async () => {
+    throw new EngineError('token-expired', 'x');
+  });
+  await saveOpenable();
+  await render(
+    <SessionProvider create={async () => fakeEngine({ sync })}>
+      <OpenThenHome />
+      <Watch />
+    </SessionProvider>,
+  );
+  await screen.findByText('Groceries');
+  await pullToRefresh();
+  await waitFor(() => expect(status).toBe('signedOut'));
+  await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/connect'));
+  expect(await loadSession()).toBeNull();
 });
