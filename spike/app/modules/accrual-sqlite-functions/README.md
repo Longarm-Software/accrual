@@ -32,12 +32,15 @@ From JavaScript, call `installSqlFunctions(db)` on every newly opened connection
 
 ## Status
 
-- **Tested on Linux:** the differential test compares 183,819 inputs against loot-core's own
+- **Tested on the host:** the differential test compares 183,819 inputs against loot-core's own
   JavaScript functions, and the engine harness checks search and payee matching against
-  `@actual-app/api`. Both pass.
-- **Not yet built for iOS or Android.** The pod, Gradle and CMake files and the Swift and Kotlin
-  modules are written and found by Expo autolinking, but have not been compiled. Expect to fix
-  small things on the first `npx expo run:ios` / `run:android`.
+  `@actual-app/api`. Both pass on Linux and macOS.
+- **Built and working on the iOS simulator and an Android emulator** (arm64). Search and payee
+  matching give the same results as `@actual-app/api` there too. Not yet run on a physical
+  phone, and the differential test itself only runs on the host.
+- The Kotlin module uses Expo's annotation-based module API (`@ExpoModule`), which Expo finds by
+  itself. Do not also list it under `android.modules` in `expo-module.config.json`: the build
+  then fails with a type mismatch in `ExpoModulesPackageList.kt`.
 
 ## Test
 

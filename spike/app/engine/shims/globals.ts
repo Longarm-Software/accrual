@@ -3,6 +3,8 @@
 import { Buffer } from 'buffer';
 import { getRandomValues } from 'expo-crypto';
 
+import './intl';
+
 const g = globalThis as any;
 g.Buffer ??= Buffer;
 g.global ??= g;

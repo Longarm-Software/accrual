@@ -13,7 +13,17 @@ class File {
   get size() { return fs.statSync(this.path).size; }
   get modificationTime() { return fs.statSync(this.path).mtimeMs; }
   create() { fs.writeFileSync(this.path, '', { flag: 'wx' }); }
-  write(contents) { fs.writeFileSync(this.path, contents); }
+  writeSync(contents) {
+    // As on the device: only strings and built-in typed arrays. A Buffer subclass crashes iOS.
+    if (typeof contents !== 'string' && contents?.constructor !== Uint8Array) {
+      throw new TypeError('File.writeSync: expected a string or a plain Uint8Array');
+    }
+    fs.writeFileSync(this.path, contents);
+  }
+  // As on the device, write() finishes later. Code that does not await it loses the race.
+  write(contents) {
+    return new Promise(resolve => setTimeout(resolve, 50)).then(() => this.writeSync(contents));
+  }
   textSync() { return fs.readFileSync(this.path, 'utf8'); }
   bytesSync() { return new Uint8Array(fs.readFileSync(this.path)); }
   delete() { fs.unlinkSync(this.path); }

@@ -3,8 +3,5 @@
   "apple": {
     "modules": ["AccrualSqliteFunctionsModule"],
     "podspecPath": "AccrualSqliteFunctions.podspec"
-  },
-  "android": {
-    "modules": ["software.longarm.accrual.sqlitefunctions.AccrualSqliteFunctionsModule"]
   }
 }

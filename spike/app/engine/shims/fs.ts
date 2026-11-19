@@ -65,10 +65,18 @@ export const mkdir = async (filepath: string) => {
 
 export const size = async (filepath: string) => new File(uri(filepath)).size;
 
+// loot-core hands over Node-style Buffers (a Uint8Array subclass, from the
+// `buffer` package). expo-file-system's native side only recognises the built-in
+// typed arrays, and on iOS it crashes the app on anything else.
+const plainBytes = (bytes: Uint8Array) =>
+  bytes.constructor === Uint8Array ? bytes : new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
 function writeBytes(filepath: string, contents: string | Uint8Array) {
   const file = new File(uri(filepath));
   if (!file.exists) file.create();
-  file.write(contents);
+  // writeSync, not write: write() is asynchronous, and a rename that follows it
+  // moves the file before the bytes have landed.
+  file.writeSync(typeof contents === 'string' ? contents : plainBytes(contents));
 }
 
 export const copyFile = async (frompath: string, topath: string) => {

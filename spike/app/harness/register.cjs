@@ -25,5 +25,7 @@ function stripNodeGlobals() {
   delete globalThis.Buffer;
   delete globalThis.crypto;
   delete globalThis.setImmediate;
+  delete Intl.NumberFormat.prototype.formatToParts; // missing in Hermes on iOS
 }
+exports.nativeFormatToParts = Intl.NumberFormat.prototype.formatToParts;
 exports.usesBundledGlobals = () => typeof globalThis.Buffer === 'function' && globalThis.Buffer !== NodeBuffer;

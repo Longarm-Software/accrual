@@ -15,7 +15,7 @@ envelope-budgeting UI. Built by Longarm Software.
 
 ## Status
 
-Phase 0 spike done off-device; on-device run pending. See [docs/spike-results.md](docs/spike-results.md)
+Phase 0 spike done: the engine runs on the iOS simulator and an Android emulator. Phase 1 is next. See [docs/spike-results.md](docs/spike-results.md)
 and [docs/plan.md](docs/plan.md).
 
 ## Docs

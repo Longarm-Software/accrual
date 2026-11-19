@@ -9,7 +9,7 @@ import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { usesBundledGlobals } = require('./register.cjs');
+const { usesBundledGlobals, nativeFormatToParts } = require('./register.cjs');
 
 const here = __dirname;
 const serverDir = path.join(here, '..', '..', 'server');
@@ -75,6 +75,18 @@ async function main() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { createEngine } = await timed('load bundle', () => require('../src/engine/adapter'));
   check('globals come from the bundle, not Node', usesBundledGlobals());
+  // Hermes on iOS has no formatToParts; the bundle's stand-in must agree with the real one.
+  const locales = ['en-US', 'de-DE', 'fr-FR', 'de-CH', 'en-IN', 'sv-SE', 'pt-BR', 'ja-JP', 'es-ES', 'ar-EG', 'hi-IN'];
+  const separators = (parts: { type: string; value: string }[]) =>
+    parts.filter(p => p.type === 'group' || p.type === 'decimal').map(p => `${p.type}:${p.value}`).join(' ');
+  const wrong = locales.filter(locale => {
+    const format = new Intl.NumberFormat(locale);
+    return [1000000.23, 1234, 0.5, -98765.4].some(
+      n => separators(format.formatToParts(n)) !== separators(nativeFormatToParts.call(format, n)));
+  });
+  check('formatToParts stand-in finds the same separators as the real one',
+    Intl.NumberFormat.prototype.formatToParts !== nativeFormatToParts && wrong.length === 0,
+    wrong.length ? `(differ: ${wrong.join(', ')})` : `(${locales.length} locales)`);
 
   const engine = await timed('init + sign in', () => createEngine({ serverURL, password, dataDir }));
   const budgets = await engine.listBudgets();
