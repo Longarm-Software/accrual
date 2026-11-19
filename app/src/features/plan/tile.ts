@@ -1,5 +1,6 @@
 import type { PlanCategory } from '../../engine/types';
 import { formatMoney } from '../../lib/money';
+import { amount } from '../../theme/tokens';
 import type { Theme } from '../../theme/tokens';
 import type { CategoryStatus, CategoryView } from './categoryView';
 
@@ -25,6 +26,13 @@ export const noteIsColoured = (status: CategoryStatus): boolean => status === 'o
 
 /** $1,000 or more either way: drawn one size smaller so it fits a tile. */
 export const isLongAmount = (cents: number): boolean => Math.abs(cents) >= 100000;
+
+/**
+ * The size for every amount in one row of tiles. Tiles in a row are one height with the amount
+ * pushed down, so amounts of one size share a baseline; a long amount takes its row down a size.
+ */
+export const rowAmountSize = (balances: number[]): number =>
+  balances.some(isLongAmount) ? amount.tileLong : amount.tile;
 
 /** What a screen reader says for a whole tile. */
 export function tileLabel(category: PlanCategory, view: CategoryView): string {

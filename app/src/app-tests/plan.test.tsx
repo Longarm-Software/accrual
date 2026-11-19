@@ -132,6 +132,19 @@ it('lays the tiles out two to a row, with every row as tall as its tallest tile'
   for (const row of rows) expect(row.props.style).toMatchObject({ flexDirection: 'row', alignItems: 'stretch' });
 });
 
+// Amounts pushed to the bottom of tiles of one height share a baseline only at one size:
+// $1,000 or more is drawn a size down, so its neighbour drops with it.
+it('draws the amounts in a row at one size, so they share a baseline', async () => {
+  const [bills, ...rest] = fakePlanMonth.groups;
+  const phone = { ...bills.categories[1], id: 'cat-phone', name: 'Phone', budgeted: 120703, balance: 120703 };
+  const internet = { ...bills.categories[1], id: 'cat-internet', name: 'Internet', budgeted: 15400, balance: 15400 };
+  const month = { ...fakePlanMonth, groups: [{ ...bills, categories: [phone, internet] }, ...rest] };
+  await showPlan(fakeEngine({ getPlanMonth: async () => month }));
+  await screen.findByText('Phone');
+  const sizeOf = (dollars: string) => screen.getByText(dollars).parent?.props.style.fontSize;
+  expect(sizeOf('$154')).toBe(sizeOf('$1,207'));
+});
+
 it('uses one column when the text is large', async () => {
   textSize(1.3);
   await showPlan(fakeEngine());

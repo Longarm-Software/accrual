@@ -14,6 +14,7 @@ import { HeroCard } from '../features/plan/HeroCard';
 import { MonthSwitcher } from '../features/plan/MonthSwitcher';
 import { Notice } from '../features/plan/Notice';
 import { groupAvailable, hasCategories, heroView, overspentNotice, syncLabel } from '../features/plan/planSummary';
+import { rowAmountSize } from '../features/plan/tile';
 import { usePlanMonth } from '../features/plan/usePlanMonth';
 import { compareMonths, currentMonth } from '../lib/month';
 import { useSession } from '../session/SessionProvider';
@@ -158,16 +159,23 @@ function MonthContent({ month, today, columns }: MonthContentProps) {
 type TileRowProps = { row: PlanCategory[]; columns: 1 | 2; month: string; today: Date };
 
 /**
- * One row of the grid. The row stretches its tiles to the tallest one's height, so the
- * amounts, pushed to the bottom of each tile, line up side by side. A tile alone on the
- * last row keeps its column's width, beside an empty one.
+ * One row of the grid. The row stretches its tiles to the tallest one's height, and its
+ * amounts share one size, so the amounts, pushed to the bottom of each tile, sit on one
+ * baseline side by side. A tile alone on the last row keeps its column's width, beside an
+ * empty one.
  */
 function TileRow({ row, columns, month, today }: TileRowProps) {
+  const amountSize = rowAmountSize(row.map(category => category.balance));
   return (
     <View testID="tile-row" style={{ flexDirection: 'row', alignItems: 'stretch', gap: space.md }}>
       {row.map(category => (
         <View key={category.id} style={{ flex: 1 }}>
-          <CategoryTile category={category} view={categoryView(category, { month, today })} compact={columns === 2} />
+          <CategoryTile
+            category={category}
+            view={categoryView(category, { month, today })}
+            compact={columns === 2}
+            amountSize={amountSize}
+          />
         </View>
       ))}
       {row.length < columns && <View style={{ flex: columns - row.length }} />}
