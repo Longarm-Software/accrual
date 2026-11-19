@@ -24,10 +24,10 @@ export function Money({ cents, size = amount.tile, color, testID, accessible = t
       accessible={accessible}
       accessibilityLabel={accessible ? formatMoney(cents) : undefined}
       importantForAccessibility={accessible ? 'auto' : 'no'}
-      style={{ fontFamily: font.number, fontSize: size, letterSpacing: -size * 0.035, color: ink, fontVariant: ['tabular-nums'] }}
+      style={{ fontFamily: font.number, fontSize: size, letterSpacing: size * amount.tracking, color: ink, fontVariant: ['tabular-nums'] }}
     >
       <Text>{parts.sign + parts.dollars}</Text>
-      <Text style={{ fontSize: size * 0.5, opacity: tint.cents }}>{'.' + parts.cents}</Text>
+      <Text style={{ fontSize: size * amount.cents, letterSpacing: 0, opacity: tint.cents }}>{'.' + parts.cents}</Text>
     </Text>
   );
 }
