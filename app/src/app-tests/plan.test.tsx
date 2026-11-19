@@ -139,6 +139,15 @@ it('uses one column when the text is large', async () => {
   expect(screen.getAllByTestId('tile-row')).toHaveLength(6);
 });
 
+// Android keeps the font scale as a 32-bit float, so its largest setting, 1.3, arrives as
+// 1.2999999523162842. Seen on the emulator: two columns at the largest text size.
+it('uses one column at Android’s largest text size, which arrives a hair under 1.3', async () => {
+  textSize(Math.fround(1.3));
+  await showPlan(fakeEngine());
+  await screen.findByText('Groceries');
+  expect(screen.getAllByTestId('tile-row')).toHaveLength(6);
+});
+
 it('moves to the next month and reads it', async () => {
   const getPlanMonth = jest.fn(async (month: string) => (month === '2026-12' ? December : fakePlanMonth));
   await showPlan(fakeEngine({ getPlanMonth }));

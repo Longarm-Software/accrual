@@ -25,8 +25,12 @@ import { Chip } from '../ui/Chip';
 import { Spinner } from '../ui/Spinner';
 import { Body } from '../ui/Text';
 
-/** From this text size up (the person's own setting), tiles go one to a row and show in full. */
-const LARGE_TEXT = 1.3;
+/**
+ * From this text size up (the person's own setting), tiles go one to a row and show in full.
+ * A hair under 1.3, because Android keeps the scale as a 32-bit float and its largest
+ * setting arrives as 1.2999999523162842.
+ */
+const LARGE_TEXT = 1.29;
 
 export default function Home() {
   const session = useSession();

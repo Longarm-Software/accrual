@@ -43,16 +43,25 @@ and record the decision in `docs/decisions/`.
 - [x] Server setup screen (URL and password). The password is not stored: only the session
   token the server returns is kept, in Keychain/Keystore.
 - [x] Budget picker.
-      *(Both verified end to end on an Android emulator. On the iOS simulator only the Connect
-      screen was seen; iOS checks 2 to 8 are pending. See "What works" in
-      [app/README.md](../app/README.md#what-works).)*
-- **Plan screen:** month switcher, To Budget banner, category groups, and category cards with a
+      *(Both verified end to end on an Android emulator in the
+      [foundation plan](superpowers/plans/2026-11-19-foundation.md). On the iOS simulator only the
+      Connect screen was seen; the iOS checks are still pending.)*
+- [x] **Plan screen:** month switcher, To Budget banner, category groups, and category cards with a
   progress bar, an Available pill and a target status.
+      *(Verified on an Android emulator. On the iOS simulator the app was only built and opened
+      to its first screen. The cards show a note from the category's own numbers when it has no
+      goal template, and a daily pace in the current month. See "What works" in
+      [app/README.md](../app/README.md#what-works).)*
 - **Category detail:** activity list, target, and moving money in or out (cover overspending).
 - **Transactions:** account list, register, quick add (payee, category, amount, account) and
   categorize uncategorized items.
-- Pull-to-refresh sync plus background sync on launch.
+- [x] Pull-to-refresh sync plus background sync on launch.
+      *(Pull to refresh verified on an Android emulator, including going offline and back. The
+      sync on launch is the one the opening screen runs; without a connection the app opens the
+      copy on the phone instead. Not checked on the iOS simulator.)*
 - Overspending alert banner ("2 categories overspent. Cover them?").
+      *(The banner is built and shows on the Plan, without the "Cover them?" button: covering
+      overspending arrives with category detail in plan 4.)*
 
 ### Phase 2: Polish and public beta
 - Home-screen widgets: "Left this week" for chosen categories and the To Budget amount.
