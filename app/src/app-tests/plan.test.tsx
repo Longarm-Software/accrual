@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Dimensions } from 'react-native';
+import { AppState, Dimensions } from 'react-native';
+import type { AppStateStatus } from 'react-native';
 
 import { EngineError } from '../engine/types';
 import type { Engine, PlanMonth } from '../engine/types';
@@ -38,9 +39,24 @@ const window = Dimensions.get('window');
 const textSize = (fontScale: number) =>
   Dimensions.set({ window: { ...window, fontScale }, screen: { ...window, fontScale } });
 
+// The Jest preset's AppState never changes; these tests say when it does.
+const appStateListeners = new Set<(state: AppStateStatus) => void>();
+const appGoes = async (...states: AppStateStatus[]) => {
+  for (const state of states) {
+    await act(async () => {
+      for (const listener of [...appStateListeners]) listener(state);
+    });
+  }
+};
+
 beforeEach(() => {
   (SecureStore as any).__reset();
   jest.clearAllMocks();
+  appStateListeners.clear();
+  (AppState.addEventListener as jest.Mock).mockImplementation((type: string, listener: (state: AppStateStatus) => void) => {
+    if (type === 'change') appStateListeners.add(listener);
+    return { remove: () => appStateListeners.delete(listener) };
+  });
   // "Today" is 19 November 2026, noon, so the pace notes are fixed. Only Date is faked:
   // timers stay real, so the testing library's waits and the engine's promises run as usual.
   jest.useFakeTimers({
@@ -782,4 +798,200 @@ it('a pull during a running sync owes nothing', async () => {
   });
   await act(async () => {});
   expect(sync).toHaveBeenCalledTimes(1);
+});
+
+// --- Coming back to the app ---
+
+/** A time in November 2026 (or another month, counted from 0), on the phone's clock. */
+const at = (day: number, time: [number, number, number] = [12, 0, 0], monthIndex = 10) =>
+  new Date(2026, monthIndex, day, ...time);
+/** Out to another app and back, as Android reports it; iOS passes through `inactive` both ways. */
+const leaveAndReturn = () => appGoes('background', 'active');
+
+it('reads today again on coming back on a later day, and refreshes as a pull does, without its spinner', async () => {
+  let finishSync!: () => void;
+  const sync = jest.fn(() => new Promise<void>(resolve => (finishSync = resolve)));
+  await showPlan(fakeEngine({ sync }));
+  expect(await screen.findByText('$17 a day for 12 days')).toBeTruthy();
+  jest.setSystemTime(at(20, [8, 0, 0]));
+  await leaveAndReturn();
+  expect(await screen.findByText('$18 a day for 11 days')).toBeTruthy();
+  expect(sync).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId('plan-scroll').props.refreshControl.props.refreshing).toBe(false);
+  await act(async () => finishSync());
+});
+
+it('does nothing on coming back within a minute of the last sync, on the same day', async () => {
+  const sync = jest.fn(async () => {});
+  const getPlanMonth = jest.fn(async () => fakePlanMonth);
+  await showPlan(fakeEngine({ sync, getPlanMonth }));
+  await screen.findByText('Groceries');
+  const reads = getPlanMonth.mock.calls.length;
+  // The budget was opened, and synced, at noon.
+  jest.setSystemTime(at(19, [12, 0, 59]));
+  await leaveAndReturn();
+  expect(sync).not.toHaveBeenCalled();
+  expect(getPlanMonth).toHaveBeenCalledTimes(reads);
+});
+
+it('syncs once on coming back a minute or more after the last sync', async () => {
+  const sync = jest.fn(async () => {});
+  await showPlan(fakeEngine({ sync }));
+  await screen.findByText('Groceries');
+  jest.setSystemTime(at(19, [12, 1, 0]));
+  await leaveAndReturn();
+  expect(sync).toHaveBeenCalledTimes(1);
+  // That sync, like a pull's, starts the minute again.
+  jest.setSystemTime(at(19, [12, 1, 30]));
+  await leaveAndReturn();
+  expect(sync).toHaveBeenCalledTimes(1);
+});
+
+it('counts the minute from a pull too', async () => {
+  const sync = jest.fn(async () => {});
+  await showPlan(fakeEngine({ sync }));
+  await screen.findByText('Groceries');
+  jest.setSystemTime(at(19, [12, 5, 0]));
+  await pullToRefresh();
+  jest.setSystemTime(at(19, [12, 5, 30]));
+  await leaveAndReturn();
+  expect(sync).toHaveBeenCalledTimes(1);
+});
+
+it('syncs on any return while the last sync did not succeed, and shows Offline as a pull would', async () => {
+  const sync = jest.fn(async () => {
+    throw new EngineError('network-failure', 'x');
+  });
+  await showPlan(fakeEngine({ offline: true, sync }));
+  await screen.findByText('Groceries');
+  jest.setSystemTime(at(19, [12, 0, 10]));
+  await leaveAndReturn();
+  expect(sync).toHaveBeenCalledTimes(1);
+  jest.setSystemTime(at(19, [12, 0, 20]));
+  await leaveAndReturn();
+  expect(sync).toHaveBeenCalledTimes(2);
+  expect(screen.getByText('Offline')).toBeTruthy();
+  expect(screen.getByText('Groceries')).toBeTruthy();
+});
+
+it('signs out when the sync on coming back says the session has expired', async () => {
+  const sync = jest.fn(async () => {
+    throw new EngineError('token-expired', 'x');
+  });
+  await showPlan(fakeEngine({ sync }));
+  await screen.findByText('Groceries');
+  jest.setSystemTime(at(19, [13, 0, 0]));
+  await leaveAndReturn();
+  await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/connect'));
+  expect(await loadSession()).toBeNull();
+  // The Plan has gone, and stopped listening for the app coming back.
+  expect(appStateListeners.size).toBe(0);
+});
+
+it('does not count a brief inactive spell (the app switcher, a notification) as coming back', async () => {
+  const sync = jest.fn(async () => {});
+  await showPlan(fakeEngine({ sync }));
+  await screen.findByText('Groceries');
+  jest.setSystemTime(at(20, [8, 0, 0]));
+  await appGoes('inactive', 'active');
+  expect(sync).not.toHaveBeenCalled();
+  expect(screen.getByText('$17 a day for 12 days')).toBeTruthy();
+  // iOS on the way out to another app and back.
+  await appGoes('inactive', 'background', 'inactive', 'active');
+  expect(sync).toHaveBeenCalledTimes(1);
+  expect(await screen.findByText('$18 a day for 11 days')).toBeTruthy();
+});
+
+it('joins a sync already running rather than starting another', async () => {
+  let finishSync!: () => void;
+  const sync = jest.fn(() => new Promise<void>(resolve => (finishSync = resolve)));
+  await showPlan(fakeEngine({ sync }));
+  await screen.findByText('Groceries');
+  jest.setSystemTime(at(19, [12, 5, 0]));
+  const { pull } = await startPull();
+  await leaveAndReturn();
+  expect(sync).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    finishSync();
+    await pull;
+  });
+  await act(async () => {});
+  expect(sync).toHaveBeenCalledTimes(1);
+});
+
+it('moves to the new month when it was showing the current one and the month has ended', async () => {
+  jest.setSystemTime(at(30, [23, 59, 0]));
+  const getPlanMonth = jest.fn(async (month: string) => (month === '2026-12' ? December : fakePlanMonth));
+  await showPlan(fakeEngine({ getPlanMonth }));
+  await screen.findByText('Groceries');
+  expect(screen.getByText('November')).toBeTruthy();
+  jest.setSystemTime(at(1, [7, 0, 0], 11));
+  await leaveAndReturn();
+  expect(await screen.findByText('December')).toBeTruthy();
+  expect(await screen.findAllByText('$50')).toBeTruthy();
+  expect(getPlanMonth).toHaveBeenLastCalledWith('2026-12');
+});
+
+it('stays on a month the person chose when the month ends', async () => {
+  jest.setSystemTime(at(30, [23, 59, 0]));
+  const October: PlanMonth = { ...fakePlanMonth, month: '2026-10' };
+  const getPlanMonth = jest.fn(async (month: string) => (month === '2026-10' ? October : fakePlanMonth));
+  await showPlan(fakeEngine({ getPlanMonth }));
+  await screen.findByText('Groceries');
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Previous month' }).props.accessibilityState.disabled).toBe(false),
+  );
+  await fireEvent.press(screen.getByRole('button', { name: 'Previous month' }));
+  expect(await screen.findByText('October')).toBeTruthy();
+  jest.setSystemTime(at(1, [7, 0, 0], 11));
+  await leaveAndReturn();
+  await act(async () => {});
+  expect(screen.getByText('October')).toBeTruthy();
+  expect(getPlanMonth).not.toHaveBeenCalledWith('2026-12');
+});
+
+it('dates a transaction the new day when the sheet is opened after coming back on a later day', async () => {
+  const { engine } = spendingEngine();
+  await showPlanWithSheet(engine);
+  await screen.findByText('$207');
+  jest.setSystemTime(at(20, [8, 0, 0]));
+  await leaveAndReturn();
+  await fireEvent.press(screen.getByRole('button', { name: 'Add a transaction' }));
+  expect(await screen.findByLabelText('Date, Today')).toBeTruthy();
+  // It can step back to the 19th and forward to the 20th again, and no further.
+  expect(screen.getByRole('button', { name: 'Later day' }).props.accessibilityState).toMatchObject({ disabled: true });
+  await fireEvent.press(screen.getByRole('button', { name: 'Earlier day' }));
+  expect(screen.getByLabelText('Date, Yesterday')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Later day' }));
+  expect(screen.getByLabelText('Date, Today')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Later day' }).props.accessibilityState).toMatchObject({ disabled: true });
+  await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+  await addGroceries('5', '0');
+  expect(engine.addTransaction).toHaveBeenLastCalledWith(
+    expect.any(String),
+    expect.objectContaining({ date: '2026-11-20' }),
+  );
+});
+
+it('leaves an open sheet and its draft alone, and refreshes the Plan behind it', async () => {
+  const { engine, sync } = spendingEngine();
+  await showPlanWithSheet(engine);
+  await screen.findByText('$207');
+  await fireEvent.press(screen.getByRole('button', { name: 'Add a transaction' }));
+  await screen.findByRole('button', { name: 'Save' });
+  await fireEvent.press(screen.getByRole('button', { name: '7' }));
+  jest.setSystemTime(at(20, [8, 0, 0]));
+  await leaveAndReturn();
+  await waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+  // The Plan behind has moved to the new day.
+  expect(await screen.findByText('$18 a day for 11 days')).toBeTruthy();
+  // The sheet keeps what was typed, and the day it was opened on.
+  expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
+  expect(screen.getByTestId('amount-display')).toHaveTextContent(/7/);
+  expect(screen.getByLabelText('Date, Today')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'No category, choose one' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Groceries, $207.62' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(engine.addTransaction).toHaveBeenCalledTimes(1));
+  expect(engine.addTransaction).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ date: '2026-11-19' }));
 });

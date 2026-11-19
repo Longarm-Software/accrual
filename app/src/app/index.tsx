@@ -10,6 +10,7 @@ import { AccountMenu } from '../features/plan/AccountMenu';
 import { ADD_BUTTON_CLEARANCE, AddButton } from '../features/plan/AddButton';
 import { CategoryTile } from '../features/plan/CategoryTile';
 import { categoryView } from '../features/plan/categoryView';
+import { afterReturn } from '../features/plan/foreground';
 import { GroupHeader } from '../features/plan/GroupHeader';
 import { HeroCard } from '../features/plan/HeroCard';
 import { MonthSwitcher } from '../features/plan/MonthSwitcher';
@@ -18,6 +19,8 @@ import { onSaved, setPlanToday } from '../features/plan/quickAddSignal';
 import { groupAvailable, hasCategories, heroView, overspentNotice, syncLabel } from '../features/plan/planSummary';
 import { rowAmountSize } from '../features/plan/tile';
 import { usePlanMonth } from '../features/plan/usePlanMonth';
+import { useReturnToForeground } from '../features/plan/useReturnToForeground';
+import { now } from '../lib/clock';
 import { compareMonths, currentMonth } from '../lib/month';
 import { useSession } from '../session/SessionProvider';
 import { space } from '../theme/tokens';
@@ -59,9 +62,9 @@ export default function Home() {
 type PlanProps = { engine: Engine; budgetName: string; onSignOut: () => void };
 
 /**
- * The month's budget. "Today" is read once, here, when the screen opens: it picks the
- * starting month, drives the pace notes, and dates what quick add saves. A screen left open
- * past midnight or a month's end keeps the old day until it is opened again.
+ * The month's budget. "Today" is read here when the screen opens, and again when the app comes
+ * back from the background: it picks the month, drives the pace notes, and dates what quick add
+ * saves. A phone that keeps the app in memory overnight shows the new day on coming back.
  */
 function Plan({ engine, budgetName, onSignOut }: PlanProps) {
   const theme = useTheme();
@@ -69,15 +72,36 @@ function Plan({ engine, budgetName, onSignOut }: PlanProps) {
   const { fontScale } = useWindowDimensions();
   // Android draws the page under the navigation bar: the last tile must scroll clear of it.
   const { bottom } = useSafeAreaInsets();
-  const [today] = useState(() => new Date());
+  const [today, setToday] = useState(now);
   const [month, setMonth] = useState(() => currentMonth(today));
   // Signing out when the session has expired is the same path as the menu's Sign out.
   const plan = usePlanMonth(engine, month, { onSessionExpired: onSignOut });
   const { load, bounds } = plan;
 
-  // Quick add is another route: it dates its transaction with this screen's "today", and says
-  // when it has saved one, so the month is read again and then synced, through the same path
-  // as a pull. The latest `afterSave` is kept in a ref, so the subscription is made once.
+  // Coming back from the background: a new day, perhaps a new month, then the same sync and
+  // read as a pull, without its spinner (see afterReturn for when it is skipped). The sync
+  // starts once the new month is on screen, so its read is of that month: it is asked for here
+  // and started by the effect below, after the render that shows it.
+  const [returns, setReturns] = useState(0);
+  useReturnToForeground(() => {
+    const next = afterReturn({ today, month }, now(), plan.lastSynced());
+    setToday(next.today);
+    setMonth(next.month);
+    if (next.sync) setReturns(n => n + 1);
+  });
+  const refreshInBackground = useRef(plan.refreshInBackground);
+  useEffect(() => {
+    refreshInBackground.current = plan.refreshInBackground;
+  }, [plan.refreshInBackground]);
+  useEffect(() => {
+    if (returns > 0) void refreshInBackground.current();
+  }, [returns]);
+
+  // Quick add is another route: it dates its transaction with this screen's "today" (renewed
+  // above, so a sheet opened after midnight dates the new day; a sheet already open keeps the
+  // day it opened with, see add.tsx), and says when it has saved one, so the month is read
+  // again and then synced, through the same path as a pull. The latest `afterSave` is kept in
+  // a ref, so the subscription is made once.
   useEffect(() => {
     setPlanToday(today);
     return () => setPlanToday(null);

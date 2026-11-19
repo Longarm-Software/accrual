@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { EngineError } from '../../engine/types';
 import type { Engine, MonthBounds, PlanMonth } from '../../engine/types';
+import { now } from '../../lib/clock';
 
 export type PlanLoad =
   | { state: 'loading' }
@@ -40,6 +41,10 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
    * sync is handled exactly as a pull's is.
    */
   afterSave(): Promise<void>;
+  /** Sync and read again as `refresh` does, without the pull spinner (the app came back to the foreground). */
+  refreshInBackground(): Promise<void>;
+  /** When a sync last succeeded: the budget's opening, if it opened online. Null if none has. */
+  lastSynced(): Date | null;
 } {
   // The load is kept with the month it belongs to, so a render after the month changed,
   // but before its read started, never shows the old month's numbers as the new one's.
@@ -47,6 +52,18 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
   const [bounds, setBounds] = useState<MonthBounds | null>(null);
   const [sync, setSync] = useState<SyncState>(engine?.offline ? 'offline' : 'synced');
   const [refreshing, setRefreshing] = useState(false);
+  // Opening the budget synced it, unless it opened without the server.
+  const [openedAt] = useState(() => (engine && !engine.offline ? now() : null));
+  const syncedAt = useRef(openedAt);
+  // Once the Plan has gone (signed out, another budget), nothing may start or report here: the
+  // engine may be closed, and `onSessionExpired` would sign out a session that has moved on.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const latest = useRef(0);
   const latestBounds = useRef(0);
   // The month on screen now. A refresh reads this after its sync, not the month that was
@@ -110,17 +127,20 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
   // A flag, not a queue: any number of saves during one sync owe exactly one more.
   const owed = useRef(false);
 
-  // The one sync path, for a pull and after a save: what a failed sync shows, and signing out
+  // The one sync path, for a pull, after a save and on coming back to the app: what a failed sync shows, and signing out
   // when the session has expired, are decided here only.
-  /** Returns false when the session has expired and the person is being signed out. */
+  /** Returns false when the session has expired and the person is being signed out, or the Plan has gone. */
   const syncOnce = useCallback(async (): Promise<boolean> => {
     if (!engine) return false;
     let synced = false;
     try {
       await engine.sync();
+      if (!alive.current) return false;
       synced = true;
+      syncedAt.current = now();
       setSync('synced');
     } catch (e) {
+      if (!alive.current) return false;
       const code = e instanceof EngineError ? e.code : 'internal';
       if (code === 'token-expired' && onSessionExpired) {
         setRefreshing(false);
@@ -135,15 +155,22 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
   }, [engine, read, readBounds, onSessionExpired]);
 
   // Starts a sync. When it ends, successfully or not, a sync owed by a save runs once more,
-  // through this same path, and its result is what the Plan shows. A signed-out session owes nothing.
+  // through this same path, and its result is what the Plan shows. A signed-out session, or a
+  // Plan that has gone, owes nothing. The sync is over however it ends, a throw included, so
+  // `running` is cleared in `finally`: a rejection must never leave every later sync waiting on it.
   const startSync = useCallback((): Promise<void> => {
     // Those waiting on this sync (a pull's spinner) are done when it ends, not when the one owed does.
-    const run = syncOnce().then(stillSignedIn => {
-      running.current = null;
-      const again = owed.current && stillSignedIn;
-      owed.current = false;
-      if (again) void startSync();
-    });
+    const run = (async () => {
+      let stillSignedIn = false;
+      try {
+        stillSignedIn = await syncOnce();
+      } finally {
+        running.current = null;
+        const again = owed.current && stillSignedIn && alive.current;
+        owed.current = false;
+        if (again) void startSync();
+      }
+    })();
     running.current = run;
     return run;
   }, [syncOnce]);
@@ -155,7 +182,7 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
    */
   const syncThenRead = useCallback(
     async (spinner: boolean, afterSave = false) => {
-      if (!engine) return;
+      if (!engine || !alive.current) return;
       if (spinner) setRefreshing(true);
       try {
         if (running.current) {
@@ -178,8 +205,15 @@ export function usePlanMonth(engine: Engine | null, month: string, { onSessionEx
     await syncThenRead(false, true);
   }, [read, syncThenRead]);
 
+  const refreshInBackground = useCallback(() => syncThenRead(false), [syncThenRead]);
+
+  const lastSynced = useCallback(() => syncedAt.current, []);
+
   const reload = useCallback(() => void read(month, true), [read, month]);
 
   const load: PlanLoad = result && result.month === month ? result.load : { state: 'loading' };
-  return { load, bounds, offline: sync === 'offline', syncFailed: sync === 'failed', refreshing, reload, refresh, afterSave };
+  return {
+    load, bounds, offline: sync === 'offline', syncFailed: sync === 'failed', refreshing,
+    reload, refresh, afterSave, refreshInBackground, lastSynced,
+  };
 }

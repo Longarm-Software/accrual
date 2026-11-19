@@ -32,7 +32,10 @@ import { Body } from '../ui/Text';
  */
 export default function Add() {
   const session = useSession();
-  // Read once, when the sheet opens: the Plan's day, not one read again here.
+  // Read once, when the sheet opens: the Plan's day, not one read again here. The Plan renews
+  // its day when the app comes back from the background, so a sheet opened after that dates the
+  // new day. A sheet already open keeps its draft, date included, and the day it opened with:
+  // the draft is built from that day, and renewing it would start the draft again.
   const [today] = useState(getPlanToday);
   if (session.status !== 'open' || !session.engine || today === null) return <Redirect href="/" />;
   return <Sheet engine={session.engine} today={today} />;
