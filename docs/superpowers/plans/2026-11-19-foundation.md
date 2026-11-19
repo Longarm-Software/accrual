@@ -421,6 +421,16 @@ git commit -m "Add Jest, money formatting and the current month"
 
 ### Task 3: Engine adapter: session tokens, staged open, coded errors
 
+> **Amended during implementation (19 November 2026).** The staged open below was wrong about
+> the engine: loot-core's `download-budget` already opens the budget and does its first sync
+> before it returns. As built, a **first open** reports `downloading` (which covers downloading
+> and opening), then `syncing`, taken from the engine's own "budget loaded" event through
+> `onBudgetLoaded()` in `app/engine/entry.ts`; it calls `download-budget` once and nothing
+> after it. A **reopen** reports `opening`, then `syncing`, as written. The harness checks expect
+> `downloading syncing` and `opening syncing`. The code in Steps 1 and 5 is superseded by
+> `app/src/engine/adapter.ts` and `app/harness/verify.ts`. Tasks 6, 8 and 9 below are updated
+> to match.
+
 The adapter learns to sign in with a saved token, to open a budget step by step, and to fail with a code the UI can turn into a sentence. Tested in the Node harness against the real test server.
 
 **Files:**
@@ -1347,7 +1357,7 @@ export function fakeEngine(overrides: Partial<Engine> = {}): Engine {
     sessionToken: async () => 'token-for-tests',
     listBudgets: async () => fakeBudgets,
     openBudget: async (_budget, onStage = () => {}) => {
-      for (const stage of ['downloading', 'opening', 'syncing'] as const) await onStage(stage);
+      for (const stage of ['downloading', 'syncing'] as const) await onStage(stage);
     },
     getMonth: async month => ({
       month, toBudget: 31200, totalBudgeted: 588000, totalSpent: 341617, totalIncome: 619200, totalBalance: 246383,
@@ -1415,7 +1425,7 @@ it('choosing a budget then opening it reaches open', async () => {
 
   const stages: string[] = [];
   await act(async () => { await result.current.open(s => void stages.push(s)); });
-  expect(stages).toEqual(['downloading', 'opening', 'syncing']);
+  expect(stages).toEqual(['downloading', 'syncing']);
   expect(result.current.status).toBe('open');
 });
 
@@ -1907,11 +1917,11 @@ it('names each step', () => {
   expect(stageCopy(null, 'Household').title).toBe('Opening Household');
   expect(stageCopy('downloading', 'Household')).toEqual({
     title: 'Downloading Household',
-    detail: 'This happens once on this phone.',
+    detail: 'This happens once on this phone. A large budget can take a few seconds.',
   });
   expect(stageCopy('opening', 'Household')).toEqual({
     title: 'Opening Household',
-    detail: 'Working through your budget. A large one can take a few seconds.',
+    detail: 'Reading your budget on this phone.',
   });
   expect(stageCopy('syncing', 'Household')).toEqual({
     title: 'Syncing Household',
@@ -1931,8 +1941,9 @@ Expected: FAIL, `Cannot find module './stageCopy'`.
 import type { OpenStage } from '../../engine/types';
 
 const copy: Record<OpenStage, { verb: string; detail: string }> = {
-  downloading: { verb: 'Downloading', detail: 'This happens once on this phone.' },
-  opening: { verb: 'Opening', detail: 'Working through your budget. A large one can take a few seconds.' },
+  // On a first open the engine downloads and opens in one step, so this covers both.
+  downloading: { verb: 'Downloading', detail: 'This happens once on this phone. A large budget can take a few seconds.' },
+  opening: { verb: 'Opening', detail: 'Reading your budget on this phone.' },
   syncing: { verb: 'Syncing', detail: 'Checking your server for changes.' },
 };
 
@@ -1992,7 +2003,7 @@ it('shows the step in progress', async () => {
     }),
   );
   expect(await screen.findByText('Downloading Household')).toBeTruthy();
-  expect(screen.getByText('This happens once on this phone.')).toBeTruthy();
+  expect(screen.getByText('This happens once on this phone. A large budget can take a few seconds.')).toBeTruthy();
   release();
 });
 
@@ -2273,7 +2284,7 @@ Do each of these by hand and confirm what you see:
 2. Enter `http://127.0.0.1:5007` and the password from `tools/test-server/.env`, tap **Connect**: a message says the address is not encrypted.
 3. Turn on **Allow plain HTTP**, tap **Connect**: "Spike Small" and "Spike Large" are listed.
 4. Enter a wrong password instead: "That password is not right."
-5. Choose **Spike Large**, tap **Open Spike Large**: the opening screen shows "Downloading", then "Opening", then "Syncing", and the ring keeps turning throughout.
+5. Choose **Spike Large**, tap **Open Spike Large**: the opening screen shows "Downloading", then "Syncing", and the ring keeps turning throughout.
 6. Home shows "Spike Large" and a Ready to budget amount. Compare it with the web app at `http://127.0.0.1:5007` for the same month: they match to the cent.
 7. Close the app from the app switcher and open it again: it goes through "Opening" and "Syncing" (no "Downloading") and returns to Home without asking for the password.
 8. Tap **Sign out**: back to Connect. Reopen the app: still Connect.
