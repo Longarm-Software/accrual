@@ -239,7 +239,7 @@ export function heroView(month: PlanMonth): HeroView;
 export function overspentNotice(month: PlanMonth): string | null;
 ```
 
-**The rules for `categoryView`.** Check them in this order; the first that matches wins. `left` is `balance`; `used` is `-spent` (a positive number).
+**The rules for `categoryView`.** Check them in this order; the first that matches wins. `left` is `balance`; `used` is `max(0, -spent)`.
 
 | # | When | status | note | fill |
 |---|---|---|---|---|
@@ -249,15 +249,21 @@ export function overspentNotice(month: PlanMonth): string | null;
 | 4 | `goal` set, not `longGoal`, `budgeted < goal` | `needs` | `{amount} more needed` where amount is `formatMoney(goal - budgeted)` | `budgeted / goal` |
 | 5 | `budgeted === 0`, `spent === 0`, `balance === 0` | `idle` | `Nothing budgeted` | 0 |
 | 6 | `balance === 0` | `spent` | `Fully spent` | 1 |
-| 7 | `used === 0` | `ok` | `Not spent yet` | 0 |
-| 8 | `month` is today's month and `daysLeftInMonth >= 2` | `ok` | `{perDay} a day for {n} days` where perDay is `formatWholeMoney(balance / n)` | `used / (used + balance)` |
+| 7 | `month` is today's month and `used === 0` | `ok` | `Not spent yet` | 0 |
+| 8 | `month` is today's month and `daysLeftInMonth >= 2` | `ok` | `{perDay} a day for {n} days` where perDay is `formatWholeMoney(balance / n)`; if that rounds to `$0`, `{left} left for {n} days` with `formatMoney(balance)` | `used / (used + balance)` |
 | 9 | `month` is today's month (so it is the last day) | `ok` | `{left} left today` with `formatMoney(balance)` | `used / (used + balance)` |
 | 10 | `month` is before today's month | `ok` | `{left} left over` with `formatMoney(balance)` | `used / (used + balance)` |
 | 11 | otherwise (a future month) | `ok` | `Budgeted` | `used / (used + balance)` |
 
+> **Amended during implementation.** `used` is `max(0, -spent)`, so a net refund counts as not
+> spent from. "Not spent yet" (rule 7) applies only in the current month; a past month reads
+> "left over" and a future month "Budgeted" whether or not anything was spent. A pace that would
+> round to $0 a day says how much is left instead. Rule 3's percent is worked out in whole cents
+> (`floor(balance * 100 / goal)`), because the floating-point form shows 57% as 56%.
+
 `fill` is always clamped to 0–1. A category that met a monthly goal (rule 4 does not match because `budgeted >= goal`) falls through to rules 5 to 11 like any other.
 
-**The rules for `heroView`.** `state` is `over` when `toBudget < 0`, `even` when it is 0, `ready` otherwise, with the labels in the type above. The flow bar shows where the month's money is: `spent = -totalSpent`, `setAside = max(0, totalBudgeted - spent)`, `free = max(0, toBudget)`; each share is its part of the three added together, or all zeros when they add to zero. The three texts are `Spent {formatWholeMoney}`, `Still set aside {…}`, `Free {…}`.
+**The rules for `heroView`.** `state` is `over` when `toBudget < 0`, `even` when it is 0, `ready` otherwise, with the labels in the type above. The flow bar shows where the month's money is: `spent = max(0, -totalSpent)` (a month of net refunds counts as nothing spent), `setAside = max(0, totalBudgeted - spent)`, `free = max(0, toBudget)`; each share is its part of the three added together, or all zeros when they add to zero. The three texts are `Spent {formatWholeMoney}`, `Still set aside {…}`, `Free {…}`.
 
 **The rules for `overspentNotice`.** Look at every category with `balance < 0`. None: `null`. One: `{name} is {amount} over`, with `formatMoney` of the shortfall as a positive amount. More than one: `{n} categories are {total} over`.
 
