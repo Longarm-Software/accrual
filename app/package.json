@@ -20,14 +20,20 @@
     "expo-status-bar": "~58.0.5",
     "js-md5": "^0.11.0",
     "react": "19.3.0",
+    "react-dom": "19.3.0",
     "react-native": "0.88.1",
     "react-native-safe-area-context": "~5.11.1",
     "react-native-screens": "~4.30.1"
   },
   "devDependencies": {
+    "@react-native/jest-preset": "^0.88.1",
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "30.0.0",
     "@types/react": "~19.3.0",
     "better-sqlite3": "^13.2.0",
     "esbuild": "^0.28.2",
+    "jest": "~30.5.2",
+    "jest-expo": "~58.0.15",
     "peggy": "^5.1.1",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3"
@@ -41,7 +47,20 @@
     "engine:verify": "tsx --env-file=../tools/test-server/.env harness/verify.ts",
     "typecheck": "tsc --noEmit",
     "sqlfn:build": "sh modules/accrual-sqlite-functions/build-host.sh",
-    "sqlfn:test": "tsx modules/accrual-sqlite-functions/test/differential.test.ts"
+    "sqlfn:test": "tsx modules/accrual-sqlite-functions/test/differential.test.ts",
+    "test": "jest"
   },
-  "private": true
+  "private": true,
+  "jest": {
+    "preset": "jest-expo",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.ts"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/modules/",
+      "/harness/",
+      "/engine/"
+    ]
+  }
 }

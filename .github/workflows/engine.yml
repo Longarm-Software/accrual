@@ -49,6 +49,10 @@ jobs:
         working-directory: app
         run: npm run typecheck
 
+      - name: Unit tests
+        working-directory: app
+        run: npm test
+
       - name: Engine matches @actual-app/api and syncs both ways
         working-directory: app
         run: npm run engine:verify
