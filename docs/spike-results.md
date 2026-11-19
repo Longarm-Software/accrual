@@ -16,9 +16,9 @@ The first part of the spike ran in a Linux container with no simulator, so the e
 exercised in Node. The on-device run was done afterwards on a Mac. It found five problems, all
 small and all fixed (see [On-device run](#on-device-run)).
 
-What is still not covered: a physical phone. The simulator and emulator run the real native
-modules and the real Hermes, but on a Mac's processor, so the timings below are not phone
-timings.
+It has since run on a real phone as well: a release build on a Samsung Galaxy S24 Ultra passes
+every check, and gives the first real timings (see [On a real phone](#on-a-real-phone)). That is
+a flagship. A mid-range Android phone and any iPhone are still untested.
 
 **Recommendation:** ADR 0001 (engine in the app) is Accepted. Do not build the bridge fallback.
 
@@ -26,12 +26,12 @@ timings.
 
 | Criterion (plan.md) | Result |
 |---|---|
-| Engine loads in an Expo dev build on iPhone and Android emulator | **Pass** on the iOS simulator (iPhone 17 Pro, iOS 26.5) and an Android emulator (API 36, arm64). Not run on a physical iPhone. |
+| Engine loads in an Expo dev build on iPhone and Android emulator | **Pass** on the iOS simulator (iPhone 17 Pro, iOS 26.5) and an Android emulator (API 36, arm64). A release build also passes on a physical Android phone (Galaxy S24 Ultra, Android 17). Not run on a physical iPhone. |
 | Sign in to a server and download a budget | **Pass** (iOS simulator, Android emulator, Node harness) |
 | Month's categories, budgeted, spent and balance match to the cent | **Pass** on all three: 40 months across two budgets, 3,000 category cells plus all month totals, identical to `@actual-app/api` |
 | Add a transaction, sync, see it elsewhere | **Pass** on all three: a second client (`@actual-app/api`) sees it |
 | Edit elsewhere, see it after a sync | **Pass** on all three: a transaction and a budget amount changed by the second client arrive |
-| Cold start and sync time on 10,000+ transactions | **Measured on the simulator and emulator** (see [Timings](#timings)); numbers from a physical phone still needed |
+| Cold start and sync time on 10,000+ transactions | **Measured** on one physical phone (Galaxy S24 Ultra), the iOS simulator and the Android emulator (see [Timings](#timings)). A slower phone would be a useful second data point. |
 
 Two differences from the wording in plan.md:
 
@@ -71,8 +71,30 @@ Two things about the tools rather than the code:
 - The SQL extension needed no changes on either platform. On iOS the automatic-extension
   registration works; on Android `libaccrualsql.so` is packaged and loads by name.
 
-Not covered by this run: a physical phone, an Android release build, and the app's manual
-buttons (the scripted run calls the same engine adapter the buttons do).
+Not covered by this run: the app's manual buttons (the scripted run calls the same engine
+adapter the buttons do).
+
+### On a real phone
+
+The same scripted run, as an Android **release** build on a Samsung Galaxy S24 Ultra (SM-S928W,
+Android 17), installed over wireless adb. The server ran on the Mac and the phone reached it
+through `adb reverse`, with adb itself connected over Tailscale.
+
+Every check passes, with no code changes: 40 months identical to `@actual-app/api`, all six
+searches, a transaction from the phone reaching a second client on both budgets, and a
+transaction plus a budget edit from a second client arriving on the phone.
+
+Three things to know when repeating it:
+
+- **The device log cuts long lines.** A release build cannot be read with `run-as`, so results
+  come from `adb logcat`, which truncates entries at about 4,000 characters. The first event of
+  a run is longer than that. To read the full results file, install the debug build over the
+  release build (both are signed with the debug key, so the app's data is kept) and use
+  `run-as`.
+- **`adb reverse` drops when the phone sleeps.** The app then reports "network-failure". Keep the
+  phone unlocked with the app in front, and set the forwarding up again before each run.
+- **The app pauses while the screen is off**, so a run started on a locked phone does nothing
+  until it is unlocked.
 
 ## What "Node harness" means
 
@@ -159,10 +181,33 @@ run on a simulator did not: see [On-device run](#on-device-run).
 
 ## Timings
 
-Large budget (about 12,400 transactions), server on the same machine. **None of these are phone
-numbers.**
+Large budget (about 12,400 transactions).
+
+### A real phone
+
+Samsung Galaxy S24 Ultra, Android 17, release build. The server was on a Mac, reached through
+`adb reverse` over Tailscale, so every step that talks to the server includes that hop and would
+differ on a real network. This is a 2024 flagship: expect a mid-range phone to be slower.
+
+| Step | Time |
+|---|---|
+| Load and evaluate the engine bundle | 22–36 ms |
+| Init and sign in | 115–212 ms |
+| First download and open of the large budget | 1,312 ms (one run) |
+| Cold start: open local copy and sync | 126–178 ms |
+| Read a month | 4–6 ms |
+| Read 36 months | 109–175 ms |
+| Read every transaction | 485–610 ms |
+| Sync after adding one transaction | 41–55 ms |
+| Sync with nothing new | 15–66 ms |
+
+Cold start figures are from five launches; the rest are from two runs, and the first download
+from one. From launch to an open, synced large budget (bundle load, sign in, list, open) took
+290–370 ms. The first download is the one slow step: 1.3 s with the JS thread blocked (gap 3).
 
 ### Simulator and emulator
+
+**These are not phone numbers.**
 
 Hermes with the real native modules, on an Apple-silicon Mac. A simulator runs at the Mac's
 speed, so expect a phone to be slower, and an older Android phone much slower. Debug builds
@@ -222,10 +267,9 @@ A cold start in a new process (bundle load, sign in, open, sync) totals about 0.
 
 ## Next steps
 
-1. **Run it on a physical phone**, ideally a mid-range Android one, for real cold start and
-   first-download times. Needs a device and, for an iPhone, a signing team. The scripted run
-   works as it is; only the server URL changes (`EXPO_PUBLIC_SPIKE_SERVER_URL`).
-2. Add the Node harness to CI against a dockerised server. It is a ready-made regression test for
-   each monthly Actual release.
-3. Decide whether the first download of a large budget needs to move off the JS thread (gap 3)
-   once there are phone numbers.
+1. **Decide what to do about the first download** (gap 3). It blocks the JS thread for 1.3 s on a
+   flagship phone, so it will be worse on a slower one. Either show progress and accept it, since
+   it happens once per budget, or move the engine to a background runtime.
+2. **Run it on a mid-range Android phone and on an iPhone** when one is available. An iPhone
+   needs a signing team.
+3. Done: the Node harness runs in CI on every pull request (`.github/workflows/engine.yml`).
