@@ -1,0 +1,58 @@
+# Runs Actual's engine, bundled as it ships in the app, against a throwaway
+# Actual server and compares it with the official @actual-app/api client.
+# This is the regression test for each Actual version bump (docs/spike-results.md).
+name: engine
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            spike/server/package-lock.json
+            spike/app/package-lock.json
+
+      - name: Start the test server and seed fake budgets
+        working-directory: spike/server
+        run: |
+          npm ci
+          npm run server > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:5007/ > /dev/null && break; sleep 1; done
+          npm run seed
+
+      - name: Install the app's dependencies
+        working-directory: spike/app
+        run: npm ci
+
+      - name: SQL functions match loot-core's JavaScript
+        working-directory: spike/app
+        run: |
+          npm run sqlfn:build
+          npm run sqlfn:test
+
+      - name: Build the engine bundle
+        working-directory: spike/app
+        run: npm run engine:build
+
+      # After the build: the shims import a file the build generates.
+      - name: Typecheck
+        working-directory: spike/app
+        run: npm run typecheck
+
+      - name: Engine matches @actual-app/api and syncs both ways
+        working-directory: spike/app
+        run: npm run engine:verify
+
+      - name: Server log
+        if: failure()
+        run: tail -n 100 spike/server/server.log

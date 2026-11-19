@@ -1,9 +1,10 @@
 // Phase 0 spike screen: proves Actual's engine runs on the device and reports
 // timings. Not product UI. Nothing is hard-coded: enter a TEST server only.
 import { StatusBar } from 'expo-status-bar';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { autorun, autorunConfig } from './src/autorun';
 import type { BudgetMonth, Engine, RemoteBudget } from './src/engine/adapter';
 
 const money = (cents: number) => (cents / 100).toFixed(2);
@@ -19,6 +20,10 @@ export default function App() {
   const engine = useRef<Engine | null>(null);
 
   const say = (line: string) => setLog(lines => [...lines, line]);
+  // Scripted run for simulators and emulators (src/autorun.ts). Off by default.
+  useEffect(() => {
+    if (autorunConfig) void autorun(say);
+  }, []);
   async function step<T>(label: string, fn: () => Promise<T>): Promise<T> {
     const t0 = performance.now();
     try {

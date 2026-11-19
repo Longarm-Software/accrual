@@ -43,8 +43,10 @@ const overrides = {
   '#platform/server/memory': shim('memory.ts'),
   '#server/encryption/encryption-internals': shim('encryption-internals.ts'),
   'node:crypto': shim('node-crypto.ts'),
+  'node:diagnostics_channel': shim('diagnostics-channel.ts'), // lru-cache (optional import)
   // Third-party packages that reach for Node builtins:
   timers: shim('timers.ts'), // xml2js
+  stream: shim('stream.ts'), // sax, via xml2js (optional require)
   events: path.join(here, '..', 'node_modules', 'events', 'events.js'), // xml2js
   handlebars: path.join(here, '..', 'node_modules', 'handlebars', 'dist', 'cjs', 'handlebars.js'), // main entry needs fs
 };
@@ -52,7 +54,7 @@ const overrides = {
 const platformPlugin = {
   name: 'accrual-platform',
   setup(build) {
-    build.onResolve({ filter: /^(#|node:|timers$|events$|handlebars$)/ }, args =>
+    build.onResolve({ filter: /^(#|node:|timers$|stream$|events$|handlebars$)/ }, args =>
       overrides[args.path] ? { path: overrides[args.path] } : undefined,
     );
     build.onLoad({ filter: /\.pegjs$/ }, async args => ({
@@ -85,3 +87,16 @@ const result = await esbuild.build({
   logLevel: 'info',
 });
 fs.writeFileSync(path.join(here, 'dist', 'meta.json'), JSON.stringify(result.metafile));
+
+// 3. Anything esbuild left as an import must be a native module the app has.
+// An optional `import('node:…')` inside a dependency is left in place without
+// an error, and then fails on the phone when the bundle loads.
+const allowed = new Set(['accrual-sqlite-functions', 'expo-sqlite', 'expo-file-system', 'expo-crypto', 'expo/fetch']);
+const stray = Object.values(result.metafile.outputs)
+  .flatMap(output => output.imports)
+  .filter(i => i.external && !allowed.has(i.path))
+  .map(i => i.path);
+if (stray.length) {
+  console.error(`engine:build: the bundle still imports ${[...new Set(stray)].join(', ')}. Add a shim in engine/build.mjs.`);
+  process.exit(1);
+}

@@ -1,36 +1,37 @@
 # Phase 0 spike results: loot-core in Expo
 
-- **Date:** 2026-11-18
+- **Date:** 2026-11-18 (off-device and on-device runs)
 - **Versions:** Actual 26.11.0 (`@actual-app/core`, `@actual-app/api`, `@actual-app/sync-server`),
   Expo SDK 58, React Native 0.88.1 (Hermes), expo-sqlite 58
 - **Code:** [`spike/`](../spike/README.md)
 
 ## Verdict
 
-**The approach works, with one check still open.** Actual's engine, unmodified from npm, bundles
-for Hermes behind seven small platform shims. That bundle signs in, downloads budgets, produces
-month numbers identical to the official client, and syncs in both directions.
+**The approach works, on both platforms.** Actual's engine, unmodified from npm, bundles for
+Hermes behind thirteen small shim files (about 500 lines). In a dev build on the iOS simulator and on an Android
+emulator it signs in, downloads budgets, produces month numbers identical to the official
+client, searches through the native SQL extension, and syncs in both directions.
 
-It has **not yet run on a phone or simulator**. The spike ran in a Linux cloud container with no
-Xcode and no hardware virtualisation for an Android emulator. The engine was exercised in Node
-with stand-ins for the four native modules, and the app was compiled to Hermes bytecode for iOS
-and Android. The remaining risk is whether the three Expo native modules behave as their type
-definitions say, and whether the SQL-function extension builds and loads on each platform. Closing it takes one `npx expo run:ios` on a Mac (see
-[Next steps](#next-steps)).
+The first part of the spike ran in a Linux container with no simulator, so the engine was only
+exercised in Node. The on-device run was done afterwards on a Mac. It found five problems, all
+small and all fixed (see [On-device run](#on-device-run)).
 
-**Recommendation:** go ahead with ADR 0001 (engine in the app). Do the on-device run first, and
-mark the ADR Accepted when it passes. Do not build the bridge fallback.
+What is still not covered: a physical phone. The simulator and emulator run the real native
+modules and the real Hermes, but on a Mac's processor, so the timings below are not phone
+timings.
+
+**Recommendation:** ADR 0001 (engine in the app) is Accepted. Do not build the bridge fallback.
 
 ## Exit criteria
 
 | Criterion (plan.md) | Result |
 |---|---|
-| Engine loads in an Expo dev build on iPhone and Android emulator | **Not run.** Metro bundles the app and `hermesc` compiles it for both platforms (6.1 MB `.hbc`), and `expo-doctor` passes. No device or simulator was available. |
-| Sign in to a server and download a budget | **Pass** (Node harness) |
-| Month's categories, budgeted, spent and balance match to the cent | **Pass** (Node harness): 40 months across two budgets, 3,000 category cells plus all month totals, identical to `@actual-app/api` |
-| Add a transaction, sync, see it elsewhere | **Pass** (Node harness): a second client (`@actual-app/api`) sees it |
-| Edit elsewhere, see it after a sync | **Pass** (Node harness): a transaction and a budget amount changed by the second client arrive |
-| Cold start and sync time on 10,000+ transactions | **Measured on desktop only** (see [Timings](#timings)); phone numbers still needed |
+| Engine loads in an Expo dev build on iPhone and Android emulator | **Pass** on the iOS simulator (iPhone 17 Pro, iOS 26.5) and an Android emulator (API 36, arm64). Not run on a physical iPhone. |
+| Sign in to a server and download a budget | **Pass** (iOS simulator, Android emulator, Node harness) |
+| Month's categories, budgeted, spent and balance match to the cent | **Pass** on all three: 40 months across two budgets, 3,000 category cells plus all month totals, identical to `@actual-app/api` |
+| Add a transaction, sync, see it elsewhere | **Pass** on all three: a second client (`@actual-app/api`) sees it |
+| Edit elsewhere, see it after a sync | **Pass** on all three: a transaction and a budget amount changed by the second client arrive |
+| Cold start and sync time on 10,000+ transactions | **Measured on the simulator and emulator** (see [Timings](#timings)); numbers from a physical phone still needed |
 
 Two differences from the wording in plan.md:
 
@@ -39,6 +40,39 @@ Two differences from the wording in plan.md:
 - The criteria ask for a copy of a real budget. Only generated fake budgets were used, because
   this repo is public. The large one has 12,384 transactions over 36 months, 23 categories,
   5 accounts, split transactions, transfers and rollover.
+
+## On-device run
+
+Done on a Mac with `npx expo run:ios` and `npx expo run:android`, against the throwaway server
+and the two fake budgets. The app ran a scripted version of the checks (`src/autorun.ts`) and
+the host compared what it read with `@actual-app/api` (`harness/device-check.ts`). See
+"Scripted run" in [`spike/README.md`](../spike/README.md).
+
+All checks pass on the iOS simulator (debug and release builds) and the Android emulator (debug
+build): the same checks as the Node harness, on both budgets, including text search and
+accent-insensitive payee matching through the native SQL extension.
+
+It took five fixes to get there. The Node harness passed with every one of these bugs present,
+so each fix also makes the harness stricter where that was possible.
+
+| Problem | Seen on | Fix |
+|---|---|---|
+| The engine bundle would not load. `lru-cache` has an optional `import('node:diagnostics_channel')`, which esbuild leaves in place and Metro turns into an error at load time. | iOS | New shim, and `engine:build` now fails if the bundle imports anything other than the app's native modules. That check also caught an optional `require('stream')` in `sax`, now shimmed too. |
+| The app crashed while saving a downloaded budget. loot-core passes Node-style `Buffer`s; expo-file-system on iOS only accepts the built-in typed arrays and aborts on anything else. | iOS | `shims/fs.ts` converts to a plain `Uint8Array`. The file-system stand-in now rejects a `Buffer`. |
+| Opening any budget threw. Hermes on iOS has no `Intl.NumberFormat.formatToParts`, and loot-core calls it on every open, not only in formula cells as gap 4 assumed. | iOS | `shims/intl.ts` supplies it from `format()`. The harness removes Node's version and checks the stand-in against it in 11 locales. |
+| The large budget's first sync was rejected ("invalid fileId"). `File.write()` in expo-file-system is asynchronous; the shim did not wait for it, so the rename that followed could move the file first and leave stale budget metadata. | iOS (a race, so it could hit either platform) | `shims/fs.ts` uses `writeSync()`. The stand-in's `write()` now finishes late, as the real one does. |
+| The Android build failed to compile. The Kotlin module uses Expo's newer annotation-based module API, which must not also be listed in `expo-module.config.json`. | Android | Removed the `android.modules` entry. |
+
+Two things about the tools rather than the code:
+
+- **Xcode 27.0 cannot build expo-dev-launcher 58.0.21**, which uses an iOS 27.1 API behind a
+  compiler-version check. The iOS builds here used Xcode 26.6 (`DEVELOPER_DIR`). This goes away
+  with Xcode 27.1 or a fixed expo-dev-launcher.
+- The SQL extension needed no changes on either platform. On iOS the automatic-extension
+  registration works; on Android `libaccrualsql.so` is packaged and loads by name.
+
+Not covered by this run: a physical phone, an Android release build, and the app's manual
+buttons (the scripted run calls the same engine adapter the buttons do).
 
 ## What "Node harness" means
 
@@ -52,7 +86,8 @@ into Node, with:
   its own, as it must on Hermes.
 
 It proves the engine and shim logic. It does not prove the real native modules, Hermes runtime
-behaviour, or phone performance.
+behaviour, or phone performance: the on-device run found five problems it had missed. It is
+still the fast check to run first, and it is now stricter in the places those problems showed.
 
 ## How loot-core is packaged
 
@@ -79,15 +114,17 @@ behaviour, or phone performance.
 | `#platform/server/memory` | `os.freemem()` | returns `null`, as the browser build does |
 | `#server/encryption/encryption-internals` | Node `crypto` | random bytes only; encryption **stubbed** (see below) |
 | `node:crypto` (`createHash('md5')` in `server/update.ts`) | Node | `js-md5` |
+| `node:diagnostics_channel` (optional import in `lru-cache`) | Node | inert channels (`shims/diagnostics-channel.ts`) |
+| `Intl.NumberFormat.formatToParts` | Node, browsers, Hermes on Android | derived from `format()` where missing, which is Hermes on iOS (`shims/intl.ts`) |
 | Globals: `Buffer`, `process.env`, `crypto.getRandomValues` | Node | `buffer` package, a stub, expo-crypto |
-| Third-party: `xml2js` needs `events` and `timers`; `handlebars` main entry needs `fs` | Node | `events` package, a two-line `timers`, and handlebars' browser build |
+| Third-party: `xml2js` needs `events`, `timers` and (through `sax`, optionally) `stream`; `handlebars` main entry needs `fs` | Node | `events` package, a two-line `timers`, an empty `stream`, and handlebars' browser build |
 
-That is the complete list. The shims total about 350 lines. The engine bundle is 5.0 MB of
+That is the complete list. The shims total about 500 lines. The engine bundle is 5.0 MB of
 JavaScript, mostly date-fns (1.6 MB), hyperformula (1.6 MB) and loot-core itself (1.2 MB).
 
 ## Problems and open gaps
 
-1. **Custom SQL functions (solved off-device, not yet built for phones).** loot-core registers
+1. **Custom SQL functions (solved, and working on both platforms).** loot-core registers
    five JavaScript functions on each connection: `UNICODE_LOWER`, `UNICODE_UPPER`, `UNICODE_LIKE`,
    `REGEXP`, `NORMALISE`. Search, "contains" and "matches" rules, and payee lookup depend on
    them, and neither expo-sqlite nor op-sqlite can register JavaScript functions.
@@ -95,18 +132,21 @@ JavaScript, mostly date-fns (1.6 MB), hyperformula (1.6 MB) and loot-core itself
    They are now provided by a native SQLite extension,
    [`accrual-sqlite-functions`](../spike/app/modules/accrual-sqlite-functions/README.md): about
    400 lines of C on top of QuickJS's regular-expression engine and Unicode tables, so results
-   match JavaScript exactly. On Linux it agrees with loot-core's own functions on all 183,819
-   test inputs, and search results match `@actual-app/api`. The iOS and Android build files are
-   written but have not been compiled.
+   match JavaScript exactly. It agrees with loot-core's own functions on all 183,819
+   test inputs, and search results match `@actual-app/api` on the iOS simulator and the Android
+   emulator as well as in Node.
 2. **End-to-end encrypted budgets** need AES-256-GCM and PBKDF2, and Hermes has no
    `crypto.subtle`. Stubbed to throw. `react-native-quick-crypto` offers Node's `crypto` API, so
    loot-core's Electron implementation should port almost unchanged. Already a Phase 2 item.
 3. **The engine runs on the JS thread.** Every query blocks the UI while it runs. This looks
-   acceptable for reads, going by the timings, but opening a large budget on a phone may cause a
-   visible stall. If it does, move the engine to a background JS runtime. The adapter is already
+   acceptable for reads, going by the timings, but the first download of a large budget took
+   0.7 s on the iOS simulator and will take longer on a phone, which is a visible stall. If it does, move the engine to a background JS runtime. The adapter is already
    fully async, so the UI would not change.
-4. **`Intl.NumberFormat.formatToParts` is not implemented in Hermes on iOS** (per Hermes source;
-   not tested). loot-core uses it only for locale-aware number parsing in formula cells.
+4. **`Intl.NumberFormat.formatToParts` is not implemented in Hermes on iOS** (confirmed on the
+   simulator). loot-core calls it whenever a budget is opened. Solved with a small stand-in
+   (`shims/intl.ts`) that reports the group and decimal separators, which is all loot-core reads.
+   It does not label currency, percent or sign parts; use `@formatjs/intl-numberformat` if the
+   app's own UI ever needs those.
 5. **Session token storage.** The spike signs in with the password on every start and keeps
    nothing. The app should use loot-core's `initApp` path with the token in Keychain/Keystore.
 6. **Bank-file import** (OFX, CAMT, QIF) relies on `TextDecoder` with legacy encodings; untested
@@ -114,12 +154,40 @@ JavaScript, mostly date-fns (1.6 MB), hyperformula (1.6 MB) and loot-core itself
 7. **Metro runs Babel over the 5 MB bundle**, so a cold Metro build takes about 35 s.
 
 Nothing was a dead end. The first build attempt stopped on three Node builtins in third-party
-packages (the last row of the shim table); the first verification run passed.
+packages (the last row of the shim table); the first verification run in Node passed. The first
+run on a simulator did not: see [On-device run](#on-device-run).
 
 ## Timings
 
-Desktop Node (V8, 4 cores), server on localhost, large budget (12,384 transactions). **These are
-not phone numbers.** Expect Hermes on a phone to be several times slower.
+Large budget (about 12,400 transactions), server on the same machine. **None of these are phone
+numbers.**
+
+### Simulator and emulator
+
+Hermes with the real native modules, on an Apple-silicon Mac. A simulator runs at the Mac's
+speed, so expect a phone to be slower, and an older Android phone much slower. Debug builds
+load unoptimised JavaScript from Metro; the release build is the closest of the three to what
+a user would get.
+
+| Step | iOS simulator, release | iOS simulator, debug | Android emulator, debug |
+|---|---|---|---|
+| Load and evaluate the engine bundle | 22–39 ms | 320–350 ms | 490–960 ms |
+| Init and sign in | 60–130 ms | 70–90 ms | 130–860 ms |
+| First download and open of the large budget | 686 ms | 1,105 ms | 1,603 ms |
+| Cold start: open local copy and sync | 73–76 ms | 144–156 ms | 238–259 ms |
+| Read a month | 2 ms | 2–20 ms | 3–7 ms |
+| Read 36 months | 98 ms | 123 ms | 175 ms |
+| Read every transaction | 268 ms | 464 ms | 688 ms |
+| Sync after adding one transaction | 11 ms | 9 ms | 19 ms |
+| Sync with nothing new | 4 ms | 5 ms | 15–40 ms |
+
+Cold start figures are from three launches each. From launch to an open, synced large budget
+(bundle load, sign in, list, open) is about 0.2 s in the iOS release build, 0.55 s in the iOS
+debug build and 1.3–1.6 s in the Android debug build.
+
+### Desktop Node
+
+V8, 4 cores, in the Linux container the first part of the spike ran in.
 
 | Step | Time |
 |---|---|
@@ -154,12 +222,10 @@ A cold start in a new process (bundle load, sign in, open, sync) totals about 0.
 
 ## Next steps
 
-1. **On-device run (about 30 minutes, on a Mac).** Follow "Run on a device" in
-   [`spike/README.md`](../spike/README.md) for the iOS simulator and an Android emulator. Open
-   "Spike Large", add a transaction, sync, and note the timings in the app's log. The likeliest
-   failures are the first native build of `accrual-sqlite-functions`, path or URI handling in
-   `shims/fs.ts`, opening a database outside expo-sqlite's default folder, and binary request
-   bodies in `expo/fetch`. Each is a small, local fix.
-2. If it passes, set ADR 0001 to Accepted and tick the first box in plan.md.
-3. Add the Node harness to CI against a dockerised server. It is a ready-made regression test for
+1. **Run it on a physical phone**, ideally a mid-range Android one, for real cold start and
+   first-download times. Needs a device and, for an iPhone, a signing team. The scripted run
+   works as it is; only the server URL changes (`EXPO_PUBLIC_SPIKE_SERVER_URL`).
+2. Add the Node harness to CI against a dockerised server. It is a ready-made regression test for
    each monthly Actual release.
+3. Decide whether the first download of a large budget needs to move off the JS thread (gap 3)
+   once there are phone numbers.

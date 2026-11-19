@@ -1,7 +1,7 @@
 # 0001: Run Actual's engine inside the app
 
-- **Status:** Proposed. The Phase 0 spike supports it; Accepted once the on-device run passes
-  (see [spike results](../spike-results.md))
+- **Status:** Accepted (2026-11-18). The Phase 0 spike passed on the iOS simulator and an Android
+  emulator (see [spike results](../spike-results.md))
 - **Date:** 2026-11-18
 
 ## Context
@@ -19,14 +19,17 @@ with the user's own Actual server.
 - If the spike fails, use the self-hosted bridge (see architecture.md) and supersede this record.
 
 ## Spike findings (2026-11-18)
-- `loot-core` is on npm as `@actual-app/core`. It bundles for Hermes unmodified, behind seven
-  platform shims (about 350 lines) built on expo-sqlite, expo-file-system, `expo/fetch` and
+- `loot-core` is on npm as `@actual-app/core`. It bundles for Hermes unmodified, behind thirteen
+  small shim files (about 500 lines) built on expo-sqlite, expo-file-system, `expo/fetch` and
   expo-crypto. No fork and no vendored copy.
 - Run in Node with stand-in native modules, the bundle matches `@actual-app/api` to the cent
   and syncs both ways with a 26.11.0 server.
-- Not yet run on a device or simulator. That is the one condition left before Accepted.
+- Run on the iOS simulator (debug and release builds) and an Android emulator (debug build), the
+  same checks pass: numbers match to the cent, search works, and sync works both ways. Getting
+  there took five small fixes that the Node run had not shown.
+- Not yet run on a physical phone, so there are no real phone timings.
 - loot-core's five custom SQL functions are provided by a native SQLite extension
-  (`accrual-sqlite-functions`), verified on Linux and not yet built for phones.
+  (`accrual-sqlite-functions`), which builds and works on both platforms.
 - Known follow-up work: `react-native-quick-crypto` for encrypted budgets.
 
 ## Alternatives considered
