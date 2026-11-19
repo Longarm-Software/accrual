@@ -13,7 +13,7 @@ export const meta = {
 
 let uid = 0;
 /** Wraps mark artwork in an SVG. `paint` is 'grad' (mint to blue), or any CSS colour. */
-function svg(size, paint, draw) {
+export function svg(size, paint, draw) {
   const id = `g${uid++}`;
   const p = paint === 'grad' ? `url(#${id})` : paint;
   return `<svg width="${size}" height="${size}" viewBox="0 0 96 96" fill="none">
@@ -21,7 +21,7 @@ function svg(size, paint, draw) {
   ${draw(p, id)}</svg>`;
 }
 
-const marks = [
+export const marks = [
   {
     name: 'Ring',
     why: 'A lowercase “a” whose bowl is the Available gauge from the category screen. It is the product’s own shape, it is still legible at 16 pixels, and it looks nothing like Actual’s capital A.',

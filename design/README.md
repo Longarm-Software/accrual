@@ -11,7 +11,8 @@ money, coral is overspent, grey is spent as planned.
 
 ## Round 3: the bite, motion and a logo
 
-**Status:** drawn, waiting for review. The logo needs a pick. None of it is built.
+**Status:** reviewed and accepted on 19 November 2026. The logo is 1 · Ring; its files are in
+[`brand/`](brand/README.md). None of it is built.
 
 ### The bite
 
@@ -36,8 +37,9 @@ a small bite. A bite is never drawn narrower than 4% of the bar, so it stays vis
 
 ![Aurora · motion](previews/round-3/aurora-motion.png)
 
-Two interactions as storyboards. To see them move, build the boards and run
-`open design/boards/round-3/aurora-motion-live.html`. That version is a timing sketch: numbers
+Two interactions as storyboards. To see them move, open
+[the live board](https://htmlpreview.github.io/?https://github.com/Longarm-Software/accrual/blob/main/design/previews/round-3/aurora-motion-live.html)
+(or `open design/previews/round-3/aurora-motion-live.html` in a clone). That version is a timing sketch: numbers
 switch instead of rolling, and a browser has no haptics.
 
 Motion has one job here, which is to show where money went.
@@ -63,7 +65,7 @@ These timings are proposals. None has been tried on a phone.
 
 ![Logo explorations](previews/round-3/aurora-logo.png)
 
-Five marks. **Recommended: 1 · Ring**, a lowercase "a" whose bowl is the Available gauge. It is
+Five marks. **Chosen: 1 · Ring**, a lowercase "a" whose bowl is the Available gauge. It is
 the only one that is both the product's own shape and the name's initial, and it does not
 resemble Actual's logo. Bite is the runner-up, and the better choice if the bite becomes what
 people remember the app for.
@@ -235,3 +237,4 @@ Open a board in a browser to see it at full size: `open design/boards/round-3/au
 | `src/aurora-bite.mjs`, `src/aurora-motion.mjs`, `src/aurora-motion-live.mjs`, `src/aurora-logo.mjs` | The round 3 boards; the live one is for a browser and has no PNG |
 | `src/contrast.mjs` | The contrast check |
 | `previews/` | PNG exports, one folder per round |
+| `brand/` | The logo and app icon, written by `src/brand.mjs` |
