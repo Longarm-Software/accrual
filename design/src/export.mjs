@@ -31,12 +31,13 @@ const chrome = findChrome();
 for (const file of readdirSync(join(root, 'boards', round)).filter(f => f.endsWith('.html'))) {
   const name = file.replace('.html', '');
   if (only.length && !only.includes(name)) continue;
-  // Wide enough for every phone on the board, plus its margins.
-  const phones = readFileSync(join(root, 'boards', round, file), 'utf8').split('class="shot"').length - 1;
-  const width = 128 + phones * 390 + (phones - 1) * 48;
+  if (name.endsWith('-live')) continue; // moving boards are for the browser
+  // The board says how big it is (see page() in lib.mjs).
+  const html = readFileSync(join(root, 'boards', round, file), 'utf8');
+  const width = html.match(/data-width="(\d+)"/)[1], height = html.match(/data-height="(\d+)"/)[1];
   execFileSync(chrome, [
     '--headless', '--hide-scrollbars', '--force-device-scale-factor=2', '--virtual-time-budget=8000',
-    `--window-size=${width},1230`, `--screenshot=${join(outDir, `${name}.png`)}`,
+    `--window-size=${width},${height}`, `--screenshot=${join(outDir, `${name}.png`)}`,
     `file://${join(root, 'boards', round, file)}`,
   ], { stdio: 'ignore' });
   console.log(`previews/${round}/${name}.png`);
