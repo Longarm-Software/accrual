@@ -72,19 +72,24 @@ it('try again signs in afresh once the server is back', async () => {
 });
 
 it('opens the copy on the phone when the server cannot be reached', async () => {
-  const stages: OpenStage[] = [];
+  let release!: () => void;
+  const held = new Promise<void>(resolve => (release = resolve));
   await show(async () =>
     fakeEngine({
       offline: true,
       openBudget: async (_b, onStage = () => {}) => {
-        stages.push('opening');
         await onStage('opening');
+        await held;
       },
     }),
   );
-  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
-  expect(stages).toEqual(['opening']);
+  // What the person sees while it opens: the opening step, not an error.
+  expect(await screen.findByText('Opening Household')).toBeTruthy();
+  // The title alone is also what shows before any step; the detail is the opening step's own.
+  expect(screen.getByText('Reading your budget on this phone.')).toBeTruthy();
   expect(screen.queryByText('Could not reach that server. Check the address and your connection.')).toBeNull();
+  release();
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
   expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
 });
 
