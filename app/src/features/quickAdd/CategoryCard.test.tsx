@@ -50,8 +50,12 @@ it('a purchase more than the category has: coral after, a coral edge, and the wa
     borderWidth: size.border,
     borderColor: withAlpha(themes.dark.color.over, tint.potOverEdge),
   });
-  expect(screen.getByText('That is $4.90 more than Coffee has')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Coffee, suggested, $13.50 now, −$4.90 after' })).toBeTruthy();
+  const warning = screen.getByText('That is $4.90 more than Coffee has', { includeHiddenElements: true });
+  expect(warning.props.accessibilityLiveRegion).toBe('polite'); // Android announces it
+  expect(warning.props.accessibilityElementsHidden).toBe(true); // iOS reads it in the card's label instead
+  expect(
+    screen.getByRole('button', { name: 'Coffee, suggested, $13.50 now, −$4.90 after. That is $4.90 more than Coffee has' }),
+  ).toBeTruthy();
 });
 
 it('shows no warning when the purchase fits', async () => {

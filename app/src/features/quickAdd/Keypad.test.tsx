@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { useState } from 'react';
+import { Text } from 'react-native';
 
-import type { Key } from './amountEntry';
+import { emptyEntry, entryCents, press, type Key } from './amountEntry';
 import { themes } from '../../theme/tokens';
-import { Keypad } from './Keypad';
+import { Keypad, REPEAT_MS } from './Keypad';
 
 // The design is dark; Jest's colour scheme is light. Draw dark so the colours checked are the design's.
 jest.mock('../../theme/useTheme', () => ({ useTheme: () => jest.requireActual('../../theme/tokens').themes.dark }));
@@ -90,5 +92,26 @@ describe('holding delete', () => {
     await fireEvent(del, 'pressOut');
     await act(() => jest.advanceTimersByTime(1000));
     expect(onKey).toHaveBeenCalledTimes(held);
+  });
+
+  it('keeps deleting when the parent passes a new callback on every render', async () => {
+    // The natural parent: a fresh closure over the current entry each render, no functional update.
+    function Parent() {
+      const [entry, setEntry] = useState(['1', '2', '3', '4', '5'].reduce((e, k) => press(e, k as Key), emptyEntry));
+      return (
+        <>
+          <Text testID="cents">{entryCents(entry)}</Text>
+          <Keypad onKey={key => setEntry(press(entry, key))} onToggleSign={() => {}} onSave={() => {}} canSave over={false} />
+        </>
+      );
+    }
+    await render(<Parent />);
+    const del = button('Delete');
+    await fireEvent(del, 'longPress');
+    // One repeat at a time, letting React re-render between them as it does on a device.
+    for (let i = 0; i < 3; i++) await act(() => jest.advanceTimersByTime(REPEAT_MS));
+    await fireEvent(del, 'pressOut');
+    // 12345 dollars, after the first delete and three repeats, is 1 dollar.
+    expect(screen.getByTestId('cents').props.children).toBe(100);
   });
 });

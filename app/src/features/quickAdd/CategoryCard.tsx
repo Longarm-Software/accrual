@@ -10,13 +10,14 @@ import { BiteBar } from './BiteBar';
 
 type Props = { name: string | null; suggested: boolean; bite: Bite | null; onPress(): void };
 
-/** What a screen reader says for the whole card. */
+/** What a screen reader says for the whole card, with the warning when there is one: the strip under it is not announced on iOS. */
 export function categoryCardLabel(name: string | null, suggested: boolean, bite: Bite | null): string {
   if (name === null) return 'No category, choose one';
   const parts = [name];
   if (suggested) parts.push('suggested');
   if (bite) parts.push(`${bite.before} now`, bite.after);
-  return parts.join(', ');
+  const label = parts.join(', ');
+  return bite?.warning ? `${label}. ${bite.warning}` : label;
 }
 
 /**
@@ -69,7 +70,9 @@ export function CategoryCard({ name, suggested, bite, onPress }: Props) {
       </Pressable>
       {bite?.warning && (
         <Glass radius={radius.field} style={{ paddingHorizontal: space.lg, paddingVertical: space.md }}>
-          <Body style={type.notice} accessibilityLiveRegion="polite">
+          {/* Android announces it as it appears. iOS has no live region, so the card's label says it
+              instead, and the strip is hidden from VoiceOver so it is not read twice. */}
+          <Body style={type.notice} accessibilityLiveRegion="polite" accessibilityElementsHidden>
             {bite.warning}
           </Body>
         </Glass>

@@ -1,7 +1,7 @@
 import { Text } from 'react-native';
 
 import { formatMoney, splitMoney } from '../lib/money';
-import { amount, font, tint } from '../theme/tokens';
+import { amount, font, textScale, tint } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 
 type Props = {
@@ -20,9 +20,6 @@ type Props = {
   fit?: boolean;
 };
 
-/** How small a fitted amount may shrink: "−$9,999,999.99" at the entry size on a narrow phone. */
-const MIN_FIT_SCALE = 0.3;
-
 /** "$207" with a smaller, quieter ".62", as every Aurora screen sets amounts. */
 export function Money({ cents, size = amount.tile, color, testID, accessible = true, plus = false, fit = false }: Props) {
   const theme = useTheme();
@@ -35,7 +32,7 @@ export function Money({ cents, size = amount.tile, color, testID, accessible = t
       accessible={accessible}
       accessibilityLabel={accessible ? (sign === '+' ? '+' : '') + formatMoney(cents) : undefined}
       importantForAccessibility={accessible ? 'auto' : 'no'}
-      {...(fit && { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: MIN_FIT_SCALE, maxFontSizeMultiplier: 1 })}
+      {...(fit && { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: amount.minFit, maxFontSizeMultiplier: textScale.amount })}
       style={{ fontFamily: font.number, fontSize: size, letterSpacing: size * amount.tracking, color: ink, fontVariant: ['tabular-nums'] }}
     >
       <Text>{sign + parts.dollars}</Text>

@@ -29,7 +29,10 @@ export function PayeeField({ text, matches, onChangeText, onPick }: Props) {
   return (
     <View style={{ gap: space.sm }}>
       <Glass radius={radius.field} style={{ paddingHorizontal: space.lg, paddingVertical: space.md }}>
-        <Label>Payee</Label>
+        {/* The field itself is labelled "Payee"; this visible label is not read a second time. */}
+        <Label accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          Payee
+        </Label>
         <TextInput
           ref={input}
           accessibilityLabel="Payee"
@@ -42,7 +45,7 @@ export function PayeeField({ text, matches, onChangeText, onPick }: Props) {
           spellCheck={false}
           autoComplete="off"
           returnKeyType="done"
-          style={{ ...type.input, color: theme.color.ink, paddingVertical: 2 }}
+          style={{ ...type.input, color: theme.color.ink, paddingVertical: space.hair }}
         />
       </Glass>
       {shown.length > 0 && (

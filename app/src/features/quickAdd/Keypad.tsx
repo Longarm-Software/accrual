@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { radius, size, space, tint, type } from '../../theme/tokens';
+import { radius, size, space, textScale, tint, type } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { Tick } from '../../ui/Tick';
 import type { Key } from './amountEntry';
@@ -11,7 +11,7 @@ import type { Key } from './amountEntry';
 type Props = { onKey(key: Key): void; onToggleSign(): void; onSave(): void; canSave: boolean; over: boolean };
 
 /** How often a held delete key deletes again, once the hold is recognised. */
-const REPEAT_MS = 80;
+export const REPEAT_MS = 80;
 
 /**
  * The quick-add keypad, four columns as in the design:
@@ -29,7 +29,7 @@ export function Keypad({ onKey, onToggleSign, onSave, canSave, over }: Props) {
   const theme = useTheme();
   const digit = (key: Key, label: string = key) => (
     <KeyButton label={label} onPress={() => onKey(key)}>
-      <Text style={[type.key, { color: theme.color.ink }]} maxFontSizeMultiplier={2}>
+      <Text style={[type.key, { color: theme.color.ink }]} maxFontSizeMultiplier={textScale.key}>
         {key}
       </Text>
     </KeyButton>
@@ -48,7 +48,7 @@ export function Keypad({ onKey, onToggleSign, onSave, canSave, over }: Props) {
         {digit('5')}
         {digit('6')}
         <KeyButton label="Expense or income" onPress={onToggleSign}>
-          <Text style={[type.key, { color: theme.color.mute }]} maxFontSizeMultiplier={2}>
+          <Text style={[type.key, { color: theme.color.mute }]} maxFontSizeMultiplier={textScale.key}>
             +/−
           </Text>
         </KeyButton>
@@ -104,6 +104,10 @@ function KeyButton({ label, onPress, onLongPress, onPressOut, children }: KeyPro
 }
 
 function DeleteKey({ onDelete }: { onDelete: () => void }) {
+  // The parent may pass a new callback on every render, closed over the amount as it was then.
+  // Each repeat calls the latest one, so it deletes from the amount as it is now.
+  const latest = useRef(onDelete);
+  latest.current = onDelete;
   const repeat = useRef<ReturnType<typeof setInterval> | null>(null);
   const stop = () => {
     if (repeat.current !== null) clearInterval(repeat.current);
@@ -118,7 +122,7 @@ function DeleteKey({ onDelete }: { onDelete: () => void }) {
       onLongPress={() => {
         stop();
         onDelete();
-        repeat.current = setInterval(onDelete, REPEAT_MS);
+        repeat.current = setInterval(() => latest.current(), REPEAT_MS);
       }}
       onPressOut={stop}
     >

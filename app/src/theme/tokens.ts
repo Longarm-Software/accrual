@@ -59,7 +59,11 @@ export const radius = {
   pot: 24,
   key: 20,
 } as const;
-export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
+export const space = {
+  /** A typed line's breathing room inside its field, above and below the text. */
+  hair: 2,
+  xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32,
+} as const;
 
 /** Font family names as registered in src/app/_layout.tsx. */
 export const font = {
@@ -113,6 +117,8 @@ export const amount = {
   tileLong: 22,
   /** The amount being typed on quick add. */
   entry: 88,
+  /** How far a fitted amount may shrink to stay on one line: "−$9,999,999.99" at the entry size on a narrow phone. */
+  minFit: 0.3,
 } as const;
 
 /** Fixed sizes of controls and marks. */
@@ -160,6 +166,16 @@ export const size = {
   /** The date stepper's label at text scale 1: wide enough for "Wed 30 Sep". Multiply by the font scale. */
   dateLabel: 92,
 } as const;
+
+/**
+ * The most the person's text size may enlarge a piece of text, where growing further would
+ * break its box. `key`: a keypad digit at twice its size still fits a 60-point key. `amount`:
+ * a fitted amount is already larger than the largest text, so it does not grow at all.
+ */
+export const textScale = { key: 2, amount: 1 } as const;
+
+/** Springs for the motion decision 10 allows. `bite`: the bite bar's split, quick and barely overshooting. */
+export const spring = { bite: { damping: 20, stiffness: 220 } } as const;
 
 /** The bite's hatching: stripes `stripe` thick, one every `period` points along the bar, leaning `angle`. */
 export const hatch = { stripe: 3, period: 7, angle: '35deg' } as const;

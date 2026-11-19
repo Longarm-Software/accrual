@@ -15,8 +15,15 @@ const draw = (text: string, matches: PayeeChoice[]) => {
 
 it('is a field labelled Payee that shows the text it is given', async () => {
   await draw('Cor', []);
-  expect(screen.getByText('Payee')).toBeTruthy();
+  expect(screen.getByText('Payee', { includeHiddenElements: true })).toBeTruthy();
   expect(screen.getByLabelText('Payee').props.value).toBe('Cor');
+});
+
+it('says Payee once to a screen reader', async () => {
+  await draw('', []);
+  expect(screen.getAllByLabelText('Payee')).toHaveLength(1);
+  expect(screen.queryByText('Payee')).toBeNull(); // hidden from the screen reader, so not found by default
+  expect(screen.getByText('Payee', { includeHiddenElements: true })).toBeTruthy();
 });
 
 it('capitalises words and does not autocorrect', async () => {

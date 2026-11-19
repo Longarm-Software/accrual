@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
-import { hatch, radius, size } from '../../theme/tokens';
+import { hatch, radius, size, spring } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import type { Bite } from './bite';
 
@@ -24,8 +24,8 @@ export function BiteBar({ kept, taken, state }: Props) {
   const split = useSharedValue(kept);
   const rest = useSharedValue(taken);
   useEffect(() => {
-    split.value = withSpring(kept, SPRING);
-    rest.value = withSpring(taken, SPRING);
+    split.value = withSpring(kept, spring.bite);
+    rest.value = withSpring(taken, spring.bite);
   }, [kept, taken, split, rest]);
   // A spring may overshoot; a flex weight below zero is not allowed.
   const keptStyle = useAnimatedStyle(() => ({ flexGrow: Math.max(0, split.value) }));
@@ -44,7 +44,7 @@ export function BiteBar({ kept, taken, state }: Props) {
       </Animated.View>
       <Animated.View
         testID="bite-taken"
-        style={[styles.part, takenStyle, hatched && !over && { borderLeftWidth: size.stroke, borderLeftColor: theme.color.need }]}
+        style={[styles.part, takenStyle, hatched && !over && taken > 0 && { borderLeftWidth: size.stroke, borderLeftColor: theme.color.need }]}
       >
         {hatched && (
           // Anchored to the bar's right end, not the part's left, so the stripes stay still while
@@ -57,8 +57,6 @@ export function BiteBar({ kept, taken, state }: Props) {
     </View>
   );
 }
-
-const SPRING = { damping: 20, stiffness: 220 } as const;
 
 /**
  * Diagonal stripes across a bar `width` wide: one plain View per stripe, each turned. Memoised
