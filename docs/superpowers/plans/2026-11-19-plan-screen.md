@@ -243,6 +243,7 @@ export function overspentNotice(month: PlanMonth): string | null;
 
 | # | When | status | note | fill |
 |---|---|---|---|---|
+| 0 | `balance < 0` and `carryover` (added after the owner's real budget showed a debt tracked this way counted as overspending) | `spent` | `Rolls over to next month` | 1 |
 | 1 | `balance < 0` | `over` | `Overspent` | 1 |
 | 2 | `goal` set, `longGoal`, `balance >= goal` | `goal` | `Goal reached` | 1 |
 | 3 | `goal` set, `longGoal` | `goal` | `{p}% of {goal}` where p is `balance / goal` rounded down to a whole percent and `{goal}` is `formatWholeMoney(goal)` | `balance / goal` |

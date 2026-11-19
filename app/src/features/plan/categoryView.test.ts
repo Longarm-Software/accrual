@@ -17,6 +17,10 @@ describe('categoryView', () => {
   it('rule 1: overspent', () => {
     expect(categoryView(named('Dining out'), nov19)).toEqual({ status: 'over', note: 'Overspent', fill: 1 });
   });
+  it('a negative balance that rolls into next month is not called overspent', () => {
+    const c = { ...base, budgeted: -500000, balance: -500000, carryover: true };
+    expect(categoryView(c, nov19)).toEqual({ status: 'spent', note: 'Rolls over to next month', fill: 1 });
+  });
   it('rule 2: a long goal that is met', () => {
     const c = { ...base, budgeted: 1, balance: 1000000, goal: 1000000, longGoal: true };
     expect(categoryView(c, nov19)).toEqual({ status: 'goal', note: 'Goal reached', fill: 1 });
