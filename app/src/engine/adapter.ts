@@ -14,6 +14,7 @@ const core = require('../../engine/dist/loot-core.rn.js') as {
   init(config: { dataDir: string; serverURL: string; password?: string; sessionToken?: string }): Promise<Lib>;
   defaultDocumentDir(): string;
   getSessionToken(): Promise<string | undefined>;
+  onBudgetLoaded(listener: () => void): () => void;
 };
 type Lib = { send(name: string, args?: unknown): Promise<any>; q(table: string): any };
 
@@ -47,17 +48,41 @@ export async function createEngine(config: { serverURL: string; dataDir?: string
           encrypted: Boolean(f.encryptKeyId),
         }));
     },
-    // Opens in steps so a screen can say which one is running (ADR 0002). `onStage` is
-    // awaited, which lets the caller paint a frame before the next step blocks the thread.
+    // Opens in steps so a screen can say which one is running (ADR 0002).
+    //
+    // First open (no local copy): `downloading` covers downloading AND opening, because
+    // loot-core's download-budget downloads, loads and runs the first full sync in one call
+    // and gives no signal between "downloaded" and "opened". `syncing` is reported when the
+    // engine announces the budget has loaded, i.e. as that first sync begins. `opening` is
+    // not reported. If the announcement never comes the open still succeeds, without `syncing`.
+    //
+    // Reopen (local copy exists): `opening` covers loading the local copy, `syncing` the sync.
+    //
+    // `onStage` is awaited where we control the order, which lets the caller paint a frame
+    // before the next step blocks the thread. The `syncing` report on a first open comes from
+    // an engine event and cannot be awaited.
     async openBudget(budget, onStage = () => {}) {
       const local = (await lib.send('get-budgets')).find((b: any) => b.groupId === budget.groupId);
-      let id: string | undefined = local?.id;
-      if (!id) {
+      if (!local?.id) {
         await onStage('downloading');
-        const downloaded = await lib.send('download-budget', { cloudFileId: budget.cloudFileId });
-        if (downloaded?.error) throw fail(downloaded.error.reason, 'Could not download the budget');
-        id = downloaded.id;
+        let reported = false;
+        const unsubscribe = core.onBudgetLoaded(() => {
+          if (reported) return;
+          reported = true;
+          // Called at the moment of the event; a throw or rejection must not escape into the engine.
+          try {
+            Promise.resolve(onStage('syncing')).catch(() => {});
+          } catch {}
+        });
+        try {
+          const downloaded = await lib.send('download-budget', { cloudFileId: budget.cloudFileId });
+          if (downloaded?.error) throw fail(downloaded.error.reason, 'Could not download the budget');
+        } finally {
+          unsubscribe();
+        }
+        return;
       }
+      const id: string = local.id;
       await onStage('opening');
       const loaded = await lib.send('load-budget', { id });
       if (loaded?.error) throw fail(loaded.error, 'Could not open the budget');

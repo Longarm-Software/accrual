@@ -121,8 +121,17 @@ async function main() {
 
   // --- Small budget: correctness and two-way sync
   const stages: string[] = [];
-  await timed('small: download + open', () => engine.openBudget(small, s => void stages.push(s)));
-  check('first open reports downloading, opening, syncing', stages.join(' ') === 'downloading opening syncing', `(${stages.join(' ')})`);
+  let resolved = false;
+  let syncingDuringCall = false;
+  await timed('small: download + open', async () => {
+    await engine.openBudget(small, s => {
+      stages.push(s);
+      if (s === 'syncing') syncingDuringCall = !resolved;
+    });
+    resolved = true;
+  });
+  check('first open reports downloading, then syncing', stages.join(' ') === 'downloading syncing', `(${stages.join(' ')})`);
+  check('first open reports syncing while the open is still running', syncingDuringCall);
   await compareMonths(engine, small.groupId, monthsBack(4), 'small');
 
   const accounts = await engine.getAccounts();
