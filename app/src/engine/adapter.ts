@@ -227,9 +227,13 @@ export async function createEngine(
     //
     // Recent use is one query on `transactions`. The default `splits: 'inline'` drops split
     // parents (`is_parent = 0`, server/aql/schema/executors.ts), so 'all' is asked for and the
-    // children left out with `is_child`; tombstoned rows are left out by the view already, and
-    // the filter says so too. A payee, category or account that has been deleted reads as null
-    // (v_transactions joins them on `tombstone = 0`).
+    // children left out with `is_child`. The `tombstone: false` filter is required, not a
+    // restatement: with `splits: 'all'` the query reads `v_transactions_internal`, which keeps
+    // deleted transactions, and the executor adds no tombstone condition of its own
+    // (server/aql/schema/index.ts tableViews; executors.ts). Without it, deleted transactions
+    // would set the payee order, the default account and the suggested categories. A payee,
+    // category or account that has been deleted reads as null (the compiler's `validateRefs`
+    // joins them on `tombstone = 0`).
     async getQuickAddLists() {
       const [rawAccounts, rawPayees, { grouped }] = await Promise.all([
         lib.send('api/accounts-get'),
