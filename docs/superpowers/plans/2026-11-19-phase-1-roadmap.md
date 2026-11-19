@@ -47,6 +47,8 @@ last because it touches every screen.
 | Plain HTTP for LAN and Tailscale servers: allowed behind a toggle, as `docs/architecture.md` says | Plan 1 |
 | Encrypted budgets: plan 1 shows "not supported yet"; real support is Phase 2 | Plan 1 |
 | Name, logo and trademark checks | Before any store work; not part of Phase 1 |
+| Sign out leaves the downloaded budget on the phone: delete it, or keep it? | Before any build leaves the household |
+| The first download of the large test budget took about 19 s on a heavily loaded Android emulator, against 1.3 s on a real phone (release build). Re-measure on a quiet machine against ADR 0002's 5-second threshold. | Plan 2 |
 
 ## Not in Phase 1
 

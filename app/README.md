@@ -14,19 +14,26 @@ file is for:
 app/                               (was spike/app)
   app.json                         Expo config: name Accrual, id software.longarm.accrual
   package.json                     scripts: test, typecheck, engine:build, engine:verify, sqlfn:*
+  tsconfig.json                    typecheck program for app code (no Jest or Node globals)
+  tsconfig.test.json               typecheck program for tests (Jest and Node types)
   jest.setup.ts                    Reanimated and SecureStore mocks for Jest
-  engine/                          unchanged from the spike, except entry.ts
-    entry.ts                       + getSessionToken()
-  harness/                         unchanged, except verify.ts (new checks)
+  engine/                          unchanged from the spike, except:
+    entry.ts                       + getSessionToken(), onBudgetLoaded()
+    shims/async-storage.ts         header comment only: what is kept in memory, what on disk
+  harness/                         unchanged, except verify.ts (new checks) and paths updated
+                                   for the move
   modules/accrual-sqlite-functions/   unchanged
   src/
     app/                           Expo Router routes (screens only, no logic)
-      _layout.tsx                  fonts, theme, session provider, Stack
-      index.tsx                    Home: Ready to budget; redirects when not ready
+      _layout.tsx                  fonts, splash screen, session provider, Stack
+      index.tsx                    Home: Ready to budget; redirects when not ready, or to
+                                   dev-check when the scripted run is on
       connect.tsx                  server address, password, budget list
       opening.tsx                  first-download and reopen progress
-    app-tests/                     tests for the screens in app/ (Expo Router bundles every
-                                   file under app/ as a route, so tests cannot live there)
+      dev-check.tsx                developer route for the scripted check (dev/autorun.ts);
+                                   the one place a literal colour is allowed
+    app-tests/                     screen tests: Expo Router bundles every file under src/app
+                                   as a route, so tests cannot live there (a test checks this)
     engine/
       types.ts                     Engine, RemoteBudget, BudgetMonth, OpenStage, EngineError
       adapter.ts                   createEngine(): the only file that touches the bundle

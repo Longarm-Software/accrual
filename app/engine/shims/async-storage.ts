@@ -1,6 +1,13 @@
 // loot-core `#platform/server/asyncStorage`: global prefs (server URL, session
-// token, ...). Spike version: a JSON file in the data dir. The real app must
-// keep the session token in Keychain/Keystore instead (see architecture.md).
+// token, ...). loot-core's `init()`, the entry point the app uses, starts this
+// store with `persist: false`, so on the app's path nothing here is written to
+// disk and the session token it holds lives in memory only. The app keeps the
+// session token in the Keychain or Keystore itself (src/session/storage.ts).
+//
+// The JSON file below is written only after `init()` with `persist` true, which
+// only loot-core's `initApp` does, and the app does not use `initApp`. It is read
+// only by `load()`, exported from engine/entry.ts as `loadGlobalStore`, which
+// nothing in the app calls.
 import * as fs from './fs';
 
 type Store = Record<string, any>;

@@ -17,14 +17,21 @@ For v1, the engine stays on the JS thread. The first download gets its own scree
 the step in progress (downloading, opening, syncing) and keeps moving while the thread is
 blocked.
 
+**Amended 2026-11-19:** as built, a first open reports `downloading`, then `syncing`.
+`downloading` covers downloading and opening together, because Actual's engine downloads, opens
+and starts the first sync in one call and gives no signal between them. Only a reopen of a budget
+already on the phone reports `opening`, then `syncing`. See the comment above `openBudget` in
+`app/src/engine/adapter.ts`.
+
 ## Consequences
 
 - Good: no second JavaScript runtime to build, debug and keep in step with Actual's releases.
 - Bad: the screen cannot show a true percentage, and nothing can be tapped during the wait.
 - The progress animation must run on the native side (Reanimated), because anything driven
   from JavaScript would freeze along with the thread.
-- The engine adapter has to report the steps one by one, so it opens a budget in stages
-  instead of with a single call.
+- The engine adapter has to report the steps one by one. A reopen runs in stages (open the local
+  copy, then sync). A first open is a single engine call; the adapter reports `downloading`
+  before it and `syncing` when the engine announces the budget has loaded.
 - Revisit if the first download passes about 5 seconds on a mid-range phone, or if a step that
   happens often (opening, syncing, reading a month) passes about 300 ms. Those have not been
   measured on a mid-range phone yet.
