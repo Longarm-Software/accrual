@@ -136,3 +136,26 @@ it('sends the password exactly as typed, spaces included', async () => {
   await fillAndConnect('budget.example.com', ' pw-for-tests ');
   await waitFor(() => expect(create).toHaveBeenCalledWith({ serverURL: 'https://budget.example.com', password: ' pw-for-tests ' }));
 });
+
+it('points out a character that is not plain ASCII, and where it is', async () => {
+  await show();
+  const field = await screen.findByLabelText('Password');
+  await fireEvent.changeText(field, 'abc-def_123');
+  expect(screen.queryByText(/not a plain letter/)).toBeNull();
+
+  // U+2011, a non-breaking hyphen: looks like "-" and is what some apps paste instead.
+  await fireEvent.changeText(screen.getByLabelText('Password'), 'abc‑def');
+  expect(screen.getByText('Character 4 is not a plain letter, digit or symbol. Pasting can swap in look-alikes.')).toBeTruthy();
+
+  // An invisible zero-width space.
+  await fireEvent.changeText(screen.getByLabelText('Password'), 'ab​cdef');
+  expect(screen.getByText('Character 3 is not a plain letter, digit or symbol. Pasting can swap in look-alikes.')).toBeTruthy();
+});
+
+it('shows how many characters the password has while it is visible', async () => {
+  await show();
+  await fireEvent.changeText(await screen.findByLabelText('Password'), 'abc-def_123');
+  expect(screen.queryByText('11 characters')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Show password' }));
+  expect(screen.getByText('11 characters')).toBeTruthy();
+});

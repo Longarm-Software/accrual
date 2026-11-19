@@ -69,6 +69,10 @@ export default function Connect() {
     router.replace('/opening');
   }
 
+  // 1-based position of the first character outside printable ASCII, or 0. A legitimate
+  // password may contain one, so this only informs; nothing is changed or blocked.
+  const oddCharacter = [...password].findIndex(ch => !/^[\x20-\x7e]$/.test(ch)) + 1;
+
   const input = { fontFamily: font.semibold, fontSize: 16.5, color: theme.color.ink, paddingVertical: 2 };
 
   return (
@@ -121,6 +125,14 @@ export default function Connect() {
             <Label color={theme.color.need} style={{ marginTop: space.sm }}>
               This password starts or ends with a space.
             </Label>
+          )}
+          {oddCharacter > 0 && (
+            <Label color={theme.color.need} style={{ marginTop: space.sm }}>
+              Character {oddCharacter} is not a plain letter, digit or symbol. Pasting can swap in look-alikes.
+            </Label>
+          )}
+          {showPassword && password.length > 0 && (
+            <Label style={{ marginTop: space.sm }}>{[...password].length} characters</Label>
           )}
           <View style={styles.toggle}>
             <Label style={{ flex: 1 }}>Allow plain HTTP (for a server on your own network)</Label>
