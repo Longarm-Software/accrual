@@ -4,8 +4,9 @@
 //
 // There is one engine per process. Calling createEngine again signs in afresh and
 // replaces the previous session; an Engine returned earlier must not be used after that.
+import { recentUse, type UseRow } from './recentUse';
 import { EngineError } from './types';
-import type { Auth, Engine, PlanCategory, PlanMonth, RemoteBudget } from './types';
+import type { Auth, Engine, PlanCategory, PlanMonth, QuickAddLists, RemoteBudget } from './types';
 
 export * from './types';
 
@@ -40,12 +41,22 @@ const fail = (code: unknown, message: string) =>
 // and returns a value. Clearing a rejected token is done here, by the caller, not by `getUser`,
 // and nothing here is listening any more.
 const SIGN_IN_TIMEOUT_MS = 5000;
+// A sync gives up after this long, for the same reason; see `sync` below.
+const SYNC_TIMEOUT_MS = 15000;
+// How many of the newest transactions quick add reads to order payees and suggest categories.
+const RECENT_USE_ROWS = 1000;
 
 export async function createEngine(
-  config: { serverURL: string; dataDir?: string; /** For the harness. */ signInTimeoutMs?: number } & Auth,
+  config: {
+    serverURL: string;
+    dataDir?: string;
+    /** For the harness. */ signInTimeoutMs?: number;
+    /** For the harness. */ syncTimeoutMs?: number;
+  } & Auth,
 ): Promise<Engine> {
   const dataDir = config.dataDir ?? core.defaultDocumentDir();
   const { serverURL } = config;
+  const syncTimeoutMs = config.syncTimeoutMs ?? SYNC_TIMEOUT_MS;
   let lib: Lib;
   let offline = false;
   if ('password' in config) {
@@ -208,6 +219,71 @@ export async function createEngine(
       return { start, end };
     },
     getMonth: month => lib.send('api/budget-month', { month }),
+    // What the quick-add sheet offers. `api/accounts-get` returns live accounts in Actual's order
+    // (sort_order, name) with `offbudget` and `closed` as booleans (accountModel in
+    // server/api-models.ts). `api/payees-get` returns live payees as { id, name, transfer_acct }.
+    // `get-categories` returns every group, hidden ones included, each with its categories and
+    // `is_income` / `hidden` as booleans, in the order the Plan screen uses.
+    //
+    // Recent use is one query on `transactions`. The default `splits: 'inline'` drops split
+    // parents (`is_parent = 0`, server/aql/schema/executors.ts), so 'all' is asked for and the
+    // children left out with `is_child`; tombstoned rows are left out by the view already, and
+    // the filter says so too. A payee, category or account that has been deleted reads as null
+    // (v_transactions joins them on `tombstone = 0`).
+    async getQuickAddLists() {
+      const [rawAccounts, rawPayees, { grouped }] = await Promise.all([
+        lib.send('api/accounts-get'),
+        lib.send('api/payees-get'),
+        lib.send('get-categories'),
+      ]);
+      const query = lib
+        .q('transactions')
+        .options({ splits: 'all' })
+        .filter({ is_child: false, tombstone: false })
+        .select(['payee', 'category', 'account'])
+        .orderBy([{ date: 'desc' }, { sort_order: 'desc' }])
+        .limit(RECENT_USE_ROWS);
+      const rows: UseRow[] = (await lib.send('api/query', { query: query.serialize() })).data;
+      const use = recentUse(rows);
+
+      const accounts = (rawAccounts as any[])
+        .filter(a => !a.offbudget && !a.closed)
+        .map(a => ({ id: a.id as string, name: a.name as string }));
+      // A category is offered, and suggested, only when the Plan screen would show it: neither it
+      // nor its group is hidden.
+      const visibleGroups = (grouped as any[]).filter(g => !g.hidden);
+      const visibleCategories = new Set<string>(
+        visibleGroups.flatMap(g => ((g.categories ?? []) as any[]).filter(c => !c.hidden).map(c => c.id as string)),
+      );
+      const incomeCategories = visibleGroups
+        .filter(g => g.is_income)
+        .flatMap(g => ((g.categories ?? []) as any[]).filter(c => !c.hidden))
+        .map(c => ({ id: c.id as string, name: c.name as string }));
+
+      const byId = new Map<string, { id: string; name: string }>(
+        (rawPayees as any[]).filter(p => !p.transfer_acct).map(p => [p.id, { id: p.id, name: p.name }]),
+      );
+      const choice = (p: { id: string; name: string }) => {
+        const category = use.lastCategory.get(p.id);
+        return { ...p, lastCategoryId: category && visibleCategories.has(category) ? category : null };
+      };
+      const recent = use.payeeOrder.filter(id => byId.has(id));
+      const recentSet = new Set(recent);
+      const rest = [...byId.values()]
+        .filter(p => !recentSet.has(p.id))
+        .sort((a, b) => {
+          const x = a.name.toLowerCase();
+          const y = b.name.toLowerCase();
+          return x < y ? -1 : x > y ? 1 : 0;
+        });
+      const lists: QuickAddLists = {
+        accounts,
+        payees: [...recent.map(id => choice(byId.get(id)!)), ...rest.map(choice)],
+        incomeCategories,
+        lastAccountId: accounts.some(a => a.id === use.lastAccount) ? use.lastAccount : null,
+      };
+      return lists;
+    },
     getAccounts: () => lib.send('api/accounts-get'),
     getTransactions: (accountId, startDate, endDate) =>
       lib.send('api/transactions-get', { accountId, startDate, endDate }),
@@ -226,12 +302,24 @@ export async function createEngine(
     // `api/sync` (server/api.ts) throws an Error carrying `code`, the reason from the failed sync:
     // with the server unreachable, the PostError's 'network-failure' (server/sync/index.ts,
     // fullSync). The budget stays loaded and readable; nothing is rolled back.
+    //
+    // Like sign-in, a sync ends in fetches with no timeout, so a server that silently drops
+    // packets would leave it waiting about a minute. It is raced against SYNC_TIMEOUT_MS, and
+    // losing the race counts as 'network-failure'. The abandoned sync keeps running underneath
+    // and finishes or fails on its own; changes on the phone stay queued either way. loot-core
+    // runs one sync at a time: `fullSync` is wrapped in `once` (shared/async.ts), so a sync
+    // started while another is still running joins it rather than starting a second one. A
+    // second call here therefore waits on the same underlying sync, with its own time limit.
     async sync() {
-      try {
-        await lib.send('api/sync');
-      } catch (e: any) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timedOut = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(fail('network-failure', 'Could not sync the budget')), syncTimeoutMs);
+      });
+      const run = lib.send('api/sync').catch((e: any) => {
         throw fail(e?.code, 'Could not sync the budget');
-      }
+      });
+      run.catch(() => {}); // if it loses the race, a late failure must not go unhandled
+      await Promise.race([run, timedOut]).finally(() => clearTimeout(timer));
     },
     close: () => lib.send('close-budget'),
   };

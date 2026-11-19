@@ -215,6 +215,34 @@ async function main() {
     .filter((t: any) => t.notes === `${tag}-phone`).length;
   check('added transaction stored once', payeeCount === 1);
 
+  // Quick add's lists: accounts, payees with their last category, income categories.
+  const lists = await engine.getQuickAddLists();
+  check('quick add: accounts, payees and income categories are not empty',
+    lists.accounts.length > 0 && lists.payees.length > 0 && lists.incomeCategories.length > 0,
+    `(${lists.accounts.length} accounts, ${lists.payees.length} payees, ${lists.incomeCategories.length} income)`);
+  const allAccounts = await engine.getAccounts();
+  const excluded = new Set(allAccounts.filter((a: any) => a.closed || a.offbudget).map((a: any) => a.id));
+  check('quick add: no closed or off-budget account is offered',
+    lists.accounts.every((a: any) => !excluded.has(a.id)) &&
+      lists.accounts.length === allAccounts.length - excluded.size,
+    `(${excluded.size} left out)`);
+  const newPayee = `Quick Add Payee ${tag}`;
+  await engine.addTransaction(checking.id, {
+    date: today, amount: -2500, payee_name: newPayee, category: groceries.id, notes: `${tag}-quick`,
+  });
+  const afterNew = await engine.getQuickAddLists();
+  const top = afterNew.payees[0];
+  check('quick add: a new payee comes first, with the category it was used with',
+    top?.name === newPayee && top?.lastCategoryId === groceries.id, `(${top?.name}, ${top?.lastCategoryId})`);
+  check('quick add: the last account is the newest transaction\'s', afterNew.lastAccountId === checking.id,
+    `(${afterNew.lastAccountId})`);
+  await engine.addTransaction(checking.id, { date: today, amount: -300, payee: top.id, notes: `${tag}-quick-id` });
+  const afterId = await engine.getQuickAddLists();
+  const named = afterId.payees.filter((p: any) => p.name === newPayee);
+  check('quick add: adding with an existing payee id creates no second payee',
+    named.length === 1 && named[0].id === top.id && afterId.payees[0].id === top.id, `(${named.length})`);
+  await engine.sync();
+
   // --- Large budget: correctness and timing
   await timed('large: download + open', () => engine.openBudget(large));
   await timed('large: read current month', () => engine.getMonth(month));
@@ -264,14 +292,33 @@ async function main() {
   await new Promise<void>(resolve => silent.listen(0, '127.0.0.1', resolve));
   const silentURL = `http://127.0.0.1:${(silent.address() as net.AddressInfo).port}`;
   const signInTimeoutMs = 300;
+  const syncTimeoutMs = 300;
   const t0 = performance.now();
-  const stalled = await createEngine({ serverURL: silentURL, sessionToken: savedToken, dataDir, signInTimeoutMs })
-    .catch((e: any) => e);
+  const stalled = await createEngine({
+    serverURL: silentURL, sessionToken: savedToken, dataDir, signInTimeoutMs, syncTimeoutMs,
+  }).catch((e: any) => e);
   const elapsed = Math.round(performance.now() - t0);
   check('a server that never answers: sign-in gives up after its timeout and opens offline',
     stalled?.offline === true && elapsed >= signInTimeoutMs && elapsed < signInTimeoutMs + 2000,
     `(${elapsed} ms, timeout ${signInTimeoutMs} ms)`);
+  // The same server and a budget open from the phone's copy: a sync must give up as well.
+  await stalled.openBudget(small);
+  const t1 = performance.now();
+  const syncStall = await stalled.sync().then(() => null, (e: any) => e);
+  const syncElapsed = Math.round(performance.now() - t1);
+  check('a server that never answers: sync gives up after its timeout with code network-failure',
+    syncStall?.code === 'network-failure' && syncElapsed >= syncTimeoutMs && syncElapsed < syncTimeoutMs + 2000,
+    `(${syncStall?.code}, ${syncElapsed} ms, timeout ${syncTimeoutMs} ms)`);
+  // The abandoned sync is still waiting. A second call joins it (loot-core runs one sync at a
+  // time); once the connection drops, both end, and the second reports the real failure.
+  const t2 = performance.now();
+  const joined = stalled.sync().then(() => null, (e: any) => e);
   for (const socket of sockets) socket.destroy();
+  const second = await joined;
+  const secondElapsed = Math.round(performance.now() - t2);
+  check('a second sync joins the stalled one and fails with it, before its own timeout, when the connection drops',
+    second?.code === 'network-failure' && secondElapsed < syncTimeoutMs, `(${second?.code}, ${secondElapsed} ms)`);
+  await stalled.close();
   await new Promise<void>(resolve => silent.close(() => resolve()));
 
   // Back to the real server, so whatever runs next has a working session.
