@@ -7,8 +7,9 @@ on port 5007. Never point it at a real server or a real budget.
 
 ## Layout
 
-After the [foundation plan](../docs/superpowers/plans/2026-11-19-foundation.md) and plan 2 (the
-Plan screen), with what each file is for:
+After the [foundation plan](../docs/superpowers/plans/2026-11-19-foundation.md), plan 2 (the
+Plan screen) and plan 3 ([quick add](../docs/superpowers/plans/2026-11-19-quick-add.md)), with
+what each file is for:
 
 ```
 app/                               (was spike/app)
@@ -21,14 +22,20 @@ app/                               (was spike/app)
     entry.ts                       + getSessionToken(), onBudgetLoaded()
     shims/async-storage.ts         header comment only: what is kept in memory, what on disk
   harness/                         unchanged, except verify.ts (new checks: plan month, month
-                                   bounds, opening offline) and paths updated for the move
+                                   bounds, opening offline; quick-add lists, adding a transaction
+                                   with a new or existing payee, the sync time bound) and paths
+                                   updated for the move
   modules/accrual-sqlite-functions/   unchanged
   src/
     app/                           Expo Router routes (screens only, no logic)
-      _layout.tsx                  fonts, splash screen, session provider, Stack
+      _layout.tsx                  fonts, splash screen, session provider, Stack (quick add as a
+                                   modal), Android navigation bar style following the theme
       index.tsx                    the Plan: month switcher, top card, notice, groups of tiles,
-                                   pull to refresh, Offline chip; redirects when not ready, or
-                                   to dev-check when the scripted run is on
+                                   pull to refresh, Offline chip, the + button; re-reads today
+                                   and syncs on returning to the foreground; redirects when not
+                                   ready, or to dev-check when the scripted run is on
+      add.tsx                      quick add: amount, payee, category with the bite, account,
+                                   date, keypad; the keypad gives way to the keyboard for the payee
       connect.tsx                  server address, password, budget list
       opening.tsx                  first-download and reopen progress; opens the copy on the
                                    phone when the server cannot be reached
@@ -38,8 +45,11 @@ app/                               (was spike/app)
                                    as a route, so tests cannot live there (a test checks this)
     engine/
       types.ts                     Engine, RemoteBudget, PlanMonth, MonthBounds, OpenStage,
-                                   EngineError
-      adapter.ts                   createEngine(): the only file that touches the bundle
+                                   QuickAddLists, NewTransaction, EngineError
+      adapter.ts                   createEngine(): the only file that touches the bundle;
+                                   a sync gives up after 15 seconds
+      recentUse.ts                 recent payees, each one's last category, the newest
+                                   transaction's account (pure; the adapter supplies the rows)
     session/
       serverUrl.ts                 normalizeServerUrl()
       storage.ts                   load/save/clear the saved session in SecureStore
@@ -52,13 +62,34 @@ app/                               (was spike/app)
         categoryView.ts            what a tile says: status, note ("$17 a day for 12 days"), fill
         planSummary.ts             the top card, the overspent notice, a group's total
         tile.ts                    status -> colour, a tile's screen-reader label
-        usePlanMonth.ts            loads a month, refresh, offline and month bounds
+        usePlanMonth.ts            loads a month, refresh, offline and month bounds; one sync at
+                                   a time, and a save made during one is owed another
+        foreground.ts              what returning to the app changes: a new day, a new month
+        useReturnToForeground.ts   calls back when the app comes back from the background
+        quickAddSignal.ts          what the Plan and the sheet share: today, and "a save happened"
+        AddButton.tsx              the round + above the navigation bar
         CategoryTile.tsx           one category: two to a row, or a full-width row at large text
         HeroCard.tsx               Ready to budget, the spent / set aside / free bar
         Notice.tsx                 "3 categories are $551.52 over" (informs only, no button)
         GroupHeader.tsx            group name and what its categories have left
         MonthSwitcher.tsx          previous and next month, stopping at the budget's ends
         AccountMenu.tsx            the budget's name and Sign out
+      quickAdd/                    the quick-add sheet's parts
+        amountEntry.ts             keypad keys -> the amount, as digit strings, then cents; what
+                                   to draw for it as typed ("−$18.4")
+        sheetLayout.ts             regular or compact sheet from the window height and text size;
+                                   whether the form runs on below its fade
+        bite.ts                    what an expense does to a category: kept, taken, after, warning
+        draft.ts                   the draft transaction: payee, suggested category, account, date
+        payees.ts                  payee matches for typed text; the exact match
+        useQuickAdd.ts             reads the lists and the month, holds the draft, saves
+        AmountDisplay.tsx          the amount as typed at the hero size, one height, one line
+        Keypad.tsx                 1-9, ".", 0, 00, delete (held: repeats), +/−, the tall Save
+        PayeeField.tsx             the payee field and up to six matches
+        CategoryCard.tsx           the category, Suggested or Change, the bite bar, what is left
+        BiteBar.tsx                the bar: solid what stays, hatched what this takes
+        DateStepper.tsx            ‹ Today ›, a day at a time, never past today
+        PickerList.tsx             the category and account lists
     theme/
       tokens.ts                    Aurora colours (dark, light), radii, spacing, type
       contrast.ts                  WCAG contrast ratio
@@ -72,9 +103,12 @@ app/                               (was spike/app)
       Chip.tsx                     a small status pill ("Offline")
       ProgressBar.tsx              a tile's bar
       Spinner.tsx                  a ring that turns on the native thread
+      BottomFade.tsx               a fade behind Android's navigation bar
+      Chevron.tsx, Tick.tsx        the ›, ‹ and ✓ marks, drawn with Views
     lib/
       money.ts                     splitMoney(), formatMoney(), formatWholeMoney()
       month.ts                     currentMonth(), addMonths(), monthLabel(), daysLeftInMonth()
+      clock.ts                     the phone's clock, the one place the time is read
     dev/
       autorun.ts, digest.ts        the spike's scripted on-device run, kept for regression
 tools/test-server/                 (was spike/server)
@@ -126,6 +160,96 @@ below instead of the app. To use the app itself, move that file aside and restar
 `--clear` so the change is picked up.
 
 ## What works
+
+### Quick add (plan 3)
+
+The eleven checks from plan 3, run by hand on 2026-11-19 on the Android emulator (a Pixel-sized
+1080 × 2400 screen, Android's gesture navigation unless the check says otherwise) against the test
+server, with the fake budget "Spike Small". A debug build. The emulator's date was Thursday 19
+November 2026. Each server-side result was read back with `@actual-app/api`, the same library
+`tools/test-server/scripts/reference.mjs` uses.
+
+| # | Check | iOS simulator | Android emulator |
+|---|---|---|---|
+| 1 | The `+` sits clear of the navigation bar, in gesture and three-button navigation, light and dark | Not run | Passed |
+| 2 | The sheet opens with the keypad; `18.40` shows `−$18.40`; delete and `00` follow the table | Not run | Passed |
+| 3 | Typing a payee's first letters lists matches; picking one fills its last category, marked Suggested, and the bite shows the right "after" | Not run | Passed, after a fix (below) |
+| 4 | More than the category has: the bar turns coral and a line says by how much | Not run | Passed |
+| 5 | Category, account and date can each be changed; the date's forward arrow does nothing on Today | Not run | Passed |
+| 6 | Save returns to the Plan with the new balance, and the server has the transaction as entered | Not run | Passed |
+| 7 | A new payee name is created once; using it again creates no second payee | Not run | Passed, after a fix (below) |
+| 8 | With the server stopped, Save works and the Plan shows the new balance and **Offline**; with it back, pull to refresh sends the transaction up | Not run | Passed |
+| 9 | Income: `+/−`, an income category, Save; Ready to budget goes up by the amount | Not run | Passed |
+| 10 | At the largest text size nothing on the sheet is cut off or overlapping | Not run | Passed; the account name is shortened with "…" |
+| 10b | On a small screen (360 × 640 points, normal text) the amount, payee, category card with its bite, and the account and date sit above the keypad; with the over-budget warning the form scrolls and a fade shows there is more | Not run | Passed, after a fix (below) |
+| 11 | Leaving the app and coming back: no error, no spinner, the Plan as it was | Not run | Passed |
+
+**iOS:** built with Xcode 26.6, installed on the simulator and launched; one screenshot of its first
+screen. Nothing on the build machine can tap the simulator, so it never reached the sheet: none of
+the eleven checks was run there.
+
+What was entered and seen on Android (fake figures throughout):
+
+- **3, 4:** Corner Grocer suggested Phone, whose tile showed $1,207.03. $18.40 left
+  $1,207.03 − $18.40 = $1,188.63, which the card said. $1,250.00 was over:
+  $1,250.00 − $1,207.03 = $42.97, shown as "−$42.97 after" and "That is $42.97 more than Phone has".
+- **5, 6:** Coffee, Cash Wallet, two days back (Tue 17 Nov), $18.40. Coffee's tile went from
+  $204.81 to $186.41, and the server held one transaction dated 2026-11-17 for −1,840 cents with
+  payee Corner Grocer, category Coffee, account Cash Wallet.
+- **7:** a new payee typed in full, saved; the same name typed again in lower case, saved; then
+  picked from the matches, saved. The server had three transactions and one payee of that name.
+- **8:** $12.34 to Pets with the server stopped: Pets went from $74.84 to $62.50 and the Plan
+  said Offline. After restarting the server and pulling to refresh, Offline went away and the
+  server had the transaction.
+- **9:** $100.00 of income to the Income category: Ready to budget went from $7,006.86 to
+  $7,106.86, on the phone and on the server.
+- **10:** font scale 1.3 (`adb shell settings put system font_scale 1.3`, put back to 1.0 after).
+  The amount, payee, category card, warning line, account and date all fit above the keypad.
+- **11:** Home, eight seconds, then the app again: the Plan came back at the same scroll position
+  with the same figures, and no spinner in screenshots taken 0.7 and 4 seconds after.
+- **10b** (same day, after the final review's fixes): `adb shell wm size 1080x1920` and
+  `wm density 480` (360 × 640 points), put back with `wm size reset` and `wm density reset`
+  after. Empty, and with $18.40 against Coffee ($186.41, "$168.01 after"), everything down to
+  the account and date fits above the keypad (seen in light; the empty and over-budget cases were also seen in dark). Against Electricity (−$298.80)
+  the warning line pushes the account and date under a fade; scrolling brings them up and the
+  fade goes. At 1080 × 2400 the sheet was unchanged. Typing 1, 8, ".", 4 showed `−$1`, `−$18`,
+  `−$18.` and `−$18.4`, the dollars not moving. The category list drew Electricity, Groceries
+  and Subscriptions coral, the three the Plan's notice counts ("3 categories are $800.24 over"),
+  and no scrollbar.
+
+Fixed during the run, each with a test:
+
+- **The payee's matches went under the keyboard** (check 3). Android draws the app edge to edge,
+  so its window no longer shrinks for the keyboard, and the sheet only moved its form clear of the
+  keyboard on iOS. It now does on both, and the sixth match can be scrolled to.
+- **Android's Back closed the keyboard but left the keypad hidden** (check 7). The field kept
+  its focus, and the keypad, with Save, only comes back when the field is left; a new payee's
+  name has no match to tap, so the only way on was the keyboard's own tick. The keyboard closing
+  now counts as leaving the field.
+- **In the light theme the keys were nearly invisible**: white faces on a near-white page, with
+  a white edge. The keys now have a faint dark edge in the light theme (a `keyEdge` token).
+
+Fixed after the final review, each with a test:
+
+- **On a small screen the category card ran under the keypad** (check 10b). Below about 780
+  points of height (more with larger text) the sheet is now compact: 48-point keys, a smaller
+  amount, tighter gaps, all from the `sheet` tokens. What still does not fit scrolls, with a fade.
+- **The amount always showed two decimals**, so "." and deleting a trailing digit changed nothing
+  on screen. It now shows what was typed; a screen reader still hears the full amount.
+- **A sheet left open past midnight kept the old day**: it said "Today" and saved yesterday's
+  date. It now follows the Plan's day; the draft keeps its date, which then reads "Yesterday".
+- **The category list drew overspent balances grey**; they are coral by the Plan's own rule, so a
+  category with rollover overspending stays quiet. The list's scrollbar, drawn inside the card's
+  rounded edge, is gone.
+
+Seen and not changed:
+
+- Changing the system text size while the sheet is open (Android) closes it and loses what was
+  typed: Android restarts the screen. Changing dark mode does not.
+- The bite's spring was still moving a second after the last key in this debug build.
+- The account name is cut short ("Everyday Ch…") on a 360-point-wide screen at normal text.
+
+### The Plan (plan 2)
 
 The nine checks from plan 2 (the Plan screen), run by hand on 2026-11-19 against the test
 server, with the fake budget "Spike Small". The emulator's date was 19 November 2026.

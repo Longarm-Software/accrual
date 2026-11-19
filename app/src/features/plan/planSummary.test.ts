@@ -76,6 +76,14 @@ describe('overspentNotice', () => {
     const two = month({ groups: [{ ...bills, categories: [rent] }, everyday] });
     expect(overspentNotice(two)).toBe('2 categories are $38.10 over');
   });
+  it('leaves out a category whose overspending rolls into next month', () => {
+    const [bills, everyday] = fakePlanMonth.groups;
+    const debt = { ...bills.categories[0], name: 'Loan', balance: -500000, carryover: true };
+    const withDebt = month({ groups: [{ ...bills, categories: [debt] }, everyday] });
+    expect(overspentNotice(withDebt)).toBe('Dining out is $28.10 over');
+    const onlyDebt = month({ groups: [{ ...bills, categories: [debt] }] });
+    expect(overspentNotice(onlyDebt)).toBeNull();
+  });
 });
 
 describe('groupAvailable', () => {

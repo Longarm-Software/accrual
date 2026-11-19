@@ -18,9 +18,12 @@ envelope-budgeting UI. Built by Longarm Software.
 Phase 1 is under way. The app connects to a server, downloads a budget and shows the Plan
 screen: a month switcher, Ready to budget, a notice when categories are overspent, and a tile for
 each category saying what it has left. Pull to refresh syncs, and without a connection the app
-opens the copy on the phone and says it is offline. This has been checked on an Android emulator;
-on the iOS simulator only that the app builds and opens. Next is quick add (adding a transaction
-from anywhere). See [the roadmap](docs/superpowers/plans/2026-11-19-phase-1-roadmap.md).
+opens the copy on the phone and says it is offline. A round + on the Plan opens quick add: type
+an amount on the keypad, pick or type a payee (its usual category is suggested), and see what the
+category will have left before saving. Saving works offline and syncs later. All of this has been
+checked on an Android emulator; on the iOS simulator only that the app builds and opens. Next is
+moving money (covering overspending, moving between categories, assigning). See
+[the roadmap](docs/superpowers/plans/2026-11-19-phase-1-roadmap.md).
 
 ## Docs
 

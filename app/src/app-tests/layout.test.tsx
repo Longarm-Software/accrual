@@ -10,15 +10,29 @@ jest.mock('expo-splash-screen', () => ({
   preventAutoHideAsync: jest.fn(async () => true),
   hideAsync: jest.fn(async () => true),
 }));
+const mockScreen = jest.fn();
 jest.mock('expo-router', () => {
   const { createElement } = require('react');
   const { Text } = require('react-native');
-  return { Stack: () => createElement(Text, null, 'stack') };
+  const Screen = (props: object) => {
+    mockScreen(props);
+    return null;
+  };
+  const Stack = ({ children }: { children?: unknown }) => createElement(Text, null, 'stack', children);
+  Stack.Screen = Screen;
+  return { Stack };
 });
 const mockStatusBar = jest.fn();
 jest.mock('expo-status-bar', () => ({
   StatusBar: (props: { style?: string }) => {
     mockStatusBar(props);
+    return null;
+  },
+}));
+const mockNavigationBar = jest.fn();
+jest.mock('expo-navigation-bar', () => ({
+  NavigationBar: (props: { style?: string }) => {
+    mockNavigationBar(props);
     return null;
   },
 }));
@@ -37,6 +51,7 @@ const mockHideAsync = SplashScreen.hideAsync as jest.Mock;
 beforeEach(() => {
   mockHideAsync.mockClear();
   mockStatusBar.mockClear();
+  mockNavigationBar.mockClear();
 });
 
 it('hides the splash screen and renders with system fonts when a font fails to load', async () => {
@@ -57,9 +72,17 @@ it('renders nothing and keeps the splash screen while fonts are loading', async 
 it.each([
   [false, 'dark'],
   [true, 'light'],
-])('draws the status bar for the theme (dark theme: %s, icons: %s)', async (dark, style) => {
+])('draws the status and navigation bars for the theme (dark theme: %s, icons: %s)', async (dark, style) => {
   mockDark = dark;
   mockUseFonts.mockReturnValue([true, null]);
   await render(<RootLayout />);
   expect(mockStatusBar).toHaveBeenLastCalledWith(expect.objectContaining({ style }));
+  // The three-button navigation bar is drawn over the page too.
+  expect(mockNavigationBar).toHaveBeenLastCalledWith(expect.objectContaining({ style }));
+});
+
+it('presents quick add as a modal over the Plan', async () => {
+  mockUseFonts.mockReturnValue([true, null]);
+  await render(<RootLayout />);
+  expect(mockScreen).toHaveBeenCalledWith(expect.objectContaining({ name: 'add', options: expect.objectContaining({ presentation: 'modal' }) }));
 });

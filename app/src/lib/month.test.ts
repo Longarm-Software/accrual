@@ -1,4 +1,4 @@
-import { addMonths, compareMonths, currentMonth, daysLeftInMonth, monthLabel } from './month';
+import { addDays, addMonths, compareMonths, currentMonth, daysLeftInMonth, localDay, monthLabel } from './month';
 
 it('formats a date as YYYY-MM in local time', () => {
   expect(currentMonth(new Date(2026, 10, 19))).toBe('2026-11');
@@ -53,5 +53,22 @@ describe('daysLeftInMonth', () => {
   it('is 0 for a month that is not today\'s', () => {
     expect(daysLeftInMonth('2026-10', new Date(2026, 10, 19))).toBe(0);
     expect(daysLeftInMonth('2026-12', new Date(2026, 10, 19))).toBe(0);
+  });
+});
+
+describe('localDay', () => {
+  it('formats a date as YYYY-MM-DD in local time, late in the evening too', () => {
+    expect(localDay(new Date(2026, 10, 19, 23, 59))).toBe('2026-11-19');
+    expect(localDay(new Date(2027, 0, 1, 0, 0))).toBe('2027-01-01');
+  });
+});
+
+describe('addDays', () => {
+  it('moves across month and year ends', () => {
+    expect(addDays('2026-12-01', -1)).toBe('2026-11-30');
+    expect(addDays('2026-11-30', 1)).toBe('2026-12-01');
+    expect(addDays('2027-01-01', -1)).toBe('2026-12-31');
+    expect(addDays('2028-02-28', 1)).toBe('2028-02-29');
+    expect(addDays('2026-11-19', 0)).toBe('2026-11-19');
   });
 });

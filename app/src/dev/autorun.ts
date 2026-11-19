@@ -46,7 +46,36 @@ function monthsBack(count: number) {
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export async function autorun(say: (line: string) => void) {
+// The run belongs to the launch, not to the screen that shows it. The dev-check screen can be
+// mounted more than once in one launch (Home's <Redirect> replaces the route again whenever Home
+// renders while still focused, and returning to "/" redirects again); starting the run on each
+// mount started a second one beside the first, which nothing stopped, so their steps and
+// timings interleaved. So it starts once, here, and a screen only watches its log.
+let log: string[] | null = null;
+const watchers = new Set<(lines: string[]) => void>();
+
+/**
+ * Starts the scripted run if this launch has not started it yet, and calls `onLog` with the
+ * run's lines so far, now and after each new one. Returns the function that stops watching.
+ */
+export function watchAutorun(onLog: (lines: string[]) => void): () => void {
+  watchers.add(onLog);
+  if (log === null) {
+    log = [];
+    void autorun(line => {
+      const lines = [...(log ?? []), line];
+      log = lines;
+      for (const watcher of watchers) watcher(lines);
+    });
+  } else {
+    onLog(log);
+  }
+  return () => {
+    watchers.delete(onLog);
+  };
+}
+
+async function autorun(say: (line: string) => void) {
   if (!autorunConfig) return;
   const timings: Record<string, number> = {};
   async function timed<T>(label: string, fn: () => Promise<T> | T): Promise<T> {

@@ -1,5 +1,5 @@
-import { Redirect } from 'expo-router';
-import { useState } from 'react';
+import { Redirect, router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,20 +7,26 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { autorunConfig } from '../dev/autorun';
 import type { Engine, PlanCategory, PlanMonth } from '../engine/types';
 import { AccountMenu } from '../features/plan/AccountMenu';
+import { ADD_BUTTON_CLEARANCE, AddButton } from '../features/plan/AddButton';
 import { CategoryTile } from '../features/plan/CategoryTile';
 import { categoryView } from '../features/plan/categoryView';
+import { afterReturn } from '../features/plan/foreground';
 import { GroupHeader } from '../features/plan/GroupHeader';
 import { HeroCard } from '../features/plan/HeroCard';
 import { MonthSwitcher } from '../features/plan/MonthSwitcher';
 import { Notice } from '../features/plan/Notice';
+import { onSaved, setPlanToday } from '../features/plan/quickAddSignal';
 import { groupAvailable, hasCategories, heroView, overspentNotice, syncLabel } from '../features/plan/planSummary';
 import { rowAmountSize } from '../features/plan/tile';
 import { usePlanMonth } from '../features/plan/usePlanMonth';
+import { useReturnToForeground } from '../features/plan/useReturnToForeground';
+import { now } from '../lib/clock';
 import { compareMonths, currentMonth } from '../lib/month';
 import { useSession } from '../session/SessionProvider';
 import { space } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AuroraBackground } from '../ui/AuroraBackground';
+import { BottomFade } from '../ui/BottomFade';
 import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { Spinner } from '../ui/Spinner';
@@ -56,9 +62,9 @@ export default function Home() {
 type PlanProps = { engine: Engine; budgetName: string; onSignOut: () => void };
 
 /**
- * The month's budget. "Today" is read once, here, when the screen opens: it picks the
- * starting month and drives the pace notes. A screen left open past midnight or a month's
- * end keeps the old day until it is opened again.
+ * The month's budget. "Today" is read here when the screen opens, and again when the app comes
+ * back from the background: it picks the month, drives the pace notes, and dates what quick add
+ * saves. A phone that keeps the app in memory overnight shows the new day on coming back.
  */
 function Plan({ engine, budgetName, onSignOut }: PlanProps) {
   const theme = useTheme();
@@ -66,11 +72,45 @@ function Plan({ engine, budgetName, onSignOut }: PlanProps) {
   const { fontScale } = useWindowDimensions();
   // Android draws the page under the navigation bar: the last tile must scroll clear of it.
   const { bottom } = useSafeAreaInsets();
-  const [today] = useState(() => new Date());
+  const [today, setToday] = useState(now);
   const [month, setMonth] = useState(() => currentMonth(today));
   // Signing out when the session has expired is the same path as the menu's Sign out.
   const plan = usePlanMonth(engine, month, { onSessionExpired: onSignOut });
   const { load, bounds } = plan;
+
+  // Coming back from the background: a new day, perhaps a new month, then the same sync and
+  // read as a pull, without its spinner (see afterReturn for when it is skipped). The sync
+  // starts once the new month is on screen, so its read is of that month: it is asked for here
+  // and started by the effect below, after the render that shows it.
+  const [returns, setReturns] = useState(0);
+  useReturnToForeground(() => {
+    const next = afterReturn({ today, month }, now(), plan.lastSynced());
+    setToday(next.today);
+    setMonth(next.month);
+    if (next.sync) setReturns(n => n + 1);
+  });
+  const refreshInBackground = useRef(plan.refreshInBackground);
+  useEffect(() => {
+    refreshInBackground.current = plan.refreshInBackground;
+  }, [plan.refreshInBackground]);
+  useEffect(() => {
+    if (returns > 0) void refreshInBackground.current();
+  }, [returns]);
+
+  // Quick add is another route: it dates its transaction with this screen's "today" (renewed
+  // above, so a sheet opened after midnight dates the new day; a sheet already open keeps the
+  // day it opened with, see add.tsx), and says when it has saved one, so the month is read
+  // again and then synced, through the same path as a pull. The latest `afterSave` is kept in
+  // a ref, so the subscription is made once.
+  useEffect(() => {
+    setPlanToday(today);
+    return () => setPlanToday(null);
+  }, [today]);
+  const afterSave = useRef(plan.afterSave);
+  useEffect(() => {
+    afterSave.current = plan.afterSave;
+  }, [plan.afterSave]);
+  useEffect(() => onSaved(() => void afterSave.current()), []);
 
   const account = <AccountMenu budgetName={budgetName} onSignOut={onSignOut} />;
 
@@ -87,10 +127,11 @@ function Plan({ engine, budgetName, onSignOut }: PlanProps) {
 
   const syncChip = syncLabel(plan);
   return (
-    <Page>
+    <Page overlay={<AddButton onPress={openQuickAdd} />}>
       <ScrollView
         testID="plan-scroll"
-        contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + bottom, gap: space.lg }}
+        // The last tile scrolls clear of the navigation bar and of the "+" floating over it.
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + bottom + ADD_BUTTON_CLEARANCE, gap: space.lg }}
         refreshControl={
           <RefreshControl
             refreshing={plan.refreshing}
@@ -130,6 +171,8 @@ function Plan({ engine, budgetName, onSignOut }: PlanProps) {
     </Page>
   );
 }
+
+const openQuickAdd = () => router.push('/add');
 
 type MonthContentProps = { month: PlanMonth; today: Date; columns: 1 | 2 };
 
@@ -191,12 +234,14 @@ function rows<T>(items: T[], columns: number): T[][] {
   return out;
 }
 
-function Page({ children }: { children: ReactNode }) {
+function Page({ children, overlay }: { children: ReactNode; overlay?: ReactNode }) {
   return (
     <AuroraBackground>
       <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
         {children}
       </SafeAreaView>
+      <BottomFade />
+      {overlay}
     </AuroraBackground>
   );
 }

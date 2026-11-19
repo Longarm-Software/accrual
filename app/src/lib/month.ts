@@ -37,3 +37,16 @@ export function daysLeftInMonth(month: string, today: Date): number {
   const daysInMonth = new Date(year, index + 1, 0).getDate();
   return daysInMonth - today.getDate() + 1;
 }
+
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+
+/** The day Actual calls "YYYY-MM-DD", in the phone's own time zone (never `toISOString()`, which is UTC). */
+export function localDay(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+}
+
+/** `addDays('2026-12-01', -1)` is `'2026-11-30'`; `n` may be negative. Calendar days, built from numbers. */
+export function addDays(day: string, n: number): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return localDay(new Date(y, m - 1, d + n));
+}

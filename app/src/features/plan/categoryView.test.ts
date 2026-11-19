@@ -1,6 +1,6 @@
 import type { PlanCategory } from '../../engine/types';
 import { fakePlanMonth } from '../../session/fakeEngine';
-import { categoryView } from './categoryView';
+import { categoryView, isOverspent } from './categoryView';
 
 const all = fakePlanMonth.groups.flatMap(g => g.categories);
 const named = (name: string): PlanCategory => {
@@ -13,9 +13,27 @@ const base: PlanCategory = {
   id: 'x', name: 'X', budgeted: 0, spent: 0, balance: 0, carryover: false, goal: null, longGoal: false,
 };
 
+describe('isOverspent', () => {
+  it('a negative balance is overspent', () => expect(isOverspent({ ...base, balance: -1 })).toBe(true));
+  it('unless its overspending rolls into next month', () => expect(isOverspent({ ...base, balance: -1, carryover: true })).toBe(false));
+  it('zero and above are not', () => {
+    expect(isOverspent(base)).toBe(false);
+    expect(isOverspent({ ...base, balance: 1 })).toBe(false);
+  });
+  it('agrees with the tile: overspent exactly when the tile says Overspent', () => {
+    for (const c of [...all, { ...base, balance: -500000, carryover: true }]) {
+      expect(isOverspent(c)).toBe(categoryView(c, nov19).status === 'over');
+    }
+  });
+});
+
 describe('categoryView', () => {
   it('rule 1: overspent', () => {
     expect(categoryView(named('Dining out'), nov19)).toEqual({ status: 'over', note: 'Overspent', fill: 1 });
+  });
+  it('a negative balance that rolls into next month is not called overspent', () => {
+    const c = { ...base, budgeted: -500000, balance: -500000, carryover: true };
+    expect(categoryView(c, nov19)).toEqual({ status: 'spent', note: 'Rolls over to next month', fill: 1 });
   });
   it('rule 2: a long goal that is met', () => {
     const c = { ...base, budgeted: 1, balance: 1000000, goal: 1000000, longGoal: true };

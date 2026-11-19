@@ -73,7 +73,7 @@ export default function Connect() {
   // password may contain one, so this only informs; nothing is changed or blocked.
   const oddCharacter = [...password].findIndex(ch => !/^[\x20-\x7e]$/.test(ch)) + 1;
 
-  const input = { ...type.input, color: theme.color.ink, paddingVertical: 2 };
+  const input = { ...type.input, color: theme.color.ink, paddingVertical: space.hair };
 
   return (
     <AuroraBackground>

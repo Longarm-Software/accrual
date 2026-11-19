@@ -28,9 +28,20 @@ export type MonthBounds = { start: string; end: string }; // YYYY-MM, inclusive
 export type OpenStage = 'downloading' | 'opening' | 'syncing';
 export type Auth = { password: string } | { sessionToken: string };
 
+export type AccountChoice = { id: string; name: string };
+export type PayeeChoice = { id: string; name: string; lastCategoryId: string | null };
+export type CategoryChoice = { id: string; name: string };
+export type QuickAddLists = {
+  accounts: AccountChoice[]; // open, on-budget, in Actual's order
+  payees: PayeeChoice[]; // most recently used first, then the rest by name; no transfer payees
+  incomeCategories: CategoryChoice[]; // visible income categories, in Actual's order
+  lastAccountId: string | null; // the account of the most recent transaction, if it is in `accounts`
+};
+
 export type NewTransaction = {
   date: string; // YYYY-MM-DD
   amount: number;
+  payee?: string; // an existing payee's id; use this or payee_name, not both
   payee_name?: string;
   category?: string;
   notes?: string;
@@ -56,6 +67,8 @@ export type Engine = {
   getPlanMonth(month: string): Promise<PlanMonth>;
   getMonthBounds(): Promise<MonthBounds>;
   getMonth(month: string): Promise<BudgetMonth>;
+  getQuickAddLists(): Promise<QuickAddLists>;
+  /** Rejects with code 'network-failure' if it has not finished within the sync time limit (15 s). */
   sync(): Promise<void>;
   close(): Promise<void>;
   // kept from the spike, used by the harness and the scripted run:

@@ -3,6 +3,7 @@ import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { addMonths, monthLabel } from '../../lib/month';
 import { font, radius, size, space, tint, type } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
+import { Chevron } from '../../ui/Chevron';
 import { Glass } from '../../ui/Glass';
 
 type Props = { month: string; canGoBack: boolean; canGoForward: boolean; onChange: (month: string) => void };
@@ -51,25 +52,5 @@ function Step({ label, direction, enabled, onPress }: StepProps) {
     >
       <Chevron direction={direction} />
     </Pressable>
-  );
-}
-
-/** Two sides of a square, turned to point back or forward. */
-function Chevron({ direction }: { direction: 'back' | 'forward' }) {
-  const theme = useTheme();
-  const back = direction === 'back';
-  return (
-    <View
-      style={{
-        width: size.chevron,
-        height: size.chevron,
-        borderColor: theme.color.ink,
-        borderLeftWidth: back ? size.stroke : 0,
-        borderBottomWidth: back ? size.stroke : 0,
-        borderRightWidth: back ? 0 : size.stroke,
-        borderTopWidth: back ? 0 : size.stroke,
-        transform: [{ translateX: (back ? 1 : -1) * size.stroke }, { rotate: '45deg' }],
-      }}
-    />
   );
 }

@@ -5,13 +5,12 @@ import { Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, Text } from 'react-native';
 
-import { autorun, autorunConfig } from '../dev/autorun';
+import { autorunConfig, watchAutorun } from '../dev/autorun';
 
 export default function DevCheck() {
   const [log, setLog] = useState<string[]>([]);
-  useEffect(() => {
-    if (autorunConfig) void autorun(line => setLog(lines => [...lines, line]));
-  }, []);
+  // Starts the run the first time in this launch; after that, only shows it (see watchAutorun).
+  useEffect(() => (autorunConfig ? watchAutorun(setLog) : undefined), []);
   if (!autorunConfig) return <Redirect href="/" />;
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#fff' }} contentContainerStyle={{ padding: 16, paddingTop: 64, gap: 8 }}>

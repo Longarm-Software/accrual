@@ -1,5 +1,5 @@
 // An in-memory Engine for component tests. Fake data only.
-import type { Engine, PlanCategory, PlanMonth, RemoteBudget } from '../engine/types';
+import type { Engine, PlanCategory, PlanMonth, QuickAddLists, RemoteBudget } from '../engine/types';
 
 export const fakeBudgets: RemoteBudget[] = [
   { name: 'Household', groupId: 'g-household', cloudFileId: 'c-household', encrypted: false },
@@ -44,6 +44,28 @@ export const fakePlanMonth: PlanMonth = {
   ],
 };
 
+/** What the quick-add sheet offers, for the same fake household. Categories are the plan month's. */
+export const fakeQuickAddLists: QuickAddLists = {
+  accounts: [
+    { id: 'acct-checking', name: 'Everyday Checking' },
+    { id: 'acct-savings', name: 'Rainy Day Savings' },
+    { id: 'acct-card', name: 'Travel Card' },
+  ],
+  payees: [
+    { id: 'payee-corner-shop', name: 'Corner Shop', lastCategoryId: 'cat-groceries' },
+    { id: 'payee-noodle-bar', name: 'Noodle Bar', lastCategoryId: 'cat-dining' },
+    { id: 'payee-landlord', name: 'Maple Street Lettings', lastCategoryId: 'cat-rent' },
+    { id: 'payee-power', name: 'Bright Spark Energy', lastCategoryId: 'cat-electricity' },
+    { id: 'payee-employer', name: 'Acme Widgets', lastCategoryId: 'cat-salary' },
+    { id: 'payee-market', name: 'Saturday Market', lastCategoryId: null },
+  ],
+  incomeCategories: [
+    { id: 'cat-salary', name: 'Salary' },
+    { id: 'cat-other-income', name: 'Other income' },
+  ],
+  lastAccountId: 'acct-checking',
+};
+
 export function fakeEngine(overrides: Partial<Engine> = {}): Engine {
   return {
     offline: false,
@@ -54,6 +76,7 @@ export function fakeEngine(overrides: Partial<Engine> = {}): Engine {
     },
     getPlanMonth: async () => fakePlanMonth,
     getMonthBounds: async () => ({ start: '2026-01', end: '2027-12' }),
+    getQuickAddLists: async () => fakeQuickAddLists,
     getMonth: async month => ({
       month, toBudget: 31200, totalBudgeted: 588000, totalSpent: 341617, totalIncome: 619200, totalBalance: 246383,
       categoryGroups: [],

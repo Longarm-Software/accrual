@@ -11,6 +11,15 @@ export type CategoryView = {
 
 const clamp = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
 
+/**
+ * Overspent: money to find now. A negative balance that Actual carries into next month
+ * (rollover overspending) is not: a debt tracked this way sits below zero on purpose. The tile,
+ * the notice above the tiles and quick add's category list all decide it here.
+ */
+export function isOverspent({ balance, carryover }: Pick<PlanCategory, 'balance' | 'carryover'>): boolean {
+  return balance < 0 && !carryover;
+}
+
 /** What one tile says. The rules are checked in order; the first that matches wins. */
 export function categoryView(category: PlanCategory, when: { month: string; today: Date }): CategoryView {
   const { budgeted, spent, balance, goal, longGoal } = category;
@@ -22,7 +31,8 @@ export function categoryView(category: PlanCategory, when: { month: string; toda
   });
   const share = used === 0 ? 0 : used / (used + balance);
 
-  if (balance < 0) return view('over', 'Overspent', 1);
+  // Below zero but rolling into next month (see isOverspent): shown, quietly.
+  if (balance < 0) return isOverspent(category) ? view('over', 'Overspent', 1) : view('spent', 'Rolls over to next month', 1);
   if (goal !== null && longGoal) {
     if (balance >= goal) return view('goal', 'Goal reached', 1);
     return view('goal', `${Math.floor((balance * 100) / goal)}% of ${formatWholeMoney(goal)}`, balance / goal);

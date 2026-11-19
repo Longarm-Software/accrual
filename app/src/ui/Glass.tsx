@@ -6,15 +6,16 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { radius as radii } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 
-type Props = { children: ReactNode; style?: StyleProp<ViewStyle>; radius?: number };
+type Props = { children: ReactNode; style?: StyleProp<ViewStyle>; radius?: number; testID?: string };
 
 // Frosted on iOS. Solid on Android, where live blur is costly on mid-range phones
 // (design/README.md, "Aurora under stress"). The layout is the same either way.
-export function Glass({ children, style, radius = radii.tile }: Props) {
+export function Glass({ children, style, radius = radii.tile, testID }: Props) {
   const theme = useTheme();
   const frosted = Platform.OS === 'ios';
   return (
     <View
+      testID={testID}
       style={[
         { borderRadius: radius, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: theme.color.edge },
         { backgroundColor: frosted ? theme.color.glass : theme.color.solid },

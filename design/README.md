@@ -24,7 +24,8 @@ Plan 2 built the Plan screen from round 1 B. It leaves out three things the mock
 ## Round 3: the bite, motion and a logo
 
 **Status:** reviewed and accepted on 19 November 2026. The logo is 1 · Ring; its files are in
-[`brand/`](brand/README.md). None of it is built.
+[`brand/`](brand/README.md). The bite is built for quick add (plan 3, below); the other sheets,
+the motion spec and the logo are not built yet.
 
 ### The bite
 
@@ -44,6 +45,20 @@ has happened; hatched means it has not happened yet.
 
 The bar's full width is always the pot as it is now, so a small purchase from a big category is
 a small bite. A bite is never drawn narrower than 4% of the bar, so it stays visible.
+
+**Built in plan 3 (quick add), with three things left out on purpose:**
+
+- **No "Cover it now".** When a purchase is more than the category has, the sheet turns the bar
+  coral and says by how much, but offers no button. Covering needs the Cover sheet, which comes
+  with plan 4; until then a button there would lead nowhere.
+- **No calendar.** The date steps back a day at a time from Today and never goes past it. A
+  calendar picker would need a new native package, which waits until one is clearly needed.
+- **No haptics, and only the bite moves.** The bite's split springs as digits are typed;
+  everything else waits for the motion spec and haptics in plan 6.
+
+The built sheet also differs from the board in two smaller ways: the date sits next to the
+account rather than at the top right of the header, and the payee is a field rather than a
+pill under the amount.
 
 ### Motion
 
