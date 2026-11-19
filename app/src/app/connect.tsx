@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -25,11 +25,15 @@ export default function Connect() {
   const [error, setError] = useState<string | null>(null);
   const [budgets, setBudgets] = useState<RemoteBudget[] | null>(null);
   const [chosen, setChosen] = useState<RemoteBudget | null>(null);
+  // Set synchronously, so a second tap that lands before React re-renders the disabled button does nothing.
+  const inFlight = useRef(false);
 
   async function connect() {
+    if (inFlight.current) return;
     const result = normalizeServerUrl(address, { allowInsecure });
     if (!result.ok) return setError(connectErrorMessage(result.reason));
     if (!password) return setError(connectErrorMessage('empty-password'));
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -40,13 +44,26 @@ export default function Connect() {
     } catch (e) {
       setError(connectErrorMessage(e instanceof EngineError ? e.code : 'internal'));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
 
   async function open() {
-    if (!chosen) return;
-    await session.chooseBudget(chosen);
+    if (!chosen || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await session.chooseBudget(chosen);
+    } catch (e) {
+      // Stay on this screen and say so; the button comes back for another try.
+      setError(connectErrorMessage(e instanceof EngineError ? e.code : 'internal'));
+      inFlight.current = false;
+      setBusy(false);
+      return;
+    }
+    // Leaving the screen: the guard stays held so nothing re-fires during the transition.
     router.replace('/opening');
   }
 
@@ -126,7 +143,7 @@ export default function Connect() {
 
         <View style={styles.bottom}>
           {budgets ? (
-            <Button title={chosen ? `Open ${chosen.name}` : 'Choose a budget'} onPress={open} disabled={!chosen} />
+            <Button title={chosen ? `Open ${chosen.name}` : 'Choose a budget'} onPress={open} disabled={!chosen || busy} />
           ) : (
             <Button title="Connect" onPress={connect} disabled={busy} />
           )}

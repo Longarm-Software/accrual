@@ -10,8 +10,8 @@ it('keeps a port and a path', () => {
   expect(normalizeServerUrl('https://example.com:8443/actual/')).toEqual({ ok: true, url: 'https://example.com:8443/actual' });
 });
 it('refuses plain http unless allowed', () => {
-  expect(normalizeServerUrl('http://192.168.1.20:5006')).toEqual({ ok: false, reason: 'insecure' });
-  expect(normalizeServerUrl('http://192.168.1.20:5006', { allowInsecure: true })).toEqual({ ok: true, url: 'http://192.168.1.20:5006' });
+  expect(normalizeServerUrl('http://192.168.1.20:5007')).toEqual({ ok: false, reason: 'insecure' });
+  expect(normalizeServerUrl('http://192.168.1.20:5007', { allowInsecure: true })).toEqual({ ok: true, url: 'http://192.168.1.20:5007' });
 });
 it('refuses empty and malformed input', () => {
   expect(normalizeServerUrl('   ')).toEqual({ ok: false, reason: 'empty' });
