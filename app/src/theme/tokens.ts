@@ -15,6 +15,8 @@ export type Theme = {
     onAccent: string;
     /** A keypad key's face. */
     key: string;
+    /** A keypad key's hairline edge. On the light page the white faces need a dark edge to show. */
+    keyEdge: string;
     /** What is drawn on a coral (`over`) fill: the Save key's tick when the amount is too much. */
     onOver: string;
   };
@@ -33,7 +35,7 @@ export const themes: { dark: Theme; light: Theme } = {
       track: 'rgba(255,255,255,0.10)', sheet: '#12171C',
       line: 'rgba(255,255,255,0.22)', shade: '#000000',
       onAccent: '#04221B',
-      key: 'rgba(255,255,255,0.07)', onOver: '#1B0704',
+      key: 'rgba(255,255,255,0.07)', keyEdge: 'rgba(255,255,255,0.11)', onOver: '#1B0704',
     },
     gradient: ['#62EFC2', '#5CCBF4'],
   },
@@ -47,7 +49,7 @@ export const themes: { dark: Theme; light: Theme } = {
       track: 'rgba(13,20,24,0.08)', sheet: '#FAFCFD',
       line: 'rgba(13,20,24,0.16)', shade: '#0D1418',
       onAccent: '#FFFFFF',
-      key: 'rgba(255,255,255,0.8)', onOver: '#FFFFFF',
+      key: 'rgba(255,255,255,0.8)', keyEdge: 'rgba(13,20,24,0.14)', onOver: '#FFFFFF',
     },
     gradient: ['#067A5B', '#0B6BA8'],
   },

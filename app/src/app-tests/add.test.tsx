@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform, StyleSheet } from 'react-native';
 
 import type { Engine, NewTransaction, PlanMonth } from '../engine/types';
 import { onSaved, setPlanToday } from '../features/plan/quickAddSignal';
@@ -319,6 +319,18 @@ it('puts the keypad away while the payee field has the keyboard', async () => {
   expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   await fireEvent(screen.getByLabelText('Payee'), 'blur');
   expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
+});
+
+it('moves the form clear of the keyboard on Android too (it draws edge to edge, so its window does not shrink)', async () => {
+  const os = jest.replaceProperty(Platform, 'OS', 'android');
+  try {
+    await showSheet();
+    await ready();
+    // With behavior "padding" the form carries a bottom padding that follows the keyboard (0 while it is down).
+    expect(StyleSheet.flatten(screen.getByTestId('sheet-form').props.style)).toHaveProperty('paddingBottom', 0);
+  } finally {
+    os.restore();
+  }
 });
 
 it('says to add an account first when there is no open on-budget account, with no keypad', async () => {

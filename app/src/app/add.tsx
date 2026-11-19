@@ -1,7 +1,7 @@
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Engine } from '../engine/types';
@@ -158,7 +158,9 @@ function Form({ quick }: { quick: QuickAddReady }) {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // "padding" on both platforms: Android draws the app edge to edge, so the window no longer
+    // shrinks for the keyboard and the payee matches would sit under it.
+    <KeyboardAvoidingView testID="sheet-form" style={{ flex: 1 }} behavior="padding">
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.lg, gap: space.lg }}

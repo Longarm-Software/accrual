@@ -93,7 +93,7 @@ function KeyButton({ label, onPress, onLongPress, onPressOut, children }: KeyPro
         styles.key,
         {
           backgroundColor: theme.color.key,
-          borderColor: theme.color.edge,
+          borderColor: theme.color.keyEdge,
           opacity: pressed ? tint.pressed : 1,
         },
       ]}

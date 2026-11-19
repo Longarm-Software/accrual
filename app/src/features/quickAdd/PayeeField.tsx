@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { TextInputInstance } from 'react-native';
 
 import type { PayeeChoice } from '../../engine/types';
@@ -26,12 +26,41 @@ const MAX_MATCHES = 6;
  *
  * The matches are pressed while the keyboard is up: a scroll view around this needs
  * `keyboardShouldPersistTaps="handled"`, or the first tap only closes the keyboard.
+ *
+ * On Android, Back closes the keyboard but leaves the field focused, and the sheet's keypad
+ * (with Save) only comes back when the field is left. So the keyboard closing counts as
+ * leaving the field.
  */
 export function PayeeField({ text, matches, onChangeText, onPick, onFocusChange }: Props) {
   const theme = useTheme();
   const input = useRef<TextInputInstance>(null);
   const [focused, setFocused] = useState(false);
   const shown = focused ? matches.slice(0, MAX_MATCHES) : [];
+  // Read by the keyboard listener, which is set up once; keeps "left the field" reported once.
+  const hasFocus = useRef(false);
+  const enter = () => {
+    hasFocus.current = true;
+    setFocused(true);
+    onFocusChange?.(true);
+  };
+  const leave = () => {
+    if (!hasFocus.current) return;
+    hasFocus.current = false;
+    setFocused(false);
+    onFocusChange?.(false);
+  };
+  const leaveRef = useRef(leave);
+  useEffect(() => {
+    leaveRef.current = leave;
+  });
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidHide', () => {
+      if (!hasFocus.current) return;
+      input.current?.blur();
+      leaveRef.current();
+    });
+    return () => sub.remove();
+  }, []);
 
   return (
     <View style={{ gap: space.sm }}>
@@ -45,14 +74,8 @@ export function PayeeField({ text, matches, onChangeText, onPick, onFocusChange 
           accessibilityLabel="Payee"
           value={text}
           onChangeText={onChangeText}
-          onFocus={() => {
-            setFocused(true);
-            onFocusChange?.(true);
-          }}
-          onBlur={() => {
-            setFocused(false);
-            onFocusChange?.(false);
-          }}
+          onFocus={enter}
+          onBlur={leave}
           autoCapitalize="words"
           autoCorrect={false}
           spellCheck={false}

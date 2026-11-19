@@ -28,3 +28,15 @@ it('contrastRatio matches known values', () => {
 it('withAlpha turns a hex colour into rgba', () => {
   expect(withAlpha('#FF9A8D', 0.5)).toBe('rgba(255,154,141,0.5)');
 });
+
+// A keypad key's edge is drawn translucent over the page; this is the colour that shows.
+const over = (rgba: string, page: string): string => {
+  const [r, g, b, a] = rgba.match(/[\d.]+/g)!.map(Number);
+  const base = [1, 3, 5].map(i => parseInt(page.slice(i, i + 2), 16));
+  return '#' + [r, g, b].map((c, i) => Math.round(c * a + base[i] * (1 - a)).toString(16).padStart(2, '0')).join('');
+};
+
+it.each(['dark', 'light'] as const)('a keypad key has an edge that shows against the %s page', name => {
+  const { keyEdge, page } = themes[name].color;
+  expect(contrastRatio(over(keyEdge, page), page)).toBeGreaterThanOrEqual(1.2);
+});

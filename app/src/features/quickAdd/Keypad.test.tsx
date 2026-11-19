@@ -115,3 +115,9 @@ describe('holding delete', () => {
     expect(screen.getByTestId('cents').props.children).toBe(100);
   });
 });
+
+it('outlines each key with the key edge, so the keys show on the light page too', async () => {
+  await draw();
+  const style = [button('5').props.style].flat(Infinity).reduce((all, s) => ({ ...all, ...s }), {});
+  expect(style.borderColor).toBe(themes.dark.color.keyEdge);
+});

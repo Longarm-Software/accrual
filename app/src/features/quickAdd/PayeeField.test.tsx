@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Keyboard } from 'react-native';
 
 import type { PayeeChoice } from '../../engine/types';
 import { PayeeField } from './PayeeField';
@@ -73,4 +74,19 @@ it('tells the parent when it gains and loses focus', async () => {
   await fireEvent(screen.getByLabelText('Payee'), 'focus');
   await fireEvent(screen.getByLabelText('Payee'), 'blur');
   expect(onFocusChange.mock.calls).toEqual([[true], [false]]);
+});
+
+it('gives up focus when the keyboard is closed without leaving the field (Android Back), so the keypad returns', async () => {
+  const listeners: Record<string, () => void> = {};
+  const addListener = jest.spyOn(Keyboard, 'addListener').mockImplementation((event, listener) => {
+    listeners[event] = listener as () => void;
+    return { remove: jest.fn() } as unknown as ReturnType<typeof Keyboard.addListener>;
+  });
+  const onFocusChange = jest.fn();
+  await render(<PayeeField text="" matches={many} onChangeText={jest.fn()} onPick={jest.fn()} onFocusChange={onFocusChange} />);
+  await fireEvent(screen.getByLabelText('Payee'), 'focus');
+  await act(() => listeners.keyboardDidHide?.());
+  expect(onFocusChange.mock.calls).toEqual([[true], [false]]);
+  expect(screen.queryAllByTestId('payee-match')).toHaveLength(0);
+  addListener.mockRestore();
 });
