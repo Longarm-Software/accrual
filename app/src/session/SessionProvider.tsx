@@ -86,6 +86,9 @@ export function SessionProvider({ children, create = realCreate }: { children: R
         await engine.current.openBudget(current.budget, onStage);
         setIsOpen(true);
       } catch (e) {
+        // An engine that signed in offline never checks the server again, so a retry must
+        // sign in afresh: the server may be back. createEngine replaces the old session.
+        if (engine.current?.offline) engine.current = null;
         if (e instanceof EngineError && e.code === 'token-expired') await signOut();
         throw e;
       }
