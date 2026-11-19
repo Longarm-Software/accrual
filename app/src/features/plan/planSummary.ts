@@ -41,9 +41,13 @@ export function heroLabel(hero: HeroView): string {
   return `${hero.label}, ${formatMoney(hero.amount)}`;
 }
 
-/** The notice above the tiles, or null when nothing is overspent. */
+/**
+ * The notice above the tiles, or null when nothing is overspent. A category whose overspending
+ * rolls into next month is left out: Actual does not take it from this month's money, so there
+ * is nothing to cover now.
+ */
 export function overspentNotice(month: PlanMonth): string | null {
-  const over = month.groups.flatMap(g => g.categories).filter(c => c.balance < 0);
+  const over = month.groups.flatMap(g => g.categories).filter(c => c.balance < 0 && !c.carryover);
   if (over.length === 0) return null;
   if (over.length === 1) return `${over[0].name} is ${formatMoney(-over[0].balance)} over`;
   const total = over.reduce((sum, c) => sum - c.balance, 0);

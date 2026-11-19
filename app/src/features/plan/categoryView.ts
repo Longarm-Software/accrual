@@ -13,7 +13,7 @@ const clamp = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.max(
 
 /** What one tile says. The rules are checked in order; the first that matches wins. */
 export function categoryView(category: PlanCategory, when: { month: string; today: Date }): CategoryView {
-  const { budgeted, spent, balance, goal, longGoal } = category;
+  const { budgeted, spent, balance, carryover, goal, longGoal } = category;
   const used = Math.max(0, -spent);
   const view = (status: CategoryStatus, note: string, fill: number): CategoryView => ({
     status,
@@ -22,6 +22,9 @@ export function categoryView(category: PlanCategory, when: { month: string; toda
   });
   const share = used === 0 ? 0 : used / (used + balance);
 
+  // A negative balance that Actual carries into next month (rollover overspending) is not money
+  // to find now: a debt tracked this way sits below zero on purpose. It is shown, quietly.
+  if (balance < 0 && carryover) return view('spent', 'Rolls over to next month', 1);
   if (balance < 0) return view('over', 'Overspent', 1);
   if (goal !== null && longGoal) {
     if (balance >= goal) return view('goal', 'Goal reached', 1);
