@@ -27,6 +27,7 @@ and [docs/plan.md](docs/plan.md).
 | [docs/business.md](docs/business.md) | Open source plus paid App Store build, naming, licensing |
 | [docs/spike-results.md](docs/spike-results.md) | What the Phase 0 spike found |
 | [docs/decisions/](docs/decisions/) | Architecture decision records |
+| [Phase 1 roadmap](docs/superpowers/plans/2026-11-19-phase-1-roadmap.md) | The six build plans for the MVP, and the first one in detail |
 | [design/](design/README.md) | UI mockups (direction: Aurora) and the [logo](design/brand/README.md) |
 
 ## What never goes in this repo
