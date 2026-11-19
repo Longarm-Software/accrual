@@ -12,7 +12,10 @@ const wrap = (create = jest.fn(async () => fakeEngine())) => ({
   wrapper: ({ children }: { children: ReactNode }) => <SessionProvider create={create}>{children}</SessionProvider>,
 });
 
-beforeEach(() => (SecureStore as any).__reset());
+beforeEach(() => {
+  (SecureStore as any).__reset();
+  jest.clearAllMocks();
+});
 
 it('starts signed out when nothing is saved', async () => {
   const { result } = await renderHook(useSession, { wrapper: wrap().wrapper });
@@ -33,6 +36,10 @@ it('connect signs in with the password and stores only the token', async () => {
   const saved = JSON.stringify(await loadSession());
   expect(saved).toContain('token-for-tests');
   expect(saved).not.toContain('hunter2-for-tests');
+  // What was actually written to the Keychain, not what loadSession chooses to copy out.
+  const written = JSON.stringify((SecureStore.setItemAsync as jest.Mock).mock.calls);
+  expect(written).toContain('token-for-tests');
+  expect(written).not.toContain('hunter2-for-tests');
 });
 
 it('choosing a budget then opening it reaches open', async () => {
@@ -75,4 +82,39 @@ it('signOut clears everything', async () => {
   await act(async () => { await result.current.signOut(); });
   expect(result.current.status).toBe('signedOut');
   expect(await loadSession()).toBeNull();
+});
+
+it('connect, chooseBudget and open chained in one handler open the chosen budget', async () => {
+  const openBudget = jest.fn(async () => {});
+  const { result } = await renderHook(useSession, { wrapper: wrap(jest.fn(async () => fakeEngine({ openBudget }))).wrapper });
+  await waitFor(() => expect(result.current.status).toBe('signedOut'));
+  await act(async () => {
+    await result.current.connect('https://budget.example.com', 'pw-for-tests');
+    await result.current.chooseBudget(fakeBudgets[0]);
+    await result.current.open();
+  });
+  expect(result.current.status).toBe('open');
+  expect(openBudget).toHaveBeenCalledWith(fakeBudgets[0], undefined);
+});
+
+it('switching budget and opening in one handler opens the new budget', async () => {
+  const other = { name: 'Holiday fund', groupId: 'g-holiday', cloudFileId: 'c-holiday', encrypted: false };
+  await saveSession({ serverURL: 'https://budget.example.com', sessionToken: 'token-for-tests', budget: fakeBudgets[0] });
+  const openBudget = jest.fn(async () => {});
+  const { result } = await renderHook(useSession, { wrapper: wrap(jest.fn(async () => fakeEngine({ openBudget }))).wrapper });
+  await waitFor(() => expect(result.current.status).toBe('closed'));
+  await act(async () => { await result.current.open(); });
+  expect(result.current.status).toBe('open');
+  await act(async () => {
+    await result.current.chooseBudget(other);
+    await result.current.open();
+  });
+  expect(openBudget).toHaveBeenLastCalledWith(other, undefined);
+  expect(result.current.status).toBe('open');
+});
+
+it('a failed Keychain read is treated as signed out', async () => {
+  (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error('keychain unavailable'));
+  const { result } = await renderHook(useSession, { wrapper: wrap().wrapper });
+  await waitFor(() => expect(result.current.status).toBe('signedOut'));
 });

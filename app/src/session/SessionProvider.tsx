@@ -29,16 +29,23 @@ export function SessionProvider({ children, create = realCreate }: { children: R
   const [loaded, setLoaded] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const engine = useRef<Engine | null>(null);
+  // The current saved session, readable by calls chained in one handler before React re-renders.
+  const savedRef = useRef<SavedSession | null>(null);
 
   useEffect(() => {
-    void loadSession().then(session => {
-      setSaved(session);
-      setLoaded(true);
-    });
+    // A Keychain that cannot be read is treated as signed out, never as loading forever.
+    void loadSession()
+      .catch(() => null)
+      .then(session => {
+        savedRef.current = session;
+        setSaved(session);
+        setLoaded(true);
+      });
   }, []);
 
   const persist = useCallback(async (next: SavedSession | null) => {
     await (next ? saveSession(next) : clearSession());
+    savedRef.current = next;
     setSaved(next);
   }, []);
 
@@ -62,26 +69,28 @@ export function SessionProvider({ children, create = realCreate }: { children: R
 
   const chooseBudget = useCallback(
     async (budget: RemoteBudget) => {
-      if (!saved) throw new EngineError('token-expired', 'Not signed in');
+      const current = savedRef.current;
+      if (!current) throw new EngineError('token-expired', 'Not signed in');
       setIsOpen(false);
-      await persist({ ...saved, budget });
+      await persist({ ...current, budget });
     },
-    [saved, persist],
+    [persist],
   );
 
   const open = useCallback(
     async (onStage?: (stage: OpenStage) => void | Promise<void>) => {
-      if (!saved?.budget) throw new EngineError('internal', 'No budget chosen');
+      const current = savedRef.current;
+      if (!current?.budget) throw new EngineError('internal', 'No budget chosen');
       try {
-        engine.current ??= await create({ serverURL: saved.serverURL, sessionToken: saved.sessionToken });
-        await engine.current.openBudget(saved.budget, onStage);
+        engine.current ??= await create({ serverURL: current.serverURL, sessionToken: current.sessionToken });
+        await engine.current.openBudget(current.budget, onStage);
         setIsOpen(true);
       } catch (e) {
         if (e instanceof EngineError && e.code === 'token-expired') await signOut();
         throw e;
       }
     },
-    [saved, create, signOut],
+    [create, signOut],
   );
 
   const status: SessionStatus = !loaded ? 'loading' : !saved ? 'signedOut' : !saved.budget ? 'needsBudget' : isOpen ? 'open' : 'closed';
