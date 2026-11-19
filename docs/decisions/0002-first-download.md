@@ -19,7 +19,8 @@ blocked.
 
 **Amended 2026-11-19:** as built, a first open reports `downloading`, then `syncing`.
 `downloading` covers downloading and opening together, because Actual's engine downloads, opens
-and starts the first sync in one call and gives no signal between them. Only a reopen of a budget
+and starts the first sync in one call, with no signal between downloading and opening; `syncing`
+is reported when the engine announces the budget has loaded. Only a reopen of a budget
 already on the phone reports `opening`, then `syncing`. See the comment above `openBudget` in
 `app/src/engine/adapter.ts`.
 
