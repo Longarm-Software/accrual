@@ -34,21 +34,24 @@ jobs:
         working-directory: spike/app
         run: npm ci
 
-      - name: Typecheck
-        working-directory: spike/app
-        run: npm run typecheck
-
       - name: SQL functions match loot-core's JavaScript
         working-directory: spike/app
         run: |
           npm run sqlfn:build
           npm run sqlfn:test
 
+      - name: Build the engine bundle
+        working-directory: spike/app
+        run: npm run engine:build
+
+      # After the build: the shims import a file the build generates.
+      - name: Typecheck
+        working-directory: spike/app
+        run: npm run typecheck
+
       - name: Engine matches @actual-app/api and syncs both ways
         working-directory: spike/app
-        run: |
-          npm run engine:build
-          npm run engine:verify
+        run: npm run engine:verify
 
       - name: Server log
         if: failure()
