@@ -1,0 +1,77 @@
+import { useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import type { TextInputInstance } from 'react-native';
+
+import type { PayeeChoice } from '../../engine/types';
+import { radius, size, space, tint, type } from '../../theme/tokens';
+import { useTheme } from '../../theme/useTheme';
+import { Glass } from '../../ui/Glass';
+import { Label } from '../../ui/Text';
+
+type Props = { text: string; matches: PayeeChoice[]; onChangeText(text: string): void; onPick(payee: PayeeChoice): void };
+
+const MAX_MATCHES = 6;
+
+/**
+ * The payee: a field labelled "Payee", with up to six matching payees under it while it has
+ * focus. Picking one closes the keyboard. The field is controlled by the parent's text and
+ * passes every change straight on, so nothing typed is lost to a re-render.
+ *
+ * The matches are pressed while the keyboard is up: a scroll view around this needs
+ * `keyboardShouldPersistTaps="handled"`, or the first tap only closes the keyboard.
+ */
+export function PayeeField({ text, matches, onChangeText, onPick }: Props) {
+  const theme = useTheme();
+  const input = useRef<TextInputInstance>(null);
+  const [focused, setFocused] = useState(false);
+  const shown = focused ? matches.slice(0, MAX_MATCHES) : [];
+
+  return (
+    <View style={{ gap: space.sm }}>
+      <Glass radius={radius.field} style={{ paddingHorizontal: space.lg, paddingVertical: space.md }}>
+        <Label>Payee</Label>
+        <TextInput
+          ref={input}
+          accessibilityLabel="Payee"
+          value={text}
+          onChangeText={onChangeText}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          autoCapitalize="words"
+          autoCorrect={false}
+          spellCheck={false}
+          autoComplete="off"
+          returnKeyType="done"
+          style={{ ...type.input, color: theme.color.ink, paddingVertical: 2 }}
+        />
+      </Glass>
+      {shown.length > 0 && (
+        <Glass radius={radius.field}>
+          {shown.map((payee, i) => (
+            <Pressable
+              key={payee.id}
+              testID="payee-match"
+              accessibilityRole="button"
+              accessibilityLabel={payee.name}
+              onPress={() => {
+                onPick(payee);
+                input.current?.blur();
+              }}
+              style={({ pressed }) => [
+                styles.match,
+                i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.line },
+                { opacity: pressed ? tint.pressed : 1 },
+              ]}
+            >
+              <Text style={[type.row, { color: theme.color.ink }]}>{payee.name}</Text>
+            </Pressable>
+          ))}
+        </Glass>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  match: { minHeight: size.touch, justifyContent: 'center', paddingHorizontal: space.lg, paddingVertical: space.md },
+});
