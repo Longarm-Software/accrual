@@ -20,6 +20,7 @@ export default function Connect() {
   const session = useSession();
   const [address, setAddress] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [allowInsecure, setAllowInsecure] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export default function Connect() {
       setBudgets(found);
       setChosen(found.find(b => !b.encrypted) ?? null);
       setPassword('');
+      setShowPassword(false);
     } catch (e) {
       setError(connectErrorMessage(e instanceof EngineError ? e.code : 'internal'));
     } finally {
@@ -94,16 +96,32 @@ export default function Connect() {
           </Glass>
           <Glass radius={radius.field} style={styles.field}>
             <Label>Password</Label>
-            <TextInput
-              accessibilityLabel="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={input}
-            />
+            <View style={styles.passwordRow}>
+              <TextInput
+                accessibilityLabel="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[input, { flex: 1 }]}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                hitSlop={space.md}
+                onPress={() => setShowPassword(shown => !shown)}
+              >
+                <Label color={theme.color.goal}>{showPassword ? 'Hide' : 'Show'}</Label>
+              </Pressable>
+            </View>
           </Glass>
+          {/* The password is sent exactly as entered, so a space picked up by a paste is worth pointing out. */}
+          {/^\s|\s$/.test(password) && (
+            <Label color={theme.color.need} style={{ marginTop: space.sm }}>
+              This password starts or ends with a space.
+            </Label>
+          )}
           <View style={styles.toggle}>
             <Label style={{ flex: 1 }}>Allow plain HTTP (for a server on your own network)</Label>
             <Switch accessibilityLabel="Allow plain HTTP" value={allowInsecure} onValueChange={setAllowInsecure} />
@@ -157,6 +175,7 @@ export default function Connect() {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: space.xl, paddingBottom: space.xl },
   field: { paddingHorizontal: space.lg, paddingVertical: space.md, marginTop: space.sm },
+  passwordRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   toggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.md, gap: space.md },
   option: { flexDirection: 'row', alignItems: 'center', padding: space.lg, gap: space.md },
   radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2 },
