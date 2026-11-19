@@ -107,6 +107,11 @@ export const size = {
   head: 8,
   shoulders: 14,
   menu: 240,
+  /**
+   * The month switcher's label at text scale 1: wide enough for "September 2026", the
+   * longest month, so the arrows keep their place. Multiply by the person's font scale.
+   */
+  monthLabel: 150,
 } as const;
 
 /** How strongly a colour shows when it tints rather than paints. */

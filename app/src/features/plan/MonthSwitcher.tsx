@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 
 import { addMonths, monthLabel } from '../../lib/month';
 import { font, radius, size, space, tint, type } from '../../theme/tokens';
@@ -11,10 +11,17 @@ type Props = { month: string; canGoBack: boolean; canGoForward: boolean; onChang
 export function MonthSwitcher({ month, canGoBack, canGoForward, onChange }: Props) {
   const theme = useTheme();
   const { name, year } = monthLabel(month);
+  // The label keeps one width whatever the month, so the next arrow stays under the thumb.
+  const { fontScale } = useWindowDimensions();
   return (
     <Glass radius={radius.pill} style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start' }}>
       <Step label="Previous month" direction="back" enabled={canGoBack} onPress={() => onChange(addMonths(month, -1))} />
-      <View accessible accessibilityLabel={`${name} ${year}`} style={{ flexDirection: 'row', gap: space.xs, paddingHorizontal: space.xs }}>
+      <View
+        testID="month-label"
+        accessible
+        accessibilityLabel={`${name} ${year}`}
+        style={{ flexDirection: 'row', justifyContent: 'center', gap: space.xs, paddingHorizontal: space.xs, minWidth: size.monthLabel * fontScale }}
+      >
         <Text style={[type.month, { color: theme.color.ink }]}>{name}</Text>
         <Text style={[type.month, { fontFamily: font.medium, color: theme.color.mute }]}>{year}</Text>
       </View>
