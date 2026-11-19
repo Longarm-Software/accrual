@@ -1,12 +1,14 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true,
-    "types": ["jest", "node"]
+    "strict": true
   },
   "exclude": [
     "harness",
     "node_modules",
-    "modules/*/test"
+    "modules/*/test",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "jest.setup.ts"
   ]
 }

@@ -45,7 +45,7 @@
     "web": "expo start --web",
     "engine:build": "node engine/build.mjs",
     "engine:verify": "tsx --env-file=../tools/test-server/.env harness/verify.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "sqlfn:build": "sh modules/accrual-sqlite-functions/build-host.sh",
     "sqlfn:test": "tsx modules/accrual-sqlite-functions/test/differential.test.ts",
     "test": "jest"
