@@ -167,7 +167,8 @@ async function main() {
 }
 
 // Gives one category in Spike Small a goal: a `#template` line in its note, applied to every
-// month from the budget's first month to this one. Safe to rerun; it re-applies the template.
+// month the budget has (three months before its first transaction to a year ahead), so the goal
+// is still there after the month turns. Safe to rerun; it re-applies the template.
 // Applying a template has no public API method, so this calls the engine's own handler, as
 // Actual's web app does (`budget/apply-single-template`), through `internal`. `internal` is a
 // getter on the CommonJS exports, so it is read from the default export: the ESM namespace
@@ -179,13 +180,12 @@ async function seedGoal() {
   await api.downloadBudget(small.groupId);
   const category = (await api.getCategories()).find(c => c.name === GOAL_CATEGORY);
   await api.updateNote(category.id, GOAL_TEMPLATE);
-  const thisMonth = monthAdd(new Date(), 0);
-  const months = (await api.getBudgetMonths()).filter(m => m <= thisMonth);
+  const months = await api.getBudgetMonths();
   for (const month of months) {
     await api.default.internal.send('budget/apply-single-template', { month, category: category.id });
   }
   await api.sync();
-  console.log(`Spike Small: "${GOAL_TEMPLATE}" applied to ${GOAL_CATEGORY} for ${months.join(', ')}`);
+  console.log(`Spike Small: "${GOAL_TEMPLATE}" applied to ${GOAL_CATEGORY} for ${months[0]} to ${months.at(-1)}`);
 }
 
 main().catch(err => {

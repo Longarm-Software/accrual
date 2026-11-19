@@ -31,7 +31,19 @@ const fail = (code: unknown, message: string) =>
 //   { offline: true }            the server could not be reached, or answered with another error
 //   { offline: false, … }        signed in
 // Offline, the token is kept: the syncs that follow use it once the server is back.
-export async function createEngine(config: { serverURL: string; dataDir?: string } & Auth): Promise<Engine> {
+//
+// `subscribe-get-user` ends in a bare `fetch` with no timeout (`get` in server/post.ts). A server
+// that is refused answers at once, but one whose network silently drops packets (a home LAN or
+// Tailscale address while away) leaves it waiting for the platform's own timeout, about a minute.
+// So the check is raced against SIGN_IN_TIMEOUT_MS, and losing the race counts as unreachable.
+// The abandoned call is harmless when it answers late: `getUser` only reads the token, fetches
+// and returns a value. Clearing a rejected token is done here, by the caller, not by `getUser`,
+// and nothing here is listening any more.
+const SIGN_IN_TIMEOUT_MS = 5000;
+
+export async function createEngine(
+  config: { serverURL: string; dataDir?: string; /** For the harness. */ signInTimeoutMs?: number } & Auth,
+): Promise<Engine> {
   const dataDir = config.dataDir ?? core.defaultDocumentDir();
   const { serverURL } = config;
   let lib: Lib;
@@ -44,14 +56,27 @@ export async function createEngine(config: { serverURL: string; dataDir?: string
       throw fail(e?.code, 'Could not sign in');
     }
   } else {
-    lib = await core.init({ dataDir, serverURL });
-    await lib.send('subscribe-set-token', { token: config.sessionToken });
-    const user = await lib.send('subscribe-get-user');
-    if (!user || user.tokenExpired === true) {
-      await lib.send('subscribe-set-token', { token: '' });
-      throw fail('token-expired', 'Could not sign in');
+    const { sessionToken } = config;
+    const timeout = config.signInTimeoutMs ?? SIGN_IN_TIMEOUT_MS;
+    try {
+      lib = await core.init({ dataDir, serverURL });
+      await lib.send('subscribe-set-token', { token: sessionToken });
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const unreachable = new Promise<{ offline: true }>(resolve => {
+        timer = setTimeout(() => resolve({ offline: true }), timeout);
+      });
+      const check = lib.send('subscribe-get-user');
+      check.catch(() => {}); // if it loses the race, a late failure must not go unhandled
+      const user = await Promise.race([check, unreachable]).finally(() => clearTimeout(timer));
+      if (!user || user.tokenExpired === true) {
+        await lib.send('subscribe-set-token', { token: '' });
+        throw fail('token-expired', 'Could not sign in');
+      }
+      offline = user.offline === true;
+    } catch (e: any) {
+      if (e instanceof EngineError) throw e;
+      throw fail(e?.code, 'Could not sign in');
     }
-    offline = user.offline === true;
   }
 
   return {

@@ -5,6 +5,7 @@
 //   npm run engine:verify -- cold    cold start on already-downloaded budgets
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
@@ -81,6 +82,8 @@ async function comparePlanMonth(engine: any, month: string, label: string) {
     .filter((g: any) => !g.is_income && !g.hidden)
     .map((g: any) => ({ id: g.id, categories: g.categories.filter((c: any) => !c.hidden) }));
   const totals = ['toBudget', 'totalIncome', 'totalSpent'].filter(k => plan[k] !== raw[k]);
+  // loot-core reports total-budgeted negated; the plan month gives it as a positive amount, never -0.
+  if (plan.totalBudgeted !== 0 - raw.totalBudgeted || Object.is(plan.totalBudgeted, -0)) totals.push('totalBudgeted');
   check(`${label}: plan month totals equal getMonth`, plan.month === month && totals.length === 0,
     totals.length ? `(differ: ${totals.join(', ')})` : '');
   check(`${label}: plan month has no income group`,
@@ -187,12 +190,12 @@ async function main() {
   check('server -> engine: transaction and budget edit from another client arrive',
     mine.length === 1 && mine[0].amount === -4321 && after.budgeted === 55555);
   await compareMonths(engine, small.groupId, monthsBack(4), 'small, after two-way sync');
-  // Seeded by tools/test-server/scripts/seed.mjs: "#template 150" on Insurance, applied up to
-  // the month it was run in. A new month needs `npm run seed` again.
+  // Seeded by tools/test-server/scripts/seed.mjs: "#template 150" on Insurance, applied to every
+  // month the budget had when it ran (up to a year ahead of it).
   const insurance = (await comparePlanMonth(engine, month, 'small')).groups
     .flatMap((g: any) => g.categories).find((c: any) => c.name === 'Insurance');
   check('small: a templated category carries its goal', insurance?.goal === 15000 && insurance?.longGoal === false,
-    `(${insurance?.goal}, ${insurance?.longGoal}${insurance?.goal == null ? '; run `npm run seed` this month' : ''})`);
+    `(${insurance?.goal}, ${insurance?.longGoal}${insurance?.goal == null ? '; run `npm run seed`' : ''})`);
   // Text search and payee matching go through the native SQL functions.
   await engine.addTransaction(checking.id, {
     date: today, amount: -999, payee_name: 'ZOË’S BAKERY', notes: `${tag}-upper`,
@@ -253,6 +256,23 @@ async function main() {
   check('offline: a budget with no local copy fails with code network-failure',
     openFailure?.code === 'network-failure', `(${openFailure?.code})`);
   await offline.close();
+
+  // A server that accepts the connection and never answers, like an address whose network drops
+  // packets: sign-in must give up after its timeout and open offline, not wait for the platform's.
+  const sockets = new Set<net.Socket>();
+  const silent = net.createServer(socket => void sockets.add(socket));
+  await new Promise<void>(resolve => silent.listen(0, '127.0.0.1', resolve));
+  const silentURL = `http://127.0.0.1:${(silent.address() as net.AddressInfo).port}`;
+  const signInTimeoutMs = 300;
+  const t0 = performance.now();
+  const stalled = await createEngine({ serverURL: silentURL, sessionToken: savedToken, dataDir, signInTimeoutMs })
+    .catch((e: any) => e);
+  const elapsed = Math.round(performance.now() - t0);
+  check('a server that never answers: sign-in gives up after its timeout and opens offline',
+    stalled?.offline === true && elapsed >= signInTimeoutMs && elapsed < signInTimeoutMs + 2000,
+    `(${elapsed} ms, timeout ${signInTimeoutMs} ms)`);
+  for (const socket of sockets) socket.destroy();
+  await new Promise<void>(resolve => silent.close(() => resolve()));
 
   // Back to the real server, so whatever runs next has a working session.
   const again = await createEngine({ serverURL, password, dataDir });
