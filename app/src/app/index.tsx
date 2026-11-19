@@ -21,6 +21,7 @@ import { useSession } from '../session/SessionProvider';
 import { space } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AuroraBackground } from '../ui/AuroraBackground';
+import { BottomFade } from '../ui/BottomFade';
 import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { Spinner } from '../ui/Spinner';
@@ -197,6 +198,7 @@ function Page({ children }: { children: ReactNode }) {
       <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
         {children}
       </SafeAreaView>
+      <BottomFade />
     </AuroraBackground>
   );
 }

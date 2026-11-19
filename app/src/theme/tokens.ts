@@ -68,7 +68,7 @@ export const font = {
   medium: 'Geist_500Medium',
   semibold: 'Geist_600SemiBold',
   /** Amounts. Geist's figures are plainer and steadier than the display face's. */
-  number: 'Geist_600SemiBold',
+  number: 'Geist_500Medium',
 } as const;
 
 export const type = {
@@ -101,8 +101,12 @@ export const type = {
   row: { fontFamily: font.medium, fontSize: 15.5 },
 } as const;
 
-/** Sizes for amounts drawn with `Money`: the dollars; the cents are half. */
+/** Sizes for amounts drawn with `Money`: the dollars, and how the cents relate to them. */
 export const amount = {
+  /** The cents' size as a share of the dollars': smaller, but still plainly digits. */
+  cents: 0.62,
+  /** Letter spacing as a share of the font size: a little tight, never touching. */
+  tracking: -0.015,
   hero: 58,
   tile: 27,
   /** A tile amount of $1,000 or more either way, one size down so it fits. */
