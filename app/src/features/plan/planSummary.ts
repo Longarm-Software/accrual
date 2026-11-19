@@ -16,7 +16,7 @@ export function heroView(month: PlanMonth): HeroView {
   const state = toBudget < 0 ? 'over' : toBudget === 0 ? 'even' : 'ready';
   const label = { ready: 'Ready to budget', even: 'Every dollar has a job', over: 'Overbudgeted' }[state];
 
-  const spent = -month.totalSpent;
+  const spent = Math.max(0, -month.totalSpent);
   const setAside = Math.max(0, month.totalBudgeted - spent);
   const free = Math.max(0, toBudget);
   const total = spent + setAside + free;

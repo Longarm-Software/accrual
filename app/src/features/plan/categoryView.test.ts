@@ -43,6 +43,32 @@ describe('categoryView', () => {
   it('rule 6: fully spent', () => {
     expect(categoryView(named('Rent'), nov19)).toEqual({ status: 'spent', note: 'Fully spent', fill: 1 });
   });
+  it.each([
+    [570000, '57% of $10,000'],
+    [290000, '29% of $10,000'],
+    [580000, '58% of $10,000'],
+  ])('rule 3: %i of $10,000 is not one percent low', (balance, note) => {
+    const c = { ...base, balance, goal: 1000000, longGoal: true };
+    expect(categoryView(c, nov19).note).toBe(note);
+  });
+  it('rule 7: a past month nobody spent from says left over', () => {
+    const v = categoryView(named('Electricity'), { month: '2026-10', today: new Date(2026, 10, 19) });
+    expect(v).toEqual({ status: 'ok', note: '$120.00 left over', fill: 0 });
+  });
+  it('rule 7: a future month nobody spent from says Budgeted', () => {
+    const v = categoryView(named('Electricity'), { month: '2026-12', today: new Date(2026, 10, 19) });
+    expect(v).toEqual({ status: 'ok', note: 'Budgeted', fill: 0 });
+  });
+  it('rule 8: a pace that rounds to $0 shows the balance and the days instead', () => {
+    const c = { ...base, budgeted: 1000, spent: -970, balance: 30 };
+    expect(categoryView(c, nov19).note).toBe('$0.30 left for 12 days');
+  });
+  it('rule 8: the smallest balance that still shows a pace (50 cents a day)', () => {
+    const just = { ...base, budgeted: 1000, spent: -400, balance: 600 };
+    const under = { ...base, budgeted: 1000, spent: -401, balance: 599 };
+    expect(categoryView(just, nov19).note).toBe('$1 a day for 12 days');
+    expect(categoryView(under, nov19).note).toBe('$5.99 left for 12 days');
+  });
   it('rule 7: not spent yet', () => {
     expect(categoryView(named('Electricity'), nov19)).toEqual({ status: 'ok', note: 'Not spent yet', fill: 0 });
   });
@@ -98,10 +124,8 @@ describe('categoryView', () => {
     const c = { ...base, budgeted: -100, goal: 5000 };
     expect(categoryView(c, nov19).fill).toBe(0);
   });
-  it('a refund (positive spent) gives a bar between 0 and 1, never NaN', () => {
+  it('a net refund counts as not spent from', () => {
     const c = { ...base, budgeted: 1000, spent: 500, balance: 1500 };
-    const v = categoryView(c, nov19);
-    expect(v.fill).toBeGreaterThanOrEqual(0);
-    expect(v.fill).toBeLessThanOrEqual(1);
+    expect(categoryView(c, nov19)).toEqual({ status: 'ok', note: 'Not spent yet', fill: 0 });
   });
 });

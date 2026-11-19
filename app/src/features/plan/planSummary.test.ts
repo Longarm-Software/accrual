@@ -37,6 +37,16 @@ describe('heroView', () => {
     const v = heroView(month({ toBudget: 0, totalBudgeted: 0, totalSpent: 0, totalIncome: 0 }));
     expect(v.flow).toEqual({ spent: 0, setAside: 0, free: 0 });
   });
+  it('a net-refund month has no negative share', () => {
+    const v = heroView(month({ toBudget: 10000, totalBudgeted: 0, totalSpent: 5000 }));
+    const { spent, setAside, free } = v.flow;
+    for (const s of [spent, setAside, free]) {
+      expect(s).toBeGreaterThanOrEqual(0);
+      expect(s).toBeLessThanOrEqual(1);
+    }
+    expect(spent + setAside + free).toBeCloseTo(1);
+    expect(v.spentText).toBe('Spent $0');
+  });
   it('never sets aside a negative amount when spending exceeds the budget', () => {
     const v = heroView(month({ toBudget: 0, totalBudgeted: 1000, totalSpent: -3000 }));
     expect(v.flow).toEqual({ spent: 1, setAside: 0, free: 0 });
