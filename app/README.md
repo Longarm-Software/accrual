@@ -190,3 +190,18 @@ Keep the phone unlocked with the app in front. A release build cannot be read wi
 `adb logcat` cuts the longer result lines short, so to get the full results file install the
 debug build over it (`adb install -r android/app/build/outputs/apk/debug/app-debug.apk`; the data
 is kept) and then use the `run-as` line above.
+
+### On a real phone
+
+On 2026-11-19 a release build was installed on a Samsung Galaxy S24 Ultra and used against its
+owner's own Actual 26.11.0 server, reached over HTTPS through Tailscale. This is the first run
+against a real server and the first over HTTPS. Reported by the owner, not measured by a script:
+
+- Connecting, choosing a budget and opening it worked. The download was too fast to notice.
+- Ready to budget matched what Actual's web app showed for the month.
+- After closing and reopening the app it went straight back in without asking for the password.
+
+One trap when copying a password out of a terminal: zsh prints a `%` after output that does not
+end in a newline, and it is easy to copy that with the password. The Connect screen's Show
+button and its character count make this visible.
+

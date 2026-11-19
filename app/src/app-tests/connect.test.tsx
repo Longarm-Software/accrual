@@ -104,3 +104,58 @@ it('shows an error and stays put when choosing the budget fails', async () => {
   expect(mockReplace).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'Open Household' })).toBeEnabled();
 });
+
+it('hides the password until asked to show it', async () => {
+  await show();
+  const field = await screen.findByLabelText('Password');
+  expect(field.props.secureTextEntry).toBe(true);
+
+  await fireEvent.press(screen.getByRole('button', { name: 'Show password' }));
+  expect(screen.getByLabelText('Password').props.secureTextEntry).toBe(false);
+
+  await fireEvent.press(screen.getByRole('button', { name: 'Hide password' }));
+  expect(screen.getByLabelText('Password').props.secureTextEntry).toBe(true);
+});
+
+it('points out a space at the start or end of the password', async () => {
+  await show();
+  const warning = 'This password starts or ends with a space.';
+  await fireEvent.changeText(await screen.findByLabelText('Password'), 'pw-for-tests');
+  expect(screen.queryByText(warning)).toBeNull();
+
+  await fireEvent.changeText(screen.getByLabelText('Password'), 'pw-for-tests ');
+  expect(screen.getByText(warning)).toBeTruthy();
+
+  await fireEvent.changeText(screen.getByLabelText('Password'), 'pw for tests');
+  expect(screen.queryByText(warning)).toBeNull();
+});
+
+it('sends the password exactly as typed, spaces included', async () => {
+  const create = jest.fn(async () => fakeEngine());
+  await show(create);
+  await fillAndConnect('budget.example.com', ' pw-for-tests ');
+  await waitFor(() => expect(create).toHaveBeenCalledWith({ serverURL: 'https://budget.example.com', password: ' pw-for-tests ' }));
+});
+
+it('points out a character that is not plain ASCII, and where it is', async () => {
+  await show();
+  const field = await screen.findByLabelText('Password');
+  await fireEvent.changeText(field, 'abc-def_123');
+  expect(screen.queryByText(/not a plain letter/)).toBeNull();
+
+  // U+2011, a non-breaking hyphen: looks like "-" and is what some apps paste instead.
+  await fireEvent.changeText(screen.getByLabelText('Password'), 'abc‑def');
+  expect(screen.getByText('Character 4 is not a plain letter, digit or symbol. Pasting can swap in look-alikes.')).toBeTruthy();
+
+  // An invisible zero-width space.
+  await fireEvent.changeText(screen.getByLabelText('Password'), 'ab​cdef');
+  expect(screen.getByText('Character 3 is not a plain letter, digit or symbol. Pasting can swap in look-alikes.')).toBeTruthy();
+});
+
+it('shows how many characters the password has while it is visible', async () => {
+  await show();
+  await fireEvent.changeText(await screen.findByLabelText('Password'), 'abc-def_123');
+  expect(screen.queryByText('11 characters')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Show password' }));
+  expect(screen.getByText('11 characters')).toBeTruthy();
+});
