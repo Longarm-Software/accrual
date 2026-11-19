@@ -95,3 +95,16 @@ The first check compares what the app read, then edits the large budget as a sec
 When the app shows "full run done", copy the log again and run the check again to confirm the
 edit arrived. After that, each launch does a cold start (open the local copy and sync) and logs
 its timings. To start over, delete the app's data.
+
+On a **physical Android phone**, forward the server's port and point the app at it:
+
+```sh
+adb reverse tcp:5007 tcp:5007      # again after the phone has slept
+# in .env.local: EXPO_PUBLIC_SPIKE_SERVER_URL=http://127.0.0.1:5007
+npx expo run:android --variant release
+```
+
+Keep the phone unlocked with the app in front. A release build cannot be read with `run-as`, and
+`adb logcat` cuts the longer result lines short, so to get the full results file install the
+debug build over it (`adb install -r android/app/build/outputs/apk/debug/app-debug.apk`; the data
+is kept) and then use the `run-as` line above.

@@ -26,8 +26,9 @@ from an app store.
 **What it is (as of November 2026):**
 
 - `packages/mobile-client` in the Actual repo, present in v26.11.0. It is a
-  [Capacitor](https://capacitorjs.com) wrapper: the existing web app running in a WebView, with
-  the app ID `org.actualbudget`. The scaffolding was merged in July 2026
+  [Capacitor](https://capacitorjs.com) wrapper: the existing web app running in a WebView. Its
+  Android app ID is `org.actualbudget`; the iOS build's bundle ID is `com.actualbudget.actual`.
+  The scaffolding was merged in July 2026
   ([PR #8387](https://github.com/actualbudget/actual/pull/8387)).
 - Status is experimental. An iOS TestFlight beta is tracked in
   [issue #9440](https://github.com/actualbudget/actual/issues/9440), opened 5 November 2026,
@@ -57,9 +58,11 @@ official app is a reason to hold Accrual to that standard, not a reason to hesit
 
 **What to do:**
 
-- Try the TestFlight beta before starting Phase 1 UI work. Note where it falls short on a
-  phone, and design those moments first.
-- Keep clear of its identity: its app ID is `org.actualbudget` and its name is "Actual Budget".
+- Done, without TestFlight: v26.11.0 was built from source and run on the iOS simulator and an
+  Android emulator in November 2026. What it showed is in
+  [`design/README.md`](../design/README.md). Try each new release the same way.
+- Keep clear of its identity: its app IDs are `org.actualbudget` (Android) and
+  `com.actualbudget.actual` (iOS), and its name is "Actual Budget".
   The naming rules below already cover this.
 - Talk to the maintainers earlier than "before the public launch". They have their own app now,
   so it is better that they hear about Accrual from us, framed as a complement.
