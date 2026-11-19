@@ -9,9 +9,72 @@ Chosen on 19 November 2026, from the three directions in round 1 below. Dark fir
 tiles two to a row, and colour for state: mint is funded, blue is a savings goal, amber needs
 money, coral is overspent, grey is spent as planned.
 
+## Round 3: the bite, motion and a logo
+
+**Status:** drawn, waiting for review. The logo needs a pick. None of it is built.
+
+### The bite
+
+![Aurora · the bite](previews/round-3/aurora-bite.png)
+
+Aurora's signature, borrowed from the Meter direction. Wherever money is about to move, the pot
+it leaves shows the bite before you commit, and the pot it joins shows the gain. Solid means it
+has happened; hatched means it has not happened yet.
+
+| Sheet | What the bite shows |
+|---|---|
+| Quick add | What the category will have left after this purchase |
+| Quick add, too much | The whole bar turns coral, says how far over it goes, and offers to cover it on the spot |
+| Cover overspending | The deficit filling in, and the bite each possible source would take |
+| Move money | A bite from one category and the matching gain in the other |
+| Assign | Ready to budget emptying, and each category's gain towards its target |
+
+The bar's full width is always the pot as it is now, so a small purchase from a big category is
+a small bite. A bite is never drawn narrower than 4% of the bar, so it stays visible.
+
+### Motion
+
+![Aurora · motion](previews/round-3/aurora-motion.png)
+
+Two interactions as storyboards. To see them move, build the boards and run
+`open design/boards/round-3/aurora-motion-live.html`. That version is a timing sketch: numbers
+switch instead of rolling, and a browser has no haptics.
+
+Motion has one job here, which is to show where money went.
+
+| What moves | How | Why |
+|---|---|---|
+| Bars (bites, gains, progress) | Spring, about 420 ms, slight overshoot | Money arriving should feel like it has weight |
+| Sheets | 420 ms, ease-out | Fast to respond, gentle to land |
+| Colour, glow, opacity | 240 ms, ease-out | State changes should not draw the eye twice |
+| Press feedback | 120 ms | Has to feel instant |
+| Amounts | Roll to the new value over 240 ms | A number that just switches looks like a glitch |
+
+- **Haptics:** light when a bite lands, success on Save, Cover and Assign, warning when a bite
+  goes past what the category has.
+- **Reduce Motion:** when the system setting is on, sheets fade instead of sliding, bars and
+  amounts go straight to their new value, and nothing pulses.
+- **Not decided:** the first load of the Plan, changing month, pull to refresh, and anything on
+  the Accounts and Transactions screens.
+
+These timings are proposals. None has been tried on a phone.
+
+### Logo
+
+![Logo explorations](previews/round-3/aurora-logo.png)
+
+Five marks. **Recommended: 1 · Ring**, a lowercase "a" whose bowl is the Available gauge. It is
+the only one that is both the product's own shape and the name's initial, and it does not
+resemble Actual's logo. Bite is the runner-up, and the better choice if the bite becomes what
+people remember the app for.
+
+Before any of these is used: nobody has searched for similar existing logos or trademarks, and
+the name itself is still unchecked (see [`docs/business.md`](../docs/business.md)). The wordmark
+is set in Bricolage Grotesque as a stand-in; its lettering has not been drawn.
+
 ## Round 2: Aurora, the rest of Phase 1
 
-**Status:** drawn, waiting for review. None of it is built.
+**Status:** reviewed and accepted on 19 November 2026. None of it is built.
 
 ![Aurora · the rest of Phase 1](previews/round-2/aurora-screens.png)
 
@@ -63,8 +126,7 @@ The dark figures improved partly because the green glow behind the tiles was mad
 - **Not drawn at all:** moving money between two categories, working through uncategorized
   transactions, editing a transaction, split transactions, search, settings, empty states
   (a new budget, a month with nothing budgeted), and sync errors.
-- **No motion.** How tiles, sheets and the top card animate is undecided.
-- **No brand.** The mint square beside "Accrual" is a placeholder, not a logo.
+- **Motion and a logo** were open here and are taken up in round 3.
 
 ## Round 1: three directions
 
@@ -156,11 +218,11 @@ Node 20+, no dependencies. Needs Chrome for the PNGs.
 
 ```sh
 node design/src/build.mjs              # writes design/boards/<round>/*.html (gitignored)
-node design/src/export.mjs round-2     # renders a round to design/previews/round-2/*.png
+node design/src/export.mjs round-3     # renders a round to design/previews/round-3/*.png
 node design/src/contrast.mjs           # checks Aurora's colours against WCAG AA
 ```
 
-Open a board in a browser to see it at full size: `open design/boards/round-2/aurora-screens.html`.
+Open a board in a browser to see it at full size: `open design/boards/round-3/aurora-bite.html`.
 
 | Path | Contents |
 |---|---|
@@ -169,5 +231,7 @@ Open a board in a browser to see it at full size: `open design/boards/round-2/au
 | `src/ledger.mjs`, `src/aurora.mjs`, `src/meter.mjs` | One direction each: its styles and three screens |
 | `src/aurora2.mjs` | Aurora's round 2 styles and corrected colours |
 | `src/aurora-screens.mjs`, `src/aurora-checks.mjs` | The two round 2 boards |
+| `src/aurora3.mjs` | The bite component |
+| `src/aurora-bite.mjs`, `src/aurora-motion.mjs`, `src/aurora-motion-live.mjs`, `src/aurora-logo.mjs` | The round 3 boards; the live one is for a browser and has no PNG |
 | `src/contrast.mjs` | The contrast check |
 | `previews/` | PNG exports, one folder per round |

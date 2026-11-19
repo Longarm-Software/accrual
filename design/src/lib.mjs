@@ -54,7 +54,14 @@ export const phone = (theme, caption, body) => `
   <figcaption>${caption}</figcaption>
 </figure>`;
 
-export const page = ({ id, title, blurb, fonts, css, shots, round = 1 }) => `<!doctype html>
+/**
+ * A board. Pass `shots` for one row of phones, or `rows` ([{ title, note, shots }]) for several.
+ * `height` is the board's height in CSS pixels; `script` is inline JavaScript for live boards.
+ */
+export const page = ({ id, title, blurb, fonts, css, shots, rows, round = 1, height = 1230, script = '' }) => {
+  const all = rows ?? [{ shots }];
+  const widest = Math.max(...all.map(r => r.shots.length));
+  return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Accrual · ${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&${fonts}&display=block" rel="stylesheet">
@@ -66,7 +73,11 @@ body{background:#E9E7E2;font-family:'Geist',system-ui,sans-serif;padding:56px 64
 .board-head h1{font-size:44px;font-weight:600;letter-spacing:-.03em;margin:6px 0 10px}
 .board-head p{font-size:17px;line-height:1.5;opacity:.72}
 .row{display:flex;gap:48px;align-items:flex-start}
-.shot figcaption{margin-top:18px;font-size:14px;font-weight:500;opacity:.6;text-align:center}
+.row-head{margin:56px 0 28px;max-width:1000px}
+.row-head:first-of-type{margin-top:0}
+.row-head h2{font-size:26px;font-weight:600;letter-spacing:-.02em}
+.row-head p{font-size:15.5px;line-height:1.5;opacity:.7;margin-top:6px}
+.shot figcaption{margin-top:18px;font-size:14px;font-weight:500;opacity:.6;text-align:center;max-width:390px}
 .phone{width:390px;height:844px;border-radius:54px;position:relative;overflow:hidden;box-shadow:0 0 0 10px #101010,0 0 0 11.5px #3a3a3a,0 40px 80px -20px rgba(0,0,0,.35)}
 .statusbar{position:absolute;top:0;left:0;right:0;height:54px;padding:19px 34px 0 40px;display:flex;justify-content:space-between;font:600 16px/1 'Geist',system-ui;z-index:20}
 .sb-right{display:flex;gap:7px;align-items:center}
@@ -81,7 +92,11 @@ body{background:#E9E7E2;font-family:'Geist',system-ui,sans-serif;padding:56px 64
 .phone.android:before{content:'';position:absolute;top:15px;left:50%;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#000;z-index:25}
 .phone.android .homebar{width:108px;height:4px;margin-left:-54px;bottom:9px;opacity:.6}
 ${css}
-</style></head><body id="${id}">
+</style></head><body id="${id}" data-width="${128 + widest * 390 + (widest - 1) * 48}" data-height="${height}">
 <header class="board-head"><div class="kicker">Accrual · design round ${round}</div><h1>${title}</h1><p>${blurb}</p></header>
-<div class="row">${shots.join('')}</div>
+${all
+  .map(r => `${r.title ? `<div class="row-head"><h2>${r.title}</h2>${r.note ? `<p>${r.note}</p>` : ''}</div>` : ''}<div class="row">${r.shots.join('')}</div>`)
+  .join('\n')}
+${script ? `<script>${script}</script>` : ''}
 </body></html>`;
+};
