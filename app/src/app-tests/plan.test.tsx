@@ -416,6 +416,23 @@ it('keeps the numbers when the read after a refresh fails', async () => {
   expect(screen.queryByText('Could not read this month.')).toBeNull();
 });
 
+it('shows the error, not a spinner or the old month, when the next month cannot be read', async () => {
+  const getPlanMonth = jest.fn(async (month: string) => {
+    if (month === '2026-12') throw new EngineError('internal', 'x');
+    return fakePlanMonth;
+  });
+  await showPlan(fakeEngine({ getPlanMonth }));
+  await screen.findByText('Groceries');
+  await waitFor(() => expect(nextEnabled()).toBe(true));
+  await fireEvent.press(screen.getByRole('button', { name: 'Next month' }));
+  expect(await screen.findByText('Could not read this month.')).toBeTruthy();
+  expect(screen.getByText('December')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+  expect(screen.queryByLabelText('Working')).toBeNull();
+  expect(screen.queryByText('Groceries')).toBeNull();
+  expect(screen.queryByText('$312')).toBeNull();
+});
+
 it('reads the month bounds again after a refresh, and keeps them if that read fails', async () => {
   const getMonthBounds = jest
     .fn<Promise<{ start: string; end: string }>, []>()
