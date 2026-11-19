@@ -8,6 +8,7 @@ import type { Engine, PlanMonth } from '../engine/types';
 import { fakeBudgets, fakeEngine, fakePlanMonth } from '../session/fakeEngine';
 import { SessionProvider, useSession } from '../session/SessionProvider';
 import { loadSession, saveSession } from '../session/storage';
+import { space } from '../theme/tokens';
 import Home from '../app/index';
 
 const mockRedirect = jest.fn();
@@ -17,6 +18,12 @@ jest.mock('expo-router', () => ({
     return null;
   },
   router: { replace: jest.fn() },
+}));
+
+// Three-button navigation on Android: the page is drawn under a 48-point bar.
+jest.mock('react-native-safe-area-context', () => ({
+  ...jest.requireActual('react-native-safe-area-context'),
+  useSafeAreaInsets: () => ({ top: 24, right: 0, bottom: 48, left: 0 }),
 }));
 
 // The account menu's card waits until its button has been measured; Jest's stand-in View
@@ -143,6 +150,12 @@ it('draws the amounts in a row at one size, so they share a baseline', async () 
   await screen.findByText('Phone');
   const sizeOf = (dollars: string) => screen.getByText(dollars).parent?.props.style.fontSize;
   expect(sizeOf('$154')).toBe(sizeOf('$1,207'));
+});
+
+it('keeps the last tile clear of the navigation bar', async () => {
+  await showPlan(fakeEngine());
+  await screen.findByText('Groceries');
+  expect(screen.getByTestId('plan-scroll').props.contentContainerStyle).toMatchObject({ paddingBottom: space.lg + 48 });
 });
 
 it('uses one column when the text is large', async () => {

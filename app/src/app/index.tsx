@@ -2,7 +2,7 @@ import { Redirect } from 'expo-router';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { autorunConfig } from '../dev/autorun';
 import type { Engine, PlanCategory, PlanMonth } from '../engine/types';
@@ -64,6 +64,8 @@ function Plan({ engine, budgetName, onSignOut }: PlanProps) {
   const theme = useTheme();
   // The person's text size; the hook re-renders when they change it in Settings.
   const { fontScale } = useWindowDimensions();
+  // Android draws the page under the navigation bar: the last tile must scroll clear of it.
+  const { bottom } = useSafeAreaInsets();
   const [today] = useState(() => new Date());
   const [month, setMonth] = useState(() => currentMonth(today));
   // Signing out when the session has expired is the same path as the menu's Sign out.
@@ -88,7 +90,7 @@ function Plan({ engine, budgetName, onSignOut }: PlanProps) {
     <Page>
       <ScrollView
         testID="plan-scroll"
-        contentContainerStyle={{ padding: space.lg, gap: space.lg }}
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + bottom, gap: space.lg }}
         refreshControl={
           <RefreshControl
             refreshing={plan.refreshing}
