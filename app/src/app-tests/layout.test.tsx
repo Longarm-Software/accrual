@@ -22,6 +22,13 @@ jest.mock('expo-status-bar', () => ({
     return null;
   },
 }));
+const mockNavigationBar = jest.fn();
+jest.mock('expo-navigation-bar', () => ({
+  NavigationBar: (props: { style?: string }) => {
+    mockNavigationBar(props);
+    return null;
+  },
+}));
 let mockDark = false;
 jest.mock('../theme/useTheme', () => {
   const { themes } = jest.requireActual('../theme/tokens');
@@ -37,6 +44,7 @@ const mockHideAsync = SplashScreen.hideAsync as jest.Mock;
 beforeEach(() => {
   mockHideAsync.mockClear();
   mockStatusBar.mockClear();
+  mockNavigationBar.mockClear();
 });
 
 it('hides the splash screen and renders with system fonts when a font fails to load', async () => {
@@ -57,9 +65,11 @@ it('renders nothing and keeps the splash screen while fonts are loading', async 
 it.each([
   [false, 'dark'],
   [true, 'light'],
-])('draws the status bar for the theme (dark theme: %s, icons: %s)', async (dark, style) => {
+])('draws the status and navigation bars for the theme (dark theme: %s, icons: %s)', async (dark, style) => {
   mockDark = dark;
   mockUseFonts.mockReturnValue([true, null]);
   await render(<RootLayout />);
   expect(mockStatusBar).toHaveBeenLastCalledWith(expect.objectContaining({ style }));
+  // The three-button navigation bar is drawn over the page too.
+  expect(mockNavigationBar).toHaveBeenLastCalledWith(expect.objectContaining({ style }));
 });

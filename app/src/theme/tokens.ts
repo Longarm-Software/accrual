@@ -56,6 +56,8 @@ export const font = {
   body: 'Geist_400Regular',
   medium: 'Geist_500Medium',
   semibold: 'Geist_600SemiBold',
+  /** Amounts. Geist's figures are plainer and steadier than the display face's. */
+  number: 'Geist_600SemiBold',
 } as const;
 
 export const type = {
