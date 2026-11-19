@@ -1,0 +1,14 @@
+{
+  "name": "accrual-sqlite-functions",
+  "version": "0.1.0",
+  "description": "SQLite extension with the SQL functions Actual's engine expects (UNICODE_LOWER, UNICODE_UPPER, UNICODE_LIKE, REGEXP, NORMALISE)",
+  "license": "MIT",
+  "author": "Longarm Software",
+  "homepage": "https://github.com/Longarm-Software/accrual",
+  "main": "index.ts",
+  "private": true,
+  "peerDependencies": {
+    "expo": "*",
+    "expo-sqlite": "*"
+  }
+}

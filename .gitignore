@@ -173,3 +173,5 @@ GoogleService-Info.plist
 *.sqlite3
 budgets/
 fixtures/real/
+# Spike: throwaway server data, downloaded budgets, local secrets
+spike/**/data/

@@ -1,0 +1,14 @@
+{
+  "name": "accrual-spike-server",
+  "private": true,
+  "description": "Throwaway Actual test server + fake-data tooling for the Phase 0 spike. Fake data only.",
+  "type": "module",
+  "scripts": {
+    "server": "node scripts/start-server.mjs",
+    "seed": "node scripts/seed.mjs"
+  },
+  "dependencies": {
+    "@actual-app/api": "26.11.0",
+    "@actual-app/sync-server": "26.11.0"
+  }
+}

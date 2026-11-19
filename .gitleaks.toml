@@ -7,3 +7,12 @@ useDefault = true
 # False positives go here, with a comment saying why.
 # [allowlist]
 # paths = ['''docs/example-config\.md''']
+
+[allowlist]
+description = "Vendored public headers"
+paths = [
+  # SQLite's public extension header (public domain, copied unmodified). Macros such as
+  # `#define sqlite3_column_bytes16 sqlite3_api->column_bytes16` trip the generic-api-key rule
+  # because of the `sqlite3_api->` prefix. The file contains no secrets.
+  '''spike/app/modules/accrual-sqlite-functions/cpp/vendor/sqlite/sqlite3ext\.h''',
+]

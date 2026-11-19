@@ -1,0 +1,42 @@
+{
+  "name": "accrual-spike-app",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@actual-app/core": "26.11.0",
+    "@actual-app/crdt": "3.1.4",
+    "accrual-sqlite-functions": "file:modules/accrual-sqlite-functions",
+    "buffer": "^6.0.3",
+    "events": "^3.3.0",
+    "expo": "~58.0.26",
+    "expo-build-properties": "~58.0.12",
+    "expo-crypto": "~58.0.8",
+    "expo-dev-client": "~58.0.21",
+    "expo-file-system": "~58.0.14",
+    "expo-sqlite": "~58.0.18",
+    "expo-status-bar": "~58.0.5",
+    "js-md5": "^0.11.0",
+    "react": "19.3.0",
+    "react-native": "0.88.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "better-sqlite3": "^13.2.0",
+    "esbuild": "^0.28.2",
+    "peggy": "^5.1.1",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "engine:build": "node engine/build.mjs",
+    "engine:verify": "tsx --env-file=../server/.env harness/verify.ts",
+    "typecheck": "tsc --noEmit",
+    "sqlfn:build": "sh modules/accrual-sqlite-functions/build-host.sh",
+    "sqlfn:test": "tsx modules/accrual-sqlite-functions/test/differential.test.ts"
+  },
+  "private": true
+}

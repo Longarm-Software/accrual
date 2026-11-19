@@ -15,7 +15,8 @@ envelope-budgeting UI. Built by Longarm Software.
 
 ## Status
 
-Planning. See [docs/plan.md](docs/plan.md).
+Phase 0 spike done off-device; on-device run pending. See [docs/spike-results.md](docs/spike-results.md)
+and [docs/plan.md](docs/plan.md).
 
 ## Docs
 
@@ -24,6 +25,7 @@ Planning. See [docs/plan.md](docs/plan.md).
 | [docs/plan.md](docs/plan.md) | Goals, phases, and the first spike |
 | [docs/architecture.md](docs/architecture.md) | How the app talks to Actual, and the fallback plan |
 | [docs/business.md](docs/business.md) | Open source plus paid App Store build, naming, licensing |
+| [docs/spike-results.md](docs/spike-results.md) | What the Phase 0 spike found |
 | [docs/decisions/](docs/decisions/) | Architecture decision records |
 
 ## What never goes in this repo
@@ -47,4 +49,4 @@ git config core.hooksPath .githooks
 
 ## License
 
-MIT. Bundled Actual Budget code keeps its own MIT notice (see `THIRD_PARTY_NOTICES.md` once added).
+MIT. Bundled Actual Budget code keeps its own MIT notice (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
