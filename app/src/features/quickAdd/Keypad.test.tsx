@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Text } from 'react-native';
 
 import { emptyEntry, entryCents, press, type Key } from './amountEntry';
-import { themes } from '../../theme/tokens';
+import { sheet, themes } from '../../theme/tokens';
 import { Keypad, REPEAT_MS } from './Keypad';
 
 // The design is dark; Jest's colour scheme is light. Draw dark so the colours checked are the design's.
@@ -74,6 +74,16 @@ it('keeps every key at least 48 points high', async () => {
     const style = [button(name).props.style].flat(Infinity).reduce((all, s) => ({ ...all, ...s }), {});
     expect(style.minHeight).toBeGreaterThanOrEqual(48);
   }
+});
+
+it('has the regular key height, and exactly the touch minimum on the compact sheet', async () => {
+  const keyHeight = () => [button('1').props.style].flat(Infinity).reduce((all, s) => ({ ...all, ...s }), {}).minHeight;
+  await draw();
+  expect(keyHeight()).toBe(sheet.regular.key);
+  await render(<Keypad onKey={() => {}} onToggleSign={() => {}} onSave={() => {}} canSave over={false} density="compact" />);
+  expect(keyHeight()).toBe(sheet.compact.key);
+  expect(sheet.compact.key).toBe(48);
+  expect(button('Save')).toHaveStyle({ minHeight: 48 });
 });
 
 describe('holding delete', () => {

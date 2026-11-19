@@ -119,6 +119,8 @@ export const amount = {
   tileLong: 22,
   /** The amount being typed on quick add. */
   entry: 88,
+  /** The amount being typed on a short screen (the compact sheet). */
+  entryCompact: 56,
   /** How far a fitted amount may shrink to stay on one line: "−$9,999,999.99" at the entry size on a narrow phone. */
   minFit: 0.3,
 } as const;
@@ -157,6 +159,8 @@ export const size = {
    * so the card and keypad under it never move as digits are typed.
    */
   entry: 108,
+  /** The amount's box on the compact sheet: holds `amount.entryCompact` on one line. */
+  entryCompact: 68,
   /** The bite bar's thickness. */
   bite: 10,
   /** The tick on Save, and the smaller one on a picked row. */
@@ -170,6 +174,17 @@ export const size = {
   /** The round "+" that floats over the Plan, and the length of its arms. */
   fab: 60,
   fabPlus: 22,
+} as const;
+
+/**
+ * The quick-add sheet at its two densities (chosen by `sheetDensity` in features/quickAdd).
+ * `key`: a keypad key's height. `amount`/`amountBox`: the typed amount's size and its box.
+ * `gap`: between the form's parts, and around the keypad. `inset`: above and below the text
+ * inside the payee field and the category card. Compact keeps every key at the touch minimum.
+ */
+export const sheet = {
+  regular: { key: size.key, amount: amount.entry, amountBox: size.entry, gap: space.lg, inset: space.md },
+  compact: { key: size.touch, amount: amount.entryCompact, amountBox: size.entryCompact, gap: space.sm, inset: space.sm },
 } as const;
 
 /**

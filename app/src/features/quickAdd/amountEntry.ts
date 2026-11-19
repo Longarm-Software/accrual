@@ -1,6 +1,8 @@
 // The amount as it is typed on the keypad: always non-negative; the sign is kept in the draft.
 // Cents are built from the digit strings, never by parsing a decimal string.
 
+import { formatMoney } from '../../lib/money';
+
 export type Entry = { digits: string; decimals: string | null }; // decimals null until "." is pressed
 export type Key = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '00' | '.' | 'back';
 
@@ -33,4 +35,25 @@ export function entryCents(entry: Entry): number {
   const whole = entry.digits === '' ? 0 : parseInt(entry.digits, 10);
   const cents = parseInt((entry.decimals ?? '').padEnd(MAX_DECIMALS, '0'), 10);
   return whole * 100 + cents;
+}
+
+/**
+ * What the amount display draws: the entry exactly as typed, so "." and a trailing decimal show
+ * the moment they are pressed. `whole` is the sign and the grouped dollars ("−$1,250"),
+ * `fraction` what follows ("", ".", ".4", ".40"), drawn at the cents' size. Before anything is
+ * typed it is a dimmed "$0.00". `label` is what a screen reader says: always the full amount.
+ */
+export type EntryText = { whole: string; fraction: string; dimmed: boolean; label: string };
+
+export function entryText(entry: Entry, income: boolean): EntryText {
+  const cents = entryCents(entry);
+  const label = (income && cents > 0 ? '+' : '') + formatMoney(income ? cents : -cents);
+  if (entry.digits === '' && entry.decimals === null) return { whole: '$0', fraction: '.00', dimmed: true, label };
+  const grouped = (entry.digits === '' ? '0' : entry.digits).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return {
+    whole: `${income ? '+' : '−'}$${grouped}`,
+    fraction: entry.decimals === null ? '' : `.${entry.decimals}`,
+    dimmed: false,
+    label,
+  };
 }

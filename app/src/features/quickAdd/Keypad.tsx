@@ -3,12 +3,21 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { radius, size, space, textScale, tint, type } from '../../theme/tokens';
+import { radius, sheet, size, space, textScale, tint, type } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { Tick } from '../../ui/Tick';
 import type { Key } from './amountEntry';
+import type { SheetDensity } from './sheetLayout';
 
-type Props = { onKey(key: Key): void; onToggleSign(): void; onSave(): void; canSave: boolean; over: boolean };
+type Props = {
+  onKey(key: Key): void;
+  onToggleSign(): void;
+  onSave(): void;
+  canSave: boolean;
+  over: boolean;
+  /** Compact on a short screen: keys at the touch minimum, so the form above keeps its room. */
+  density?: SheetDensity;
+};
 
 /** How often a held delete key deletes again, once the hold is recognised. */
 export const REPEAT_MS = 80;
@@ -25,10 +34,11 @@ export const REPEAT_MS = 80;
  * Holding delete repeats it until it is let go (rather than clearing), so a long amount can be
  * taken back a digit at a time without lifting the thumb, and nothing is lost to a slip.
  */
-export function Keypad({ onKey, onToggleSign, onSave, canSave, over }: Props) {
+export function Keypad({ onKey, onToggleSign, onSave, canSave, over, density = 'regular' }: Props) {
   const theme = useTheme();
+  const height = sheet[density].key;
   const digit = (key: Key, label: string = key) => (
-    <KeyButton label={label} onPress={() => onKey(key)}>
+    <KeyButton label={label} height={height} onPress={() => onKey(key)}>
       <Text style={[type.key, { color: theme.color.ink }]} maxFontSizeMultiplier={textScale.key}>
         {key}
       </Text>
@@ -41,13 +51,13 @@ export function Keypad({ onKey, onToggleSign, onSave, canSave, over }: Props) {
         {digit('1')}
         {digit('2')}
         {digit('3')}
-        <DeleteKey onDelete={() => onKey('back')} />
+        <DeleteKey height={height} onDelete={() => onKey('back')} />
       </View>
       <View style={styles.row}>
         {digit('4')}
         {digit('5')}
         {digit('6')}
-        <KeyButton label="Expense or income" onPress={onToggleSign}>
+        <KeyButton label="Expense or income" height={height} onPress={onToggleSign}>
           <Text style={[type.key, { color: theme.color.mute }]} maxFontSizeMultiplier={textScale.key}>
             +/−
           </Text>
@@ -66,7 +76,7 @@ export function Keypad({ onKey, onToggleSign, onSave, canSave, over }: Props) {
             {digit('00', 'Double zero')}
           </View>
         </View>
-        <SaveKey onSave={onSave} canSave={canSave} over={over} />
+        <SaveKey height={height} onSave={onSave} canSave={canSave} over={over} />
       </View>
     </View>
   );
@@ -74,13 +84,14 @@ export function Keypad({ onKey, onToggleSign, onSave, canSave, over }: Props) {
 
 type KeyProps = {
   label: string;
+  height: number;
   onPress: () => void;
   onLongPress?: () => void;
   onPressOut?: () => void;
   children: ReactNode;
 };
 
-function KeyButton({ label, onPress, onLongPress, onPressOut, children }: KeyProps) {
+function KeyButton({ label, height, onPress, onLongPress, onPressOut, children }: KeyProps) {
   const theme = useTheme();
   return (
     <Pressable
@@ -92,6 +103,7 @@ function KeyButton({ label, onPress, onLongPress, onPressOut, children }: KeyPro
       style={({ pressed }) => [
         styles.key,
         {
+          minHeight: height,
           backgroundColor: theme.color.key,
           borderColor: theme.color.keyEdge,
           opacity: pressed ? tint.pressed : 1,
@@ -103,7 +115,7 @@ function KeyButton({ label, onPress, onLongPress, onPressOut, children }: KeyPro
   );
 }
 
-function DeleteKey({ onDelete }: { onDelete: () => void }) {
+function DeleteKey({ height, onDelete }: { height: number; onDelete: () => void }) {
   // The parent may pass a new callback on every render, closed over the amount as it was then.
   // Each repeat calls the latest one, so it deletes from the amount as it is now.
   const latest = useRef(onDelete);
@@ -117,6 +129,7 @@ function DeleteKey({ onDelete }: { onDelete: () => void }) {
   return (
     <KeyButton
       label="Delete"
+      height={height}
       onPress={onDelete}
       // A press that became a hold does not also fire onPress, so the first delete happens here.
       onLongPress={() => {
@@ -131,7 +144,7 @@ function DeleteKey({ onDelete }: { onDelete: () => void }) {
   );
 }
 
-function SaveKey({ onSave, canSave, over }: { onSave: () => void; canSave: boolean; over: boolean }) {
+function SaveKey({ height, onSave, canSave, over }: { height: number; onSave: () => void; canSave: boolean; over: boolean }) {
   const theme = useTheme();
   return (
     <Pressable
@@ -142,6 +155,7 @@ function SaveKey({ onSave, canSave, over }: { onSave: () => void; canSave: boole
       onPress={onSave}
       style={({ pressed }) => [
         styles.key,
+        { minHeight: height },
         styles.save,
         { opacity: !canSave ? tint.disabled : pressed ? tint.pressed : 1 },
         over && { backgroundColor: theme.color.over },
@@ -222,7 +236,6 @@ const styles = StyleSheet.create({
   left: { flexGrow: 3, flexShrink: 1, flexBasis: space.sm * 2, gap: space.sm },
   key: {
     flex: 1,
-    minHeight: size.key,
     borderRadius: radius.key,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',

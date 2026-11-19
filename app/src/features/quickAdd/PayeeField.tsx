@@ -3,10 +3,11 @@ import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import type { TextInputInstance } from 'react-native';
 
 import type { PayeeChoice } from '../../engine/types';
-import { radius, size, space, tint, type } from '../../theme/tokens';
+import { radius, sheet, size, space, tint, type } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { Glass } from '../../ui/Glass';
 import { Label } from '../../ui/Text';
+import type { SheetDensity } from './sheetLayout';
 
 type Props = {
   text: string;
@@ -15,6 +16,8 @@ type Props = {
   onPick(payee: PayeeChoice): void;
   /** The field gained (true) or lost (false) focus: the sheet puts its keypad away while the keyboard is up. */
   onFocusChange?(focused: boolean): void;
+  /** Compact on a short screen: less room above and below the text. */
+  density?: SheetDensity;
 };
 
 const MAX_MATCHES = 6;
@@ -31,7 +34,7 @@ const MAX_MATCHES = 6;
  * (with Save) only comes back when the field is left. So the keyboard closing counts as
  * leaving the field.
  */
-export function PayeeField({ text, matches, onChangeText, onPick, onFocusChange }: Props) {
+export function PayeeField({ text, matches, onChangeText, onPick, onFocusChange, density = 'regular' }: Props) {
   const theme = useTheme();
   const input = useRef<TextInputInstance>(null);
   const [focused, setFocused] = useState(false);
@@ -64,7 +67,7 @@ export function PayeeField({ text, matches, onChangeText, onPick, onFocusChange 
 
   return (
     <View style={{ gap: space.sm }}>
-      <Glass radius={radius.field} style={{ paddingHorizontal: space.lg, paddingVertical: space.md }}>
+      <Glass testID="payee-field" radius={radius.field} style={{ paddingHorizontal: space.lg, paddingVertical: sheet[density].inset }}>
         {/* The field itself is labelled "Payee"; this visible label is not read a second time. */}
         <Label accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
           Payee

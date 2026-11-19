@@ -1,14 +1,22 @@
 import { Pressable, Text, View } from 'react-native';
 
-import { font, radius, size, space, tint, type, withAlpha } from '../../theme/tokens';
+import { font, radius, sheet, size, space, tint, type, withAlpha } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { Chevron } from '../../ui/Chevron';
 import { Glass } from '../../ui/Glass';
 import { Body, Label } from '../../ui/Text';
 import type { Bite } from './bite';
 import { BiteBar } from './BiteBar';
+import type { SheetDensity } from './sheetLayout';
 
-type Props = { name: string | null; suggested: boolean; bite: Bite | null; onPress(): void };
+type Props = {
+  name: string | null;
+  suggested: boolean;
+  bite: Bite | null;
+  onPress(): void;
+  /** Compact on a short screen: tighter inside, so the card and its bite fit above the keypad. */
+  density?: SheetDensity;
+};
 
 /** What a screen reader says for the whole card, with the warning when there is one: the strip under it is not announced on iOS. */
 export function categoryCardLabel(name: string | null, suggested: boolean, bite: Bite | null): string {
@@ -27,8 +35,9 @@ export function categoryCardLabel(name: string | null, suggested: boolean, bite:
  * When the purchase is more than the category has, the card takes a coral edge and the warning
  * sits directly under it.
  */
-export function CategoryCard({ name, suggested, bite, onPress }: Props) {
+export function CategoryCard({ name, suggested, bite, onPress, density = 'regular' }: Props) {
   const theme = useTheme();
+  const inset = sheet[density].inset;
   const over = bite?.state === 'over';
   const action = name === null ? 'Choose' : suggested ? 'Suggested' : 'Change';
   const afterColor = over ? theme.color.over : theme.color.ok;
@@ -46,7 +55,7 @@ export function CategoryCard({ name, suggested, bite, onPress }: Props) {
           radius={radius.pot}
           style={over && { borderWidth: size.border, borderColor: withAlpha(theme.color.over, tint.potOverEdge) }}
         >
-          <View style={{ minHeight: size.touch, justifyContent: 'center', paddingHorizontal: space.lg, paddingVertical: space.md, gap: space.md }}>
+          <View style={{ minHeight: size.touch, justifyContent: 'center', paddingHorizontal: space.lg, paddingVertical: inset, gap: inset }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
               <Body style={[type.heading, { flex: 1 }]} color={name === null ? theme.color.mute : theme.color.ink}>
                 {name ?? 'No category'}
@@ -69,7 +78,7 @@ export function CategoryCard({ name, suggested, bite, onPress }: Props) {
         </Glass>
       </Pressable>
       {bite?.warning && (
-        <Glass radius={radius.field} style={{ paddingHorizontal: space.lg, paddingVertical: space.md }}>
+        <Glass radius={radius.field} style={{ paddingHorizontal: space.lg, paddingVertical: inset }}>
           {/* Android announces it as it appears. iOS has no live region, so the card's label says it
               instead, and the strip is hidden from VoiceOver so it is not read twice. */}
           <Body style={type.notice} accessibilityLiveRegion="polite" accessibilityElementsHidden>

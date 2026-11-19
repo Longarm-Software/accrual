@@ -2,13 +2,14 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { Alert, Platform, StyleSheet } from 'react-native';
+import { Alert, Dimensions, Platform, StyleSheet } from 'react-native';
 
 import type { Engine, NewTransaction, PlanMonth } from '../engine/types';
 import { onSaved, setPlanToday } from '../features/plan/quickAddSignal';
 import { fakeBudgets, fakeEngine, fakePlanMonth, fakeQuickAddLists } from '../session/fakeEngine';
 import { SessionProvider, useSession } from '../session/SessionProvider';
 import { saveSession } from '../session/storage';
+import { sheet as sheetTokens } from '../theme/tokens';
 import Add from '../app/add';
 
 const mockRedirect = jest.fn();
@@ -168,6 +169,35 @@ it('shows the category without the bite for a date in an earlier month', async (
   expect(screen.getByText('Groceries')).toBeTruthy();
   expect(screen.queryByTestId('bite-bar')).toBeNull();
   expect(screen.queryByText('$207.62')).toBeNull();
+});
+
+it('follows the Plan into the next day when left open past midnight, keeping the draft and its date', async () => {
+  const getQuickAddLists = jest.fn(async () => fakeQuickAddLists);
+  const getPlanMonth = jest.fn(async () => fakePlanMonth);
+  await showSheet(fakeEngine({ getQuickAddLists, getPlanMonth }));
+  await ready();
+  await type('1', '8');
+  const later = () => screen.getByRole('button', { name: 'Later day' });
+  expect(screen.getByLabelText('Date, Today')).toBeTruthy();
+  expect(later().props.accessibilityState).toMatchObject({ disabled: true });
+  // The Plan renews its day (the app came back to the foreground after midnight).
+  await act(async () => setPlanToday(new Date(2026, 10, 20, 0, 5)));
+  expect(screen.getByLabelText('Date, Yesterday')).toBeTruthy();
+  expect(later().props.accessibilityState).toMatchObject({ disabled: false });
+  expect(screen.getByLabelText('−$18.00')).toBeTruthy();
+  expect(getQuickAddLists).toHaveBeenCalledTimes(1);
+  expect(getPlanMonth).toHaveBeenCalledTimes(1);
+  await fireEvent.press(later());
+  expect(screen.getByLabelText('Date, Today')).toBeTruthy();
+});
+
+it('keeps its day while the Plan is between days (its day is briefly unset)', async () => {
+  await showSheet();
+  await ready();
+  mockRedirect.mockClear(); // the session's own opening redirects first; only what follows counts
+  await act(async () => setPlanToday(null));
+  expect(mockRedirect).not.toHaveBeenCalled();
+  expect(screen.getByLabelText('Date, Today')).toBeTruthy();
 });
 
 it('changes the account from the account picker', async () => {
@@ -331,6 +361,60 @@ it('moves the form clear of the keyboard on Android too (it draws edge to edge, 
   } finally {
     os.restore();
   }
+});
+
+describe('fitting the screen', () => {
+  const original = Dimensions.get('window');
+  const windowOf = (width: number, height: number) => {
+    const window = { ...original, width, height, fontScale: 1 };
+    Dimensions.set({ window, screen: window });
+  };
+  afterEach(() => Dimensions.set({ window: original, screen: original }));
+  const flat = (style: unknown) => (StyleSheet.flatten([style].flat(Infinity) as object[]) ?? {}) as Record<string, unknown>;
+  const keyHeight = () => flat(screen.getByRole('button', { name: '1' }).props.style).minHeight;
+
+  it('is compact on a 360 × 640 phone: touch-size keys, the smaller amount, tighter gaps', async () => {
+    windowOf(360, 640);
+    await showSheet();
+    await ready();
+    expect(keyHeight()).toBe(sheetTokens.compact.key);
+    expect(screen.getByTestId('amount-display')).toHaveStyle({ height: sheetTokens.compact.amountBox });
+    expect(flat(screen.getByTestId('sheet-scroll').props.contentContainerStyle).gap).toBe(sheetTokens.compact.gap);
+  });
+
+  it('is regular, as before, on a 411 × 914 phone', async () => {
+    windowOf(411, 914);
+    await showSheet();
+    await ready();
+    expect(keyHeight()).toBe(sheetTokens.regular.key);
+    expect(screen.getByTestId('amount-display')).toHaveStyle({ height: sheetTokens.regular.amountBox });
+    expect(flat(screen.getByTestId('sheet-scroll').props.contentContainerStyle).gap).toBe(sheetTokens.regular.gap);
+  });
+
+  it('fades the bottom of the form while more of it is below, and not once scrolled to the end', async () => {
+    windowOf(360, 640);
+    await showSheet();
+    await ready();
+    const scroll = screen.getByTestId('sheet-scroll');
+    expect(screen.queryByTestId('more-below')).toBeNull();
+    await fireEvent(scroll, 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 300 } } });
+    await fireEvent(scroll, 'contentSizeChange', 360, 360);
+    expect(screen.getByTestId('more-below')).toBeTruthy();
+    await fireEvent.scroll(scroll, {
+      nativeEvent: { contentOffset: { x: 0, y: 60 }, contentSize: { width: 360, height: 360 }, layoutMeasurement: { width: 360, height: 300 } },
+    });
+    expect(screen.queryByTestId('more-below')).toBeNull();
+  });
+
+  it('draws no fade when the form fits', async () => {
+    windowOf(411, 914);
+    await showSheet();
+    await ready();
+    const scroll = screen.getByTestId('sheet-scroll');
+    await fireEvent(scroll, 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 411, height: 500 } } });
+    await fireEvent(scroll, 'contentSizeChange', 411, 420);
+    expect(screen.queryByTestId('more-below')).toBeNull();
+  });
 });
 
 it('says to add an account first when there is no open on-budget account, with no keypad', async () => {

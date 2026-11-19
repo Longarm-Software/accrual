@@ -985,10 +985,12 @@ it('leaves an open sheet and its draft alone, and refreshes the Plan behind it',
   await waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
   // The Plan behind has moved to the new day.
   expect(await screen.findByText('$18 a day for 11 days')).toBeTruthy();
-  // The sheet keeps what was typed, and the day it was opened on.
+  // The sheet keeps what was typed, date included, and follows the Plan's day: that date is
+  // now yesterday, and the forward arrow can move it to today.
   expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
   expect(screen.getByTestId('amount-display')).toHaveTextContent(/7/);
-  expect(screen.getByLabelText('Date, Today')).toBeTruthy();
+  expect(screen.getByLabelText('Date, Yesterday')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Later day' }).props.accessibilityState).toMatchObject({ disabled: false });
   await fireEvent.press(screen.getByRole('button', { name: 'No category, choose one' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Groceries, $207.62' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Save' }));

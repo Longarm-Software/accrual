@@ -1,4 +1,4 @@
-import { emptyEntry, entryCents, press, type Entry, type Key } from './amountEntry';
+import { emptyEntry, entryCents, entryText, press, type Entry, type Key } from './amountEntry';
 
 const e = (digits: string, decimals: string | null = null): Entry => ({ digits, decimals });
 const typed = (keys: Key[]): Entry => keys.reduce(press, emptyEntry);
@@ -63,4 +63,28 @@ describe('entryCents', () => {
   });
   it('the most is 999999999 cents, exactly', () => expect(entryCents(e('9999999', '99'))).toBe(999999999));
   it('typing .3 gives exactly 30 cents', () => expect(entryCents(typed(['.', '3']))).toBe(30));
+});
+
+describe('entryText: the amount as typed, sign first', () => {
+  // [entry, income, whole, fraction, dimmed, spoken]
+  it.each<[Entry, boolean, string, string, boolean, string]>([
+    [emptyEntry, false, '$0', '.00', true, '$0.00'],
+    [emptyEntry, true, '$0', '.00', true, '$0.00'],
+    [e('18'), false, '−$18', '', false, '−$18.00'],
+    [e('18', ''), false, '−$18', '.', false, '−$18.00'],
+    [e('18', '4'), false, '−$18', '.4', false, '−$18.40'],
+    [e('18', '40'), false, '−$18', '.40', false, '−$18.40'],
+    [e('18', '4'), true, '+$18', '.4', false, '+$18.40'],
+    [e('1250'), false, '−$1,250', '', false, '−$1,250.00'],
+    [e('1234', '5'), false, '−$1,234', '.5', false, '−$1,234.50'],
+    [e('9999999', '99'), false, '−$9,999,999', '.99', false, '−$9,999,999.99'],
+    [e('0', ''), false, '−$0', '.', false, '$0.00'],
+    [e('0', '5'), false, '−$0', '.5', false, '−$0.50'],
+  ])('%j (income %s) draws %s%s', (entry, income, whole, fraction, dimmed, label) => {
+    expect(entryText(entry, income)).toEqual({ whole, fraction, dimmed, label });
+  });
+  it('deleting a trailing decimal changes what is drawn', () => {
+    expect(entryText(press(e('18', '40'), 'back'), false)).not.toEqual(entryText(e('18', '40'), false));
+    expect(entryText(press(e('18'), '.'), false)).not.toEqual(entryText(e('18'), false));
+  });
 });

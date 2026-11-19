@@ -4,7 +4,7 @@ import { Alert } from 'react-native';
 import type { AccountChoice, Engine, PayeeChoice, PlanMonth, QuickAddLists } from '../../engine/types';
 import { currentMonth } from '../../lib/month';
 import { announceSaved } from '../plan/quickAddSignal';
-import { entryCents, press, type Key } from './amountEntry';
+import { entryText, press, type EntryText, type Key } from './amountEntry';
 import {
   canSave, canStepForward, cardView, categoryChoices, dateLabel, expenseCategoryIds, newDraft, resolvePayee, stepDate,
   toggleIncome, toTransaction, withAccount, withCategory, withPayee, withPayeeText,
@@ -20,8 +20,8 @@ export type QuickAddReady = {
   state: 'ready';
   /** No open, on-budget account: nothing can be saved, and the sheet says so. */
   noAccounts: boolean;
-  cents: number;
-  income: boolean;
+  /** The amount as typed, with its sign, and whether it is the dimmed "$0.00". */
+  amount: EntryText;
   payeeText: string;
   payeeMatches: PayeeChoice[];
   card: CardView;
@@ -53,7 +53,8 @@ type Loaded = { lists: QuickAddLists; plan: PlanMonth };
 
 /**
  * The quick-add sheet's state: reads the lists and this month's plan, holds the draft, saves.
- * `today` is the Plan's, read once when the sheet opens. After a save it calls `onSaved` (the
+ * `today` is the Plan's, followed while the sheet is open: the date's label and its limit move
+ * with it, and the draft and the lists stay as they are. After a save it calls `onSaved` (the
  * sheet closes), then tells the Plan, which reads its month and syncs.
  */
 export function useQuickAdd(engine: Engine, today: Date, { onSaved }: { onSaved(): void }): QuickAdd {
@@ -73,14 +74,22 @@ export function useQuickAdd(engine: Engine, today: Date, { onSaved }: { onSaved(
     };
   }, []);
 
+  // The day to load with, read by the load below without making it a reason to load again:
+  // a new day (the sheet left open past midnight) keeps the lists and the draft as they are.
+  const day = useRef(today);
+  useEffect(() => {
+    day.current = today;
+  }, [today]);
+
   useEffect(() => {
     let live = true;
     setFailed(false);
-    Promise.all([engine.getQuickAddLists(), engine.getPlanMonth(currentMonth(today))]).then(
+    const opening = day.current;
+    Promise.all([engine.getQuickAddLists(), engine.getPlanMonth(currentMonth(opening))]).then(
       ([lists, plan]) => {
         if (!live) return;
         setLoaded({ lists, plan });
-        setDraft(newDraft(lists, today));
+        setDraft(newDraft(lists, opening));
       },
       () => {
         if (live) setFailed(true);
@@ -89,7 +98,7 @@ export function useQuickAdd(engine: Engine, today: Date, { onSaved }: { onSaved(
     return () => {
       live = false;
     };
-  }, [engine, today, attempt]);
+  }, [engine, attempt]);
 
   const change = useCallback((next: (d: Draft) => Draft) => {
     setDraft(d => (d === null ? d : next(d)));
@@ -133,8 +142,7 @@ export function useQuickAdd(engine: Engine, today: Date, { onSaved }: { onSaved(
   return {
     state: 'ready',
     noAccounts: lists.accounts.length === 0,
-    cents: entryCents(draft.entry),
-    income: draft.income,
+    amount: entryText(draft.entry, draft.income),
     payeeText: draft.payeeText,
     payeeMatches: matchPayees(lists.payees, draft.payeeText),
     card,

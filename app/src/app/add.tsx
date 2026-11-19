@@ -1,20 +1,22 @@
 import { Redirect, router } from 'expo-router';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { KeyboardAvoidingView, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Engine } from '../engine/types';
-import { getPlanToday } from '../features/plan/quickAddSignal';
+import { getPlanToday, onPlanTodayChange } from '../features/plan/quickAddSignal';
 import { AmountDisplay } from '../features/quickAdd/AmountDisplay';
 import { CategoryCard } from '../features/quickAdd/CategoryCard';
 import { DateStepper } from '../features/quickAdd/DateStepper';
 import { Keypad } from '../features/quickAdd/Keypad';
 import { PayeeField } from '../features/quickAdd/PayeeField';
 import { PickerList } from '../features/quickAdd/PickerList';
+import { moreBelow, sheetDensity } from '../features/quickAdd/sheetLayout';
 import { useQuickAdd, type QuickAddReady } from '../features/quickAdd/useQuickAdd';
 import { useSession } from '../session/SessionProvider';
-import { radius, size, space, tint, type } from '../theme/tokens';
+import { radius, sheet, size, space, tint, type, withAlpha } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AuroraBackground } from '../ui/AuroraBackground';
 import { Button } from '../ui/Button';
@@ -32,13 +34,15 @@ import { Body } from '../ui/Text';
  */
 export default function Add() {
   const session = useSession();
-  // Read once, when the sheet opens: the Plan's day, not one read again here. The Plan renews
-  // its day when the app comes back from the background, so a sheet opened after that dates the
-  // new day. A sheet already open keeps its draft, date included, and the day it opened with:
-  // the draft is built from that day, and renewing it would start the draft again.
-  const [today] = useState(getPlanToday);
-  if (session.status !== 'open' || !session.engine || today === null) return <Redirect href="/" />;
-  return <Sheet engine={session.engine} today={today} />;
+  // The Plan's day, never one read from the clock here. The Plan renews its day when the app
+  // comes back from the background, and an open sheet follows it: left open past midnight, its
+  // draft keeps everything typed, date included, and that date now reads "Yesterday". The day it
+  // opened with decides only whether there is a Plan behind it at all, and stands in while the
+  // Plan's day is briefly unset as it changes.
+  const [opened] = useState(getPlanToday);
+  const live = useSyncExternalStore(onPlanTodayChange, getPlanToday);
+  if (session.status !== 'open' || !session.engine || opened === null) return <Redirect href="/" />;
+  return <Sheet engine={session.engine} today={live ?? opened} />;
 }
 
 const close = () => router.back();
@@ -111,12 +115,19 @@ type Picker = 'category' | 'account' | null;
  * The form. While the payee field has focus the system keyboard is up, so the keypad is put
  * away: the two never share the screen, and the payee's matches get the room. Picking a
  * payee or leaving the field brings the keypad back.
+ *
+ * On a short screen (or with large text) the sheet is compact: smaller keys, amount and gaps, so
+ * the amount, payee, category card and account and date fit above the keypad. Whatever does not
+ * fit scrolls, and a fade at the bottom of the form says there is more.
  */
 function Form({ quick }: { quick: QuickAddReady }) {
   const theme = useTheme();
   const { bottom } = useSafeAreaInsets();
   const [picker, setPicker] = useState<Picker>(null);
   const [typingPayee, setTypingPayee] = useState(false);
+  const { height, fontScale } = useWindowDimensions();
+  const density = sheetDensity(height, fontScale);
+  const [scroll, setScroll] = useState({ offset: 0, viewport: 0, content: 0 });
 
   if (picker === 'category') {
     return (
@@ -157,63 +168,83 @@ function Form({ quick }: { quick: QuickAddReady }) {
     );
   }
 
+  const { gap } = sheet[density];
   return (
     // "padding" on both platforms: Android draws the app edge to edge, so the window no longer
     // shrinks for the keyboard and the payee matches would sit under it.
     <KeyboardAvoidingView testID="sheet-form" style={{ flex: 1 }} behavior="padding">
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.lg, gap: space.lg }}
-        // A tap on a payee match must pick it, not just close the keyboard.
-        keyboardShouldPersistTaps="handled"
-      >
-        <AmountDisplay cents={quick.cents} income={quick.income} />
-        <PayeeField
-          text={quick.payeeText}
-          matches={quick.payeeMatches}
-          onChangeText={quick.typePayee}
-          onPick={payee => {
-            quick.pickPayee(payee);
-            setTypingPayee(false);
-          }}
-          onFocusChange={setTypingPayee}
-        />
-        <CategoryCard
-          name={quick.card.name}
-          suggested={quick.card.suggested}
-          bite={quick.card.bite}
-          onPress={() => setPicker('category')}
-        />
-        <View style={{ flexDirection: 'row', gap: space.sm }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Account, ${quick.accountName}`}
-            onPress={() => setPicker('account')}
-            style={({ pressed }) => ({ flex: 1, opacity: pressed ? tint.pressed : 1 })}
-          >
-            <Glass radius={radius.pill} style={{ minHeight: size.touch, justifyContent: 'center', paddingHorizontal: space.lg }}>
-              <Text style={[type.meta, { color: theme.color.ink }]} numberOfLines={1}>
-                {quick.accountName}
-              </Text>
-            </Glass>
-          </Pressable>
-          <DateStepper label={quick.dateLabel} canGoForward={quick.canGoForward} onStep={quick.stepDate} />
-        </View>
-        {quick.error && (
-          <Body style={[type.notice, { textAlign: 'center' }]} color={theme.color.over} accessibilityLiveRegion="polite">
-            {quick.error}
-          </Body>
+      <View style={{ flex: 1 }}>
+        <ScrollView
+          testID="sheet-scroll"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: gap, gap }}
+          // A tap on a payee match must pick it, not just close the keyboard.
+          keyboardShouldPersistTaps="handled"
+          onLayout={e => setScroll(s => ({ ...s, viewport: e.nativeEvent.layout.height }))}
+          onContentSizeChange={(_w, h) => setScroll(s => ({ ...s, content: h }))}
+          onScroll={e => setScroll(s => ({ ...s, offset: e.nativeEvent.contentOffset.y }))}
+          scrollEventThrottle={16}
+        >
+          <AmountDisplay text={quick.amount} density={density} />
+          <PayeeField
+            text={quick.payeeText}
+            matches={quick.payeeMatches}
+            onChangeText={quick.typePayee}
+            onPick={payee => {
+              quick.pickPayee(payee);
+              setTypingPayee(false);
+            }}
+            onFocusChange={setTypingPayee}
+            density={density}
+          />
+          <CategoryCard
+            name={quick.card.name}
+            suggested={quick.card.suggested}
+            bite={quick.card.bite}
+            onPress={() => setPicker('category')}
+            density={density}
+          />
+          <View style={{ flexDirection: 'row', gap: space.sm }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Account, ${quick.accountName}`}
+              onPress={() => setPicker('account')}
+              style={({ pressed }) => ({ flex: 1, opacity: pressed ? tint.pressed : 1 })}
+            >
+              <Glass radius={radius.pill} style={{ minHeight: size.touch, justifyContent: 'center', paddingHorizontal: space.lg }}>
+                <Text style={[type.meta, { color: theme.color.ink }]} numberOfLines={1}>
+                  {quick.accountName}
+                </Text>
+              </Glass>
+            </Pressable>
+            <DateStepper label={quick.dateLabel} canGoForward={quick.canGoForward} onStep={quick.stepDate} />
+          </View>
+          {quick.error && (
+            <Body style={[type.notice, { textAlign: 'center' }]} color={theme.color.over} accessibilityLiveRegion="polite">
+              {quick.error}
+            </Body>
+          )}
+        </ScrollView>
+        {moreBelow(scroll) && (
+          // The form goes on under the keypad (a short screen, large text, or the warning): say so.
+          <LinearGradient
+            testID="more-below"
+            pointerEvents="none"
+            colors={[withAlpha(theme.color.page, 0), theme.color.page]}
+            style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: space.xl }}
+          />
         )}
-      </ScrollView>
+      </View>
       {!typingPayee && (
         // Clear of the home indicator on iOS and of Android's navigation bar, drawn over the page.
-        <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.lg + bottom }}>
+        <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: gap + bottom }}>
           <Keypad
             onKey={quick.press}
             onToggleSign={quick.toggleSign}
             onSave={() => void quick.save()}
             canSave={quick.canSave}
             over={quick.over}
+            density={density}
           />
         </View>
       )}
