@@ -13,7 +13,7 @@ import { GroupHeader } from '../features/plan/GroupHeader';
 import { HeroCard } from '../features/plan/HeroCard';
 import { MonthSwitcher } from '../features/plan/MonthSwitcher';
 import { Notice } from '../features/plan/Notice';
-import { groupAvailable, hasCategories, heroView, overspentNotice } from '../features/plan/planSummary';
+import { groupAvailable, hasCategories, heroView, overspentNotice, syncLabel } from '../features/plan/planSummary';
 import { usePlanMonth } from '../features/plan/usePlanMonth';
 import { compareMonths, currentMonth } from '../lib/month';
 import { useSession } from '../session/SessionProvider';
@@ -40,9 +40,11 @@ export default function Home() {
   if (session.status === 'closed') return <Redirect href="/opening" />;
   if (!session.engine) return <AuroraBackground>{null}</AuroraBackground>;
   return (
+    // No key is needed to start afresh on a new engine: signing out, choosing a budget or a
+    // failed open all leave the 'open' status, which unmounts Plan through a redirect, and
+    // status is never 'open' across two engines. (The session token must not be a key: React
+    // DevTools and development warnings can show keys.)
     <Plan
-      // A different engine (signed in again) starts the screen afresh, offline state included.
-      key={session.saved?.sessionToken}
       engine={session.engine}
       budgetName={session.saved?.budget?.name ?? ''}
       onSignOut={() => void session.signOut()}
@@ -80,7 +82,7 @@ function Plan({ engine, budgetName, onSignOut }: PlanProps) {
     );
   }
 
-  const syncChip = plan.offline ? 'Offline' : plan.syncFailed ? 'Not synced' : null;
+  const syncChip = syncLabel(plan);
   return (
     <Page>
       <ScrollView
