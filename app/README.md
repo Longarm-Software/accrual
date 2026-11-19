@@ -25,6 +25,8 @@ app/                               (was spike/app)
       index.tsx                    Home: Ready to budget; redirects when not ready
       connect.tsx                  server address, password, budget list
       opening.tsx                  first-download and reopen progress
+    app-tests/                     tests for the screens in app/ (Expo Router bundles every
+                                   file under app/ as a route, so tests cannot live there)
     engine/
       types.ts                     Engine, RemoteBudget, BudgetMonth, OpenStage, EngineError
       adapter.ts                   createEngine(): the only file that touches the bundle
@@ -96,8 +98,32 @@ The test server's address from the app:
 - iOS simulator: `http://127.0.0.1:5007`
 - Android emulator: `http://10.0.2.2:5007`
 
-Until the connect screen exists the app shows a placeholder; use the scripted run below to
-exercise the engine on a device.
+When `app/.env.local` sets `EXPO_PUBLIC_SPIKE_AUTORUN=1`, Home hands over to the scripted run
+below instead of the app. To use the app itself, move that file aside and restart Metro with
+`--clear` so the change is picked up.
+
+## What works
+
+The eight checks from the foundation plan, run by hand on 2026-11-19 against the test server.
+
+| # | Check | iOS simulator | Android emulator |
+|---|---|---|---|
+| 1 | First launch shows **Connect to your Actual server** | Passed | Passed |
+| 2 | An `http://` address without **Allow plain HTTP** says the address is not encrypted | Not run | Passed |
+| 3 | With **Allow plain HTTP** on, "Spike Small" and "Spike Large" are listed | Not run | Passed |
+| 4 | A wrong password says "That password is not right." | Not run | Passed |
+| 5 | **Open Spike Large** shows "Downloading", then "Syncing", with the ring turning | Not run | Passed |
+| 6 | Home shows "Spike Large" and Ready to budget, matching `@actual-app/api` to the cent | Not run | Passed |
+| 7 | After the app is closed and reopened: "Opening", then "Syncing", then Home, no password | Not run | Passed |
+| 8 | **Sign out** returns to Connect, and the app still opens on Connect afterwards | Not run | Passed |
+
+**iOS:** the app was built (Xcode 26.6), installed and launched on the simulator, and check 1
+was confirmed from a screenshot. Checks 2 to 8 were not run: nothing on the build machine can tap
+or type on the simulator.
+
+**Android:** check 6 was compared with the reference client in `tools/test-server`
+(`scripts/reference.mjs months`) rather than the web app. For check 7 the app was stopped with
+`adb shell am force-stop`, which ends the process as closing it from the app switcher does.
 
 ### Scripted run
 

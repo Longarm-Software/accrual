@@ -15,8 +15,8 @@ envelope-budgeting UI. Built by Longarm Software.
 
 ## Status
 
-Phase 0 spike done: the engine runs on the iOS simulator and an Android emulator. Phase 1 is next. See [docs/spike-results.md](docs/spike-results.md)
-and [docs/plan.md](docs/plan.md).
+Phase 1 is under way. The app connects to a server, downloads a budget and shows this month's
+Ready to budget. See [the roadmap](docs/superpowers/plans/2026-11-19-phase-1-roadmap.md).
 
 ## Docs
 

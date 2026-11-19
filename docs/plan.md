@@ -40,8 +40,9 @@ If the spike fails, use the fallback in [architecture.md](architecture.md#fallba
 and record the decision in `docs/decisions/`.
 
 ### Phase 1: Personal MVP
-- Server setup screen (URL and password) with the password stored in Keychain/Keystore.
-- Budget picker.
+- [x] Server setup screen (URL and password). The password is not stored: only the session
+  token the server returns is kept, in Keychain/Keystore.
+- [x] Budget picker.
 - **Plan screen:** month switcher, To Budget banner, category groups, and category cards with a
   progress bar, an Available pill and a target status.
 - **Category detail:** activity list, target, and moving money in or out (cover overspending).

@@ -19,4 +19,7 @@ jest.mock('expo-secure-store', () => {
   };
 });
 
+// Home redirects to the developer check when this is set; tests want the real screen.
+delete process.env.EXPO_PUBLIC_SPIKE_AUTORUN;
+
 export {};

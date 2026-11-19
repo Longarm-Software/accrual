@@ -6,7 +6,7 @@ import { fakeEngine } from '../session/fakeEngine';
 import { SessionProvider } from '../session/SessionProvider';
 import type { CreateEngine } from '../session/SessionProvider';
 import { loadSession } from '../session/storage';
-import Connect from './connect';
+import Connect from '../app/connect';
 
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({ router: { replace: (...args: unknown[]) => mockReplace(...args) } }));
