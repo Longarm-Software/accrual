@@ -1,6 +1,6 @@
 import type { PlanMonth } from '../../engine/types';
 import { fakePlanMonth } from '../../session/fakeEngine';
-import { groupAvailable, hasCategories, heroLabel, heroView, overspentNotice } from './planSummary';
+import { groupAvailable, hasCategories, heroLabel, heroView, overspentNotice, syncLabel } from './planSummary';
 
 const month = (over: Partial<PlanMonth>): PlanMonth => ({ ...fakePlanMonth, ...over });
 
@@ -99,5 +99,20 @@ describe('hasCategories', () => {
   it('is false with no groups, or only empty groups', () => {
     expect(hasCategories(month({ groups: [] }))).toBe(false);
     expect(hasCategories(month({ groups: [{ id: 'g', name: 'Empty', categories: [] }] }))).toBe(false);
+  });
+});
+
+describe('syncLabel', () => {
+  it('says nothing when the last sync was fine', () => {
+    expect(syncLabel({ offline: false, syncFailed: false })).toBeNull();
+  });
+  it('says Offline when the server could not be reached', () => {
+    expect(syncLabel({ offline: true, syncFailed: false })).toBe('Offline');
+  });
+  it('says Not synced when the sync failed for another reason', () => {
+    expect(syncLabel({ offline: false, syncFailed: true })).toBe('Not synced');
+  });
+  it('prefers Offline if both are set', () => {
+    expect(syncLabel({ offline: true, syncFailed: true })).toBe('Offline');
   });
 });

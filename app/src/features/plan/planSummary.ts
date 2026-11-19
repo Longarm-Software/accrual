@@ -63,3 +63,10 @@ export function groupAvailable(group: PlanGroup): number {
 export function hasCategories(month: PlanMonth): boolean {
   return month.groups.some(g => g.categories.length > 0);
 }
+
+/** The chip beside the month: why the numbers may be behind the server, or null when they are not. */
+export function syncLabel(sync: { offline: boolean; syncFailed: boolean }): string | null {
+  if (sync.offline) return 'Offline';
+  if (sync.syncFailed) return 'Not synced';
+  return null;
+}
