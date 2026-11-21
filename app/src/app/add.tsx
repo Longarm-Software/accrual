@@ -1,4 +1,4 @@
-import { Redirect, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useState, useSyncExternalStore } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { KeyboardAvoidingView, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
@@ -18,6 +18,7 @@ import { useSession } from '../session/SessionProvider';
 import { radius, sheet, size, space, tint, type, withAlpha } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AuroraBackground } from '../ui/AuroraBackground';
+import { BackToPlan } from '../ui/BackToPlan';
 import { Button } from '../ui/Button';
 import { Centre, Message } from '../ui/Centre';
 import { Glass } from '../ui/Glass';
@@ -42,7 +43,7 @@ export default function Add() {
   // Plan's day is briefly unset as it changes.
   const [opened] = useState(getPlanToday);
   const live = useSyncExternalStore(onPlanTodayChange, getPlanToday);
-  if (session.status !== 'open' || !session.engine || opened === null) return <Redirect href="/" />;
+  if (session.status !== 'open' || !session.engine || opened === null) return <BackToPlan />;
   return <Sheet engine={session.engine} today={live ?? opened} />;
 }
 

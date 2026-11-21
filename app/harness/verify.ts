@@ -269,6 +269,24 @@ async function main() {
     `(${planCategories.length} categories, ${activityRows} rows, ${activityChildren} split children` +
       `${activityWrong.length ? `; wrong: ${activityWrong.join(', ')}` : ''})`);
 
+  // A past month: its rows are that month's only, not every later month's too (a filter with both
+  // `$gte` and `$lte` on one field keeps only one of them in Actual's query language).
+  const [year, mon] = month.split('-').map(Number);
+  const lastMonth = mon === 1 ? `${year - 1}-12` : `${year}-${String(mon - 1).padStart(2, '0')}`;
+  const referencePast = reference('activity', small.groupId, lastMonth);
+  const pastWrong: string[] = [];
+  let pastRows = 0;
+  for (const c of (await engine.getPlanMonth(lastMonth)).groups.flatMap((g: any) => g.categories)) {
+    const rows = await engine.getCategoryActivity(c.id, lastMonth);
+    const expected = referencePast[c.id] ?? { ids: [], children: 0, sum: 0 };
+    if (!isDeepStrictEqual(rows.map((r: any) => r.id), expected.ids) || !rows.every((r: any) => r.date.startsWith(lastMonth))) {
+      pastWrong.push(c.name);
+    }
+    pastRows += rows.length;
+  }
+  check('activity: a past month lists that month\'s transactions only, as the reference client does',
+    pastWrong.length === 0 && pastRows > 0, `(${lastMonth}, ${pastRows} rows${pastWrong.length ? `; wrong: ${pastWrong.join(', ')}` : ''})`);
+
   // Rows the seed wrote for this check (tools/test-server/scripts/seed.mjs), found by their notes.
   // Expected figures come from the seed, not from the adapter's query.
   const seeded = async (notes: string) =>

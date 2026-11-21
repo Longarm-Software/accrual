@@ -31,8 +31,10 @@ export function HeroCard({ hero, action }: { hero: HeroView; action?: CardAction
         />
       )}
       <View style={{ padding: space.xl }}>
-        {/* The label's line reads the whole figure out, so the pill beside it stays its own button. */}
-        <View testID="hero-header" style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+        {/* The label's line reads the whole figure out, so the pill beside it stays its own button.
+            It is the pill's height with or without one, so the amount sits at the same place in
+            every month. */}
+        <View testID="hero-header" style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: size.action }}>
           <View accessible accessibilityLabel={heroLabel(hero)} style={{ flex: 1 }}>
             <Label style={type.name}>{hero.label}</Label>
           </View>

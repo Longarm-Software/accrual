@@ -1,4 +1,4 @@
-import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
@@ -17,6 +17,7 @@ import { useSession } from '../session/SessionProvider';
 import { radius, size, space, tint, type, withAlpha, sheet } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AuroraBackground } from '../ui/AuroraBackground';
+import { BackToPlan } from '../ui/BackToPlan';
 import { Button } from '../ui/Button';
 import { Centre, Message } from '../ui/Centre';
 import { Chevron } from '../ui/Chevron';
@@ -33,7 +34,7 @@ import { Body } from '../ui/Text';
  *
  * It acts on the month the Plan is showing when it opens, read from the Plan as quick add reads
  * its "today". Opened any other way (a deep link, no open budget, no Plan behind it) or for a
- * month before the current one, it goes to "/" without showing a form.
+ * month before the current one, it goes back to the Plan (see BackToPlan) without showing a form.
  */
 export default function Move() {
   const session = useSession();
@@ -41,7 +42,7 @@ export default function Move() {
   const [opened] = useState(() => ({ shown: getPlanShown(), today: getPlanToday(), link: parseMoveParams(params) }));
   const { shown, today, link } = opened;
   if (session.status !== 'open' || !session.engine || shown === null || today === null || !canChange(shown.month, today)) {
-    return <Redirect href="/" />;
+    return <BackToPlan />;
   }
   return <Sheet engine={session.engine} month={shown.month} link={link} />;
 }
@@ -131,11 +132,6 @@ function Form({ move }: { move: MoveSheetReady }) {
             <SwapButton onPress={move.swap} />
             <PotCard label="To" name={view.to.name} bar={view.to.gain} onPress={() => setPicker('to')} density={density} />
           </View>
-          {move.error && (
-            <Body style={[type.notice, { textAlign: 'center' }]} color={theme.color.over} accessibilityLiveRegion="polite">
-              {move.error}
-            </Body>
-          )}
         </ScrollView>
         {moreBelow(scroll) && (
           <LinearGradient
@@ -146,8 +142,15 @@ function Form({ move }: { move: MoveSheetReady }) {
           />
         )}
       </View>
-      {/* Clear of the home indicator on iOS and of Android's navigation bar, drawn over the page. */}
-      <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: gap + bottom }}>
+      {/* Clear of the home indicator on iOS and of Android's navigation bar, drawn over the page.
+          A failed move's message sits here, just above the keypad, where it is seen: at the end
+          of the scroll it was under the keypad on a phone. */}
+      <View testID="move-footer" style={{ paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: gap + bottom, gap: space.sm }}>
+        {move.error && (
+          <Body style={[type.notice, { textAlign: 'center' }]} color={theme.color.over} accessibilityLiveRegion="polite">
+            {move.error}
+          </Body>
+        )}
         <Keypad
           sign={false}
           onKey={move.press}

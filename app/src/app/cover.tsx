@@ -1,4 +1,4 @@
-import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { useSession } from '../session/SessionProvider';
 import { radius, size, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AuroraBackground } from '../ui/AuroraBackground';
+import { BackToPlan } from '../ui/BackToPlan';
 import { Button } from '../ui/Button';
 import { Centre, Message } from '../ui/Centre';
 import { Glass } from '../ui/Glass';
@@ -30,7 +31,7 @@ import { Body, Label } from '../ui/Text';
  *
  * It acts on the month the Plan is showing when it opens. Opened any other way (a deep link, no
  * open budget, no Plan behind it), for a month before the current one, or for a category that is
- * not overspent, it goes to "/" without showing a form.
+ * not overspent, it goes back to the Plan (see BackToPlan) without showing a form.
  */
 export default function Cover() {
   const session = useSession();
@@ -41,7 +42,7 @@ export default function Cover() {
     session.status !== 'open' || !session.engine || shown === null || today === null ||
     !canChange(shown.month, today) || link.category === undefined
   ) {
-    return <Redirect href="/" />;
+    return <BackToPlan />;
   }
   return <Sheet engine={session.engine} month={shown.month} category={link.category} />;
 }
@@ -50,7 +51,7 @@ const close = () => router.back();
 
 function Sheet({ engine, month, category }: { engine: Engine; month: string; category: string }) {
   const cover = useCoverSheet(engine, month, category, { onDone: close });
-  if (cover.state === 'nothing') return <Redirect href="/" />;
+  if (cover.state === 'nothing') return <BackToPlan />;
   return (
     <AuroraBackground>
       <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
@@ -103,13 +104,15 @@ function Form({ cover }: { cover: CoverSheetReady }) {
             ))}
           </View>
         </View>
+      </ScrollView>
+      {/* A failed cover's message sits just above the button, where it is seen: at the end of
+          the list of sources it was out of sight. */}
+      <View testID="cover-footer" style={{ paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.lg + bottom, gap: space.sm }}>
         {cover.error && (
           <Body style={[type.notice, { textAlign: 'center' }]} color={theme.color.over} accessibilityLiveRegion="polite">
             {cover.error}
           </Body>
         )}
-      </ScrollView>
-      <View testID="cover-footer" style={{ paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.lg + bottom }}>
         <Button title={view.button} onPress={() => void cover.save()} disabled={!cover.canSave} />
       </View>
     </View>

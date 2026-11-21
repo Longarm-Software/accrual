@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -21,7 +21,7 @@ jest.mock('expo-router', () => ({
     mockRedirect(href);
     return null;
   },
-  router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
+  router: { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() },
   useLocalSearchParams: () => mockParams,
 }));
 
@@ -257,6 +257,20 @@ it('reads the plan again when the budget changed under it, keeps the form, and s
   expect(screen.getByRole('button', { name: 'Move' }).props.accessibilityState).toMatchObject({ disabled: true });
 });
 
+it('puts a failed move\'s message just above the keypad, where it is seen, not at the end of the scroll', async () => {
+  const moveMoney = jest.fn(async () => {
+    throw new EngineError('stale', 'x');
+  });
+  await showSheet({ from: 'cat-groceries', to: 'cat-rent' }, fakeEngine({ moveMoney }));
+  await keypad();
+  await type('5');
+  await key('Move');
+  const message = 'That changed while you were here. Check the numbers and try again.';
+  await screen.findByText(message);
+  expect(within(screen.getByTestId('move-footer')).getByText(message)).toBeTruthy();
+  expect(within(screen.getByTestId('sheet-scroll')).queryByText(message)).toBeNull();
+});
+
 it('closes without moving on Cancel', async () => {
   const moveMoney = jest.fn(async () => {});
   await showSheet({ from: 'cat-groceries', to: 'cat-rent' }, fakeEngine({ moveMoney }));
@@ -295,18 +309,21 @@ describe('sending a sheet with nothing to act on back to the Plan', () => {
     setPlanShown({ month: '2026-10', plan: { ...fakePlanMonth, month: '2026-10' } });
     const getPlanMonth = jest.fn(async () => fakePlanMonth);
     await showSheet({ from: READY }, fakeEngine({ getPlanMonth }));
-    await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/'));
     expect(getPlanMonth).not.toHaveBeenCalled();
+    // Down the stack to the Plan already under the sheet: a redirect replaced the sheet with a
+    // second Plan over the first.
+    expect(mockRedirect).not.toHaveBeenCalledWith('/');
   });
   it('no Plan showing', async () => {
     setPlanShown(null);
     await showSheet({ from: READY });
-    await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/'));
   });
   it('no open budget', async () => {
     mockParams = { from: READY };
     await render(<SessionProvider create={async () => fakeEngine()}><Move /></SessionProvider>);
-    await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/'));
   });
 });
 

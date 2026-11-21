@@ -20,7 +20,7 @@ jest.mock('expo-router', () => ({
     mockRedirect(href);
     return null;
   },
-  router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
+  router: { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() },
   useLocalSearchParams: () => mockParams,
 }));
 
@@ -183,12 +183,12 @@ it('sends a deep link to the Plan when the Plan is not showing', async () => {
   setPlanShown(null);
   const getCategoryActivity = jest.fn(async () => []);
   await showCategory('cat-dining', fakeEngine({ getCategoryActivity }));
-  await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+  await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/'));
   expect(getCategoryActivity).not.toHaveBeenCalled();
 });
 
 it('sends a deep link with no open budget to the Plan', async () => {
   mockParams = { id: 'cat-dining' };
   await render(<SessionProvider create={async () => fakeEngine()}><Category /></SessionProvider>);
-  await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+  await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/'));
 });

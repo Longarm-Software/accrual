@@ -20,9 +20,12 @@ screen: a month switcher, Ready to budget, a notice when categories are overspen
 each category saying what it has left. Pull to refresh syncs, and without a connection the app
 opens the copy on the phone and says it is offline. A round + on the Plan opens quick add: type
 an amount on the keypad, pick or type a payee (its usual category is suggested), and see what the
-category will have left before saving. Saving works offline and syncs later. All of this has been
-checked on an Android emulator; on the iOS simulator only that the app builds and opens. Next is
-moving money (covering overspending, moving between categories, assigning). See
+category will have left before saving. Saving works offline and syncs later. Tapping a category
+opens its screen: what it has, how that came about, and the month's transactions. Money moves
+between categories and Ready to budget from one sheet (Assign and Fix on the top card open it
+too), and the notice's Cover button covers an overspent category from the pot you choose. All of
+this has been checked on an Android emulator; on the iOS simulator only that the app builds and
+opens. Next is transactions: the account list, the register, and editing what was entered. See
 [the roadmap](docs/superpowers/plans/2026-11-19-phase-1-roadmap.md).
 
 ## Docs

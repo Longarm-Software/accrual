@@ -1,4 +1,4 @@
-import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useSyncExternalStore } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { useSession } from '../../session/SessionProvider';
 import { amount, size, space, tint, type } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { AuroraBackground } from '../../ui/AuroraBackground';
+import { BackToPlan } from '../../ui/BackToPlan';
 import { BottomFade } from '../../ui/BottomFade';
 import { Button } from '../../ui/Button';
 import { Message } from '../../ui/Centre';
@@ -36,7 +37,7 @@ import { Body, Label, Title } from '../../ui/Text';
  * Plan's own read of that month (published in planSignal), so after a move, a cover or a sync
  * the Plan reads once and both screens show it. Should the Plan move to another month under it
  * (back from the background on a new month), it keeps the last read of its own month. Opened
- * with no open budget or no Plan behind it (a deep link), it goes to "/".
+ * with no open budget or no Plan behind it (a deep link), it goes back to the Plan (see BackToPlan).
  */
 export default function Category() {
   const session = useSession();
@@ -53,7 +54,7 @@ export default function Category() {
   const plan = live ?? kept;
 
   if (session.status !== 'open' || !session.engine || month === null || plan === null || today === null) {
-    return <Redirect href="/" />;
+    return <BackToPlan />;
   }
   const id = parseId(params.id);
   const category = id === null ? undefined : plan.groups.flatMap(g => g.categories).find(c => c.id === id);

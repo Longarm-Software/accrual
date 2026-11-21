@@ -342,7 +342,9 @@ export async function createEngine(
         .options({ splits: 'inline' })
         .filter({
           category: categoryId,
-          date: { $gte: `${month}-01`, $lte: `${month}-31` },
+          // Two conditions, not `{ $gte, $lte }` in one object: given both on one field, AQL keeps
+          // only one, and a past month listed every later month's transactions too.
+          $and: [{ date: { $gte: `${month}-01` } }, { date: { $lte: `${month}-31` } }],
           'account.offbudget': false,
           tombstone: false,
         })

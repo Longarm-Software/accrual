@@ -12,7 +12,7 @@ last one, and each gets its own detailed plan written just before it starts.
 | 1 | [Foundation](2026-11-19-foundation.md) | Connect to a server, pick a budget, watch it download, and land on a screen showing this month's Ready to budget | Round 2 "Connect"; ADR 0002 |
 | 2 | Plan screen (built; checked on an Android emulator, see [app/README.md](../../../app/README.md#what-works)) | The real Plan: month switcher, top card, one notice, category tiles, pull to refresh | Round 1 B "Plan"; round 2 stress cases (long names, largest text, overbudgeted, offline) |
 | 3 | [Quick add](2026-11-19-quick-add.md) (built; checked on an Android emulator, see [app/README.md](../../../app/README.md#what-works)) | Add a transaction from anywhere, with the bite | Round 3 "Quick add" and "more than the category has" |
-| 4 | Moving money | Category screen, Move money, Cover overspending, Assign | Round 1 B "Category"; round 3 "Cover", "Move money", "Assign" |
+| 4 | [Moving money](2026-11-21-moving-money.md) (built; checked on an Android emulator, see [app/README.md](../../../app/README.md#what-works)) | Category screen, Move money, Cover overspending, Assign | Round 1 B "Category"; round 3 "Cover", "Move money", "Assign" |
 | 5 | Accounts and transactions | Accounts list, an account's transactions, categorizing what is uncategorized | Round 2 "Accounts" and "Transactions" |
 | 6 | Finish | Light theme, motion to the round 3 spec, haptics, Reduce Motion, screen-reader labels, Android details | Round 2 "under stress"; round 3 "Motion" |
 
@@ -47,9 +47,7 @@ last because it touches every screen.
 | Name, logo and trademark checks | Before any store work; not part of Phase 1 |
 | Sign out leaves the downloaded budget on the phone: delete it, or keep it? | Before any build leaves the household |
 | First-download time. On a Galaxy S24 Ultra (release build, over HTTPS) the owner's own budget downloaded too fast to notice; its size was not recorded. The 12,400-transaction test budget took 3.2 s on the Android emulator (debug build). Still unmeasured: a large budget on a mid-range phone, which is what ADR 0002's 5 s threshold is about. Plans 2 and 3 measured nothing new; it needs a mid-range phone. | Before a public beta |
-| A future month says "Budgeted" for a category that only has money carried in, with nothing budgeted that month. | Plan 4 |
-| The app's last month is one later than the reference client's for the same budget (November 2027 against October 2027). Both come from Actual; harmless so far, but worth knowing when comparing. | Plan 4 |
-| A monthly goal's note ("$40.00 more needed") ignores money carried in from last month. Settle it with goals and Cover. | Plan 4 |
+| The app's last month is one later than the reference client's for the same budget (November 2027 against October 2027). Both come from Actual; harmless so far, but worth knowing when comparing. Plan 4 did not look into it. | Plan 6 |
 | The top card shows "Free $7,007" under "Ready to budget $7,006.86": the same figure, rounded differently, on one card. | Plan 6 |
 | The pull-to-refresh spinner draws over the month switcher's next arrow while it turns. | Plan 6 |
 | At the largest text size with the Offline chip showing, the top bar may overflow; not yet tried. | Plan 6 |
@@ -67,8 +65,28 @@ last because it touches every screen.
 | Reopening a budget syncs with no time limit (`openBudget`), where every other sync gives up after 15 seconds. Rare, because sign-in, which is bounded, has just succeeded. | Plan 6 |
 | Quick add's lists (`getQuickAddLists`) have never been timed on a large budget; measure with the first-download time on a mid-range phone. The sheet shows a spinner meanwhile. | Plan 6 |
 | On a short phone with the over-budget warning showing, opening a picker and closing it leaves the form scrolled to the top without the fade that says there is more below. | Plan 6 |
+| On a 360 × 640 screen the move sheet shows only the From card above the keypad; To needs a scroll. At the largest text size it shows about one card at a time. The same layout decision as quick add's tall band and small screens. | Plan 6 |
+| At the largest text size on a 360 × 640 screen, with the Plan at the top, the `+` sits over the notice's `Cover` (a tap there opened quick add), and the month switcher runs past the right edge. | Plan 6 |
+| A move or cover made on figures the phone has not synced yet goes through, and as the later change it replaces what another device did (Actual's own apps behave the same). The sheet only says "That changed while you were here" when a sync brought the change in while it was open. Decide whether a write should sync first. | Before a public beta |
+| At the largest text size a long sheet title ("Cover Subscriptions") is drawn smaller than Cancel, to fit on one line. | Plan 6 |
+| In a past month the notice has no button, so it is shorter and the tiles start higher than in the current month. | Plan 6 |
+| The move sheet's swap control (two chevrons in a small glass circle) is faint in the dark theme, and plainer than the design's. | Plan 6 |
+| Each change of the system text size on Android restarts the screen and, in a debug build, logs "Looks like you have configured linking in multiple places" once. Goes with the `configChanges` row above. | Plan 6 |
 
 ## Settled
+
+- **A future month's tile** for a category with money only carried in, nothing budgeted that
+  month, says "{balance} carried in" rather than "Budgeted". **A monthly goal's note** ("$40.00
+  more needed") stays as it is: it compares this month's budgeted amount with the goal, as
+  Actual's own indicator does. (Plan 4, decision 11.)
+- **Moving money, as built:** one sheet moves between any two pots (a category or Ready to
+  budget), so Assign is a move from Ready to budget and Fix a move to it; covering has its own
+  sheet; past months are read-only; every write is Actual's own budget action. (Plan 4.)
+- **Fixed in plan 4's device run:** a past month's category screen listed later months'
+  transactions too (a query bound Actual dropped; `engine:verify` now checks it); leaving a sheet
+  with nothing to show stacked a second Plan; a refused write's message was out of sight; at the
+  largest text a button's label was cut off and a long sheet title squeezed Cancel; the top
+  card's amount moved when the card had a pill. (Plan 4.)
 
 - **Returning to the app** re-reads today's date and syncs, and **a sync gives up after 15
   seconds**, as sign-in gives up after 5. The scripted device check starts once per launch.

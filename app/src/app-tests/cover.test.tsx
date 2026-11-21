@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
@@ -21,7 +21,7 @@ jest.mock('expo-router', () => ({
     mockRedirect(href);
     return null;
   },
-  router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
+  router: { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() },
   useLocalSearchParams: () => mockParams,
 }));
 
@@ -158,6 +158,16 @@ it('reads the plan again when the budget changed under it, and keeps the choice'
   expect(source('Ready to budget').props.accessibilityLabel).toMatch(/^Ready to budget, \$10\.00 now/);
 });
 
+it('puts a failed cover\'s message just above the button, where it is seen, not at the end of the list', async () => {
+  const coverOverspending = jest.fn(async () => {
+    throw new EngineError('invalid-move', 'x');
+  });
+  await showSheet({ category: 'cat-dining' }, fakeEngine({ coverOverspending }));
+  await fireEvent.press(await screen.findByRole('button', { name: 'Cover $28.10' }));
+  await screen.findByText('Could not do that. Try again.');
+  expect(within(screen.getByTestId('cover-footer')).getByText('Could not do that. Try again.')).toBeTruthy();
+});
+
 it('says the category is already covered when, read again, it is no longer overspent, with a way back', async () => {
   const [bills, everyday, goals] = fakePlanMonth.groups;
   const covered: PlanMonth = {
@@ -171,10 +181,10 @@ it('says the category is already covered when, read again, it is no longer overs
   await showSheet({ category: 'cat-dining' }, fakeEngine({ coverOverspending, getPlanMonth }));
   const button = await screen.findByRole('button', { name: 'Cover $28.10' });
   // (Redirects before this are the route's own, rendered while the test's session opens.)
-  mockRedirect.mockClear();
+  jest.mocked(router.dismissTo).mockClear();
   await fireEvent.press(button);
   expect(await screen.findByText('Dining out is already covered.')).toBeTruthy();
-  expect(mockRedirect).not.toHaveBeenCalled();
+  expect(router.dismissTo).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
   expect(router.back).toHaveBeenCalledTimes(1);
 });
@@ -188,21 +198,22 @@ it('keeps the button clear of the navigation bar', async () => {
 describe('sending a sheet with nothing to act on back to the Plan', () => {
   it('a category that is not overspent', async () => {
     await showSheet({ category: 'cat-groceries' });
-    await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/'));
+    expect(mockRedirect).not.toHaveBeenCalledWith('/');
     expect(screen.queryByRole('radio')).toBeNull();
   });
   it('a link with no category', async () => {
     await showSheet({ category: 'a/b' });
-    await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/'));
   });
   it('a past month', async () => {
     setPlanShown({ month: '2026-10', plan: { ...fakePlanMonth, month: '2026-10' } });
     await showSheet({ category: 'cat-dining' });
-    await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/'));
   });
   it('no Plan showing', async () => {
     setPlanToday(null);
     await showSheet({ category: 'cat-dining' });
-    await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/'));
   });
 });

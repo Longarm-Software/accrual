@@ -18,7 +18,7 @@ jest.mock('expo-router', () => ({
     mockRedirect(href);
     return null;
   },
-  router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
+  router: { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() },
 }));
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -194,9 +194,9 @@ it('follows the Plan into the next day when left open past midnight, keeping the
 it('keeps its day while the Plan is between days (its day is briefly unset)', async () => {
   await showSheet();
   await ready();
-  mockRedirect.mockClear(); // the session's own opening redirects first; only what follows counts
+  jest.mocked(router.dismissTo).mockClear(); // the session's own opening redirects first; only what follows counts
   await act(async () => setPlanToday(null));
-  expect(mockRedirect).not.toHaveBeenCalled();
+  expect(router.dismissTo).not.toHaveBeenCalled();
   expect(screen.getByLabelText('Date, Today')).toBeTruthy();
 });
 
@@ -438,13 +438,13 @@ it('says so, and tries again, when the lists cannot be read', async () => {
 
 it('sends a deep link with no open budget to the Plan', async () => {
   await render(<SessionProvider create={async () => fakeEngine()}><Add /></SessionProvider>);
-  await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+  await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/'));
 });
 
 it('sends a deep link to the Plan when the budget is open but the Plan is not showing', async () => {
   setPlanToday(null);
   const getQuickAddLists = jest.fn(async () => fakeQuickAddLists);
   await showSheet(fakeEngine({ getQuickAddLists }));
-  await waitFor(() => expect(mockRedirect).toHaveBeenCalledWith('/'));
+  await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/'));
   expect(getQuickAddLists).not.toHaveBeenCalled();
 });

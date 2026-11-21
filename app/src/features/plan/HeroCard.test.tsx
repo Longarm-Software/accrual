@@ -61,3 +61,11 @@ it('the action\'s word grows with the person\'s text size only as far as its pil
   expect(textScale.action).toBeGreaterThan(1);
   expect(screen.getByText('Assign').props.maxFontSizeMultiplier).toBe(textScale.action);
 });
+
+it('keeps the label\'s line the pill\'s height with or without one, so the amount does not move between months', async () => {
+  const { size } = jest.requireActual('../../theme/tokens');
+  await render(<HeroCard hero={heroView(fakePlanMonth)} />);
+  expect(screen.getByTestId('hero-header')).toHaveStyle({ minHeight: size.action });
+  await render(<HeroCard hero={heroView(fakePlanMonth)} action={{ label: 'Assign', onPress: () => {} }} />);
+  expect(screen.getByTestId('hero-header')).toHaveStyle({ minHeight: size.action });
+});
