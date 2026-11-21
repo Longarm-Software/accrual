@@ -53,7 +53,7 @@ export const themes: { dark: Theme; light: Theme } = {
       line: 'rgba(13,20,24,0.16)', shade: '#0D1418',
       onAccent: '#FFFFFF',
       key: 'rgba(255,255,255,0.8)', keyEdge: 'rgba(13,20,24,0.14)', onOver: '#FFFFFF',
-      control: '#8A95A2',
+      control: '#7C8794',
     },
     gradient: ['#067A5B', '#0B6BA8'],
   },
