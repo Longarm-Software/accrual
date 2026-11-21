@@ -1,9 +1,9 @@
 import { READY, type PlanMonth } from '../../engine/types';
 import { checkMonthAndAmount, checkMove } from '../../engine/writeRules';
 import { fakePlanMonth } from '../../session/fakeEngine';
-import { emptyEntry, entryCents, press, type Entry } from '../quickAdd/amountEntry';
+import { emptyEntry, entryCents, type Entry, type Key } from '../quickAdd/amountEntry';
 import { bite } from '../quickAdd/bite';
-import { fromChoices, moveView, newMove, swap, toChoices, toMove, withFrom, withTo, type MoveDraft } from './moveDraft';
+import { fromChoices, moveView, newMove, swap, toChoices, toMove, withFrom, withKey, withTo, type MoveDraft } from './moveDraft';
 import { gain } from './pots';
 
 const plan = fakePlanMonth; // Ready to budget $312.00; Rent $0; Electricity $120; Dining out −$28.10
@@ -16,17 +16,15 @@ const draft = (from: string | null, to: string | null, cents: number): MoveDraft
 
 describe('newMove', () => {
   it('from X: to null, empty entry', () => {
-    expect(newMove({ from: 'cat-groceries' })).toEqual({ from: 'cat-groceries', to: null, entry: emptyEntry });
+    expect(newMove({ from: 'cat-groceries' })).toEqual({ from: 'cat-groceries', to: null, entry: emptyEntry, prefilled: false });
   });
   it('to READY with an amount: from null, the entry shows the amount', () => {
     const d = newMove({ to: READY, amount: 1594 });
-    expect(d).toEqual({ from: null, to: READY, entry: e('15', '94') });
+    expect(d).toEqual({ from: null, to: READY, entry: e('15', '94'), prefilled: true });
     expect(entryCents(d.entry)).toBe(1594);
   });
   // Pinned: a pre-filled amount always shows both decimals, so it reads like any amount on the
-  // screen ($15.00, not $15), and the keypad then acts on it the same way whatever the amount:
-  // delete removes the last cent digit and keeps the value until the point goes; a digit is
-  // refused (two decimals at most) until something is deleted.
+  // screen ($15.00, not $15).
   it('whole dollars show two decimals: 1500 is 15.00', () => {
     expect(newMove({ amount: 1500 }).entry).toEqual(e('15', '00'));
   });
@@ -34,19 +32,48 @@ describe('newMove', () => {
     expect(newMove({ amount: 50 }).entry).toEqual(e('0', '50'));
     expect(newMove({ amount: 5 }).entry).toEqual(e('0', '05'));
   });
-  it('the keypad on a pre-filled amount: delete steps back a digit at a time, a digit is refused', () => {
-    const { entry } = newMove({ amount: 1500 });
-    expect(press(entry, 'back')).toEqual(e('15', '0'));
-    expect(entryCents(press(entry, 'back'))).toBe(1500);
-    expect(press(press(press(entry, 'back'), 'back'), 'back')).toEqual(e('15'));
-    expect(press(entry, '7')).toEqual(entry);
-    expect(press(newMove({ amount: 1594 }).entry, 'back')).toEqual(e('15', '9'));
-  });
   it('a large amount groups nothing and keeps every digit', () => {
     expect(newMove({ amount: 123456789 }).entry).toEqual(e('1234567', '89'));
   });
-  it('no amount, zero, negative or fractional: an empty entry', () => {
-    for (const amount of [undefined, 0, -100, 12.5, NaN]) expect(newMove({ amount }).entry).toEqual(emptyEntry);
+  it('no amount, zero, negative or fractional: an empty entry, not a pre-fill', () => {
+    for (const amount of [undefined, 0, -100, 12.5, NaN]) {
+      expect(newMove({ amount })).toMatchObject({ entry: emptyEntry, prefilled: false });
+    }
+  });
+});
+
+describe('withKey', () => {
+  const typed = (cents: number, ...keys: Key[]) => keys.reduce(withKey, newMove({ to: READY, amount: cents }));
+  it('the first digit replaces a pre-filled amount, as if the entry were empty', () => {
+    expect(typed(1500, '7')).toEqual({ from: null, to: READY, entry: e('7'), prefilled: false });
+  });
+  it('"." replaces a pre-filled amount with "0."', () => {
+    expect(typed(1500, '.').entry).toEqual(e('0', ''));
+  });
+  it('delete clears a pre-filled amount entirely', () => {
+    expect(typed(1594, 'back')).toEqual({ from: null, to: READY, entry: emptyEntry, prefilled: false });
+  });
+  it('after the first key it behaves as typed', () => {
+    expect(typed(1500, '7', '2').entry).toEqual(e('72'));
+    expect(typed(1500, '7', '2', 'back').entry).toEqual(e('7'));
+    expect(typed(1500, 'back', '4', '.', '5').entry).toEqual(e('4', '5'));
+  });
+  it('a key the empty entry refuses ("0", "00") leaves the pre-fill as it is', () => {
+    const d = newMove({ to: READY, amount: 1500 });
+    expect(withKey(d, '0')).toEqual(d);
+    expect(withKey(d, '00')).toEqual(d);
+  });
+  it('a pre-fill longer than the keypad allows (eight whole digits) is still replaced and cleared', () => {
+    const d = newMove({ to: READY, amount: 1234567899 });
+    expect(d.entry).toEqual(e('12345678', '99'));
+    expect(withKey(d, '5').entry).toEqual(e('5'));
+    expect(withKey(d, 'back').entry).toEqual(emptyEntry);
+    expect(entryCents(withKey(withKey(d, 'back'), '3').entry)).toBe(300);
+  });
+  it('a typed entry is never treated as a pre-fill', () => {
+    const d = newMove({ from: READY });
+    expect(withKey(withKey(d, '1'), '2').entry).toEqual(e('12'));
+    expect(withKey(d, 'back')).toEqual(d);
   });
 });
 
@@ -61,7 +88,7 @@ describe('withFrom, withTo, swap', () => {
   });
   it('swap: from and to change places, the entry is kept', () => {
     const d = draft('cat-groceries', READY, 1840);
-    expect(swap(d)).toEqual({ from: READY, to: 'cat-groceries', entry: d.entry });
+    expect(swap(d)).toEqual({ from: READY, to: 'cat-groceries', entry: d.entry, prefilled: d.prefilled });
   });
   it('swap with one side empty', () => {
     expect(swap(draft('cat-groceries', null, 0))).toMatchObject({ from: null, to: 'cat-groceries' });

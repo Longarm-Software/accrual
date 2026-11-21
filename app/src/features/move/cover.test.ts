@@ -29,14 +29,14 @@ describe('coverView', () => {
     const v = coverView(plan, 'cat-dining', null)!;
     expect(v.sources.map(s => s.id)).toEqual([READY, 'cat-electricity', 'cat-insurance', 'cat-groceries', 'cat-emergency']);
     expect(v.sources[0]).toEqual({
-      id: READY, name: 'Ready to budget', covers: 2810, enough: true,
+      id: READY, name: 'Ready to budget', has: 31200, covers: 2810, enough: true,
       bite: bite({ name: 'Ready to budget', balance: 31200 }, 2810),
     });
   });
   it('sources: READY left out when it has nothing; a source that cannot cover it all covers what it has', () => {
     const v = coverView(month(0, [dining, cat('cat-coffee', 'Coffee', 1350), cat('cat-rent', 'Rent', 0)]), 'cat-dining', null)!;
     expect(v.sources).toEqual([
-      { id: 'cat-coffee', name: 'Coffee', covers: 1350, enough: false, bite: bite({ name: 'Coffee', balance: 1350 }, 1350) },
+      { id: 'cat-coffee', name: 'Coffee', has: 1350, covers: 1350, enough: false, bite: bite({ name: 'Coffee', balance: 1350 }, 1350) },
     ]);
   });
   it('a source with exactly the deficit is enough', () => {
@@ -92,6 +92,11 @@ describe('defaultSource', () => {
   it('else the source with the most', () => {
     const m = month(500, [cat('cat-a', 'A', 1000), cat('cat-b', 'B', 1350), dining]);
     expect(defaultSource(m, 'cat-dining')).toBe('cat-b');
+  });
+  it('else the source that has the most (has, not covers, is what the rule compares)', () => {
+    const m = month(0, [cat('cat-a', 'A', 2000), cat('cat-b', 'B', 2700), cat('cat-c', 'C', 900), dining]);
+    expect(defaultSource(m, 'cat-dining')).toBe('cat-b');
+    expect(coverView(m, 'cat-dining', null)!.sources.map(s => s.has)).toEqual([2000, 2700, 900]);
   });
   it('a tie for the most: the first wins (READY before categories)', () => {
     expect(defaultSource(month(500, [cat('cat-a', 'A', 1350), cat('cat-b', 'B', 1350), dining]), 'cat-dining')).toBe('cat-a');

@@ -4,18 +4,17 @@ import { READY, type PlanMonth, type PotId } from '../../engine/types';
 import { checkMove } from '../../engine/writeRules';
 import { formatMoney } from '../../lib/money';
 import { isOverspent } from '../plan/categoryView';
-import { emptyEntry, entryCents, type Entry } from '../quickAdd/amountEntry';
+import { emptyEntry, entryCents, press, type Entry, type Key } from '../quickAdd/amountEntry';
 import { bite, type Bite } from '../quickAdd/bite';
 import type { RowDetail } from '../quickAdd/draft';
 import { accepted, gain, pot, pots, wellFormed, type Gain, type Pot } from './pots';
 
-export type MoveDraft = { from: PotId | null; to: PotId | null; entry: Entry };
+/** `prefilled`: the entry is still the amount the link brought, untouched by the keypad. */
+export type MoveDraft = { from: PotId | null; to: PotId | null; entry: Entry; prefilled: boolean };
 
 /**
  * A pre-filled amount is shown with both decimals (1500 is 15.00, 50 is 0.50), so it reads like
- * every other amount and the keypad acts on it the same way whatever it is: delete removes the
- * last cent digit, and a digit does nothing until something is deleted. Anything that is not a
- * whole number of cents above zero gives an empty entry.
+ * every other amount. Anything that is not a whole number of cents above zero gives an empty entry.
  */
 function entryOf(amount: number | undefined): Entry {
   if (amount === undefined || !Number.isSafeInteger(amount) || amount <= 0) return emptyEntry;
@@ -23,7 +22,20 @@ function entryOf(amount: number | undefined): Entry {
 }
 
 export function newMove(start: { from?: PotId; to?: PotId; amount?: number }): MoveDraft {
-  return { from: start.from ?? null, to: start.to ?? null, entry: entryOf(start.amount) };
+  const entry = entryOf(start.amount);
+  return { from: start.from ?? null, to: start.to ?? null, entry, prefilled: entry !== emptyEntry };
+}
+
+/**
+ * What one keypad key does to the draft. A pre-filled amount is replaced by the first digit or
+ * "." (as if the entry were empty), and delete clears it entirely; a key the empty entry refuses
+ * ("0", "00") leaves it as it is. After that first key the entry behaves as typed.
+ */
+export function withKey(d: MoveDraft, key: Key): MoveDraft {
+  if (!d.prefilled) return { ...d, entry: press(d.entry, key) };
+  if (key === 'back') return { ...d, entry: emptyEntry, prefilled: false };
+  const entry = press(emptyEntry, key);
+  return entry === emptyEntry ? d : { ...d, entry, prefilled: false };
 }
 
 /** Choosing the pot that is already `to` makes it `from`, and `to` is chosen again. */

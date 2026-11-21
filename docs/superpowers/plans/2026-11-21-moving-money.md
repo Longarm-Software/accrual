@@ -145,7 +145,8 @@ export type Gain = { kept: number; gained: number; before: string; after: string
 export function gain(p: Pot, amount: number): Gain;
 
 // moveDraft.ts
-export type MoveDraft = { from: PotId | null; to: PotId | null; entry: Entry };
+export type MoveDraft = { from: PotId | null; to: PotId | null; entry: Entry; prefilled: boolean };
+export function withKey(d: MoveDraft, key: Key): MoveDraft; // the keypad on a move draft
 export function newMove(start: { from?: PotId; to?: PotId; amount?: number }): MoveDraft;
 export function withFrom(d: MoveDraft, id: PotId): MoveDraft;
 export function withTo(d: MoveDraft, id: PotId): MoveDraft;
@@ -164,7 +165,7 @@ export function toChoices(d: MoveDraft, plan: PlanMonth): PotRow[];
 export function toMove(d: MoveDraft, month: string): { month: string; from: PotId; to: PotId; amount: number };
 
 // cover.ts
-export type Source = { id: PotId; name: string; bite: Bite; covers: number; enough: boolean };
+export type Source = { id: PotId; name: string; has: number; bite: Bite; covers: number; enough: boolean };
 export type CoverView = {
   title: string;        // "Cover Dining out"
   deficit: number;      // positive cents
@@ -196,7 +197,7 @@ export function categoryAction(plan: PlanMonth, categoryId: string, today: Date)
 **Behaviour: `pots`, `gain`**
 
 - `pots`: `{ id: READY, name: 'Ready to budget', has: plan.toBudget }` first, then every category of every group in order, `has` its balance. (The plan month already leaves hidden and income categories out.)
-- `gain(p, amount)`: `before` is `formatMoney(p.has)`; `after` is `formatMoney(p.has + amount) + ' after'`. For the bar: when `p.has + amount <= 0` the bar is empty (`kept 0, gained 0`); when `p.has <= 0 < p.has + amount`, `kept 0, gained 1`; otherwise `kept = p.has / (p.has + amount)`, `gained = 1 − kept`, with `gained` never below 0.04 when `amount > 0` (take it from `kept`). Amount 0: `kept 1 (0 if has ≤ 0), gained 0`.
+- `gain(p, amount)`: `before` is `formatMoney(p.has)`; `after` is `formatMoney(p.has + amount) + ' after'`. For the bar: when `p.has < 0` the bar's full width is the deficit (`-p.has`) and what arrives fills it in: `kept 0`, `gained = min(1, amount / -p.has)`, never below 0.04 when `amount > 0`; the rest of the bar is the empty track, so covering exactly to zero is `gained 1` and a partial cover part-fills the bar. When `p.has === 0`, `kept 0, gained 1`; otherwise `kept = p.has / (p.has + amount)`, `gained = 1 − kept`, with `gained` never below 0.04 when `amount > 0` (take it from `kept`). Amount 0: `kept 1 (0 if has ≤ 0), gained 0`. `kept + gained` is 1 when the pot started at or above zero and may be less below it. (Corrected in Task 3: the first rule drew an empty bar for any pot still below zero after, so a partial cover showed nothing.)
 
 **Behaviour: the move sheet**
 
@@ -204,6 +205,7 @@ export function categoryAction(plan: PlanMonth, categoryId: string, today: Date)
 |---|---|
 | `newMove({ from: X })` | from X, to null, empty entry |
 | `newMove({ to: READY, amount: 1594 })` | to READY, from null, entry showing 15.94 |
+| `withKey(d, key)` on a pre-filled amount | the first digit or `.` replaces it (as if the entry were empty); delete clears it; a key the empty entry refuses (`0`, `00`) changes nothing; after the first key the entry behaves as typed. The screen calls `withKey`, not `press` (corrected in Task 3: the pre-fill used to refuse every digit until deleted) |
 | `withFrom(d, id)` when `id === d.to` | from becomes id, to becomes null |
 | `withTo(d, id)` when `id === d.from` | to becomes id, from becomes null |
 | `swap` | from and to change places; the entry is kept |

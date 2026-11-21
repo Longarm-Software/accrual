@@ -6,7 +6,7 @@ import { isOverspent } from '../plan/categoryView';
 import { bite, type Bite } from '../quickAdd/bite';
 import { accepted, gain, pots, wellFormed, type Gain } from './pots';
 
-export type Source = { id: PotId; name: string; bite: Bite; covers: number; enough: boolean };
+export type Source = { id: PotId; name: string; has: number; bite: Bite; covers: number; enough: boolean };
 export type CoverView = {
   title: string; // "Cover Dining out"
   month: string; // the plan's month, YYYY-MM
@@ -30,7 +30,7 @@ function sourcesFor(plan: PlanMonth, deficit: number): Source[] {
     .filter(p => p.has > 0)
     .map(p => {
       const covers = Math.min(deficit, p.has);
-      return { id: p.id, name: p.name, covers, enough: p.has >= deficit, bite: bite({ name: p.name, balance: p.has }, covers) };
+      return { id: p.id, name: p.name, has: p.has, covers, enough: p.has >= deficit, bite: bite({ name: p.name, balance: p.has }, covers) };
     });
 }
 
@@ -40,7 +40,7 @@ function pick(sources: Source[]): Source | null {
   if (ready?.enough) return ready;
   const enough = sources.find(s => s.enough);
   if (enough) return enough;
-  return sources.reduce<Source | null>((best, s) => (best === null || s.covers > best.covers ? s : best), null);
+  return sources.reduce<Source | null>((best, s) => (best === null || s.has > best.has ? s : best), null);
 }
 
 export function defaultSource(plan: PlanMonth, categoryId: string): PotId | null {

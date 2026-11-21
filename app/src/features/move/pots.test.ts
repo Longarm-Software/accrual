@@ -1,6 +1,6 @@
-import { READY } from '../../engine/types';
+import { EngineError, READY } from '../../engine/types';
 import { fakePlanMonth } from '../../session/fakeEngine';
-import { gain, pot, pots, READY_NAME, type Pot } from './pots';
+import { accepted, gain, pot, pots, READY_NAME, type Pot } from './pots';
 
 const p = (has: number): Pot => ({ id: 'cat-x', name: 'X', has });
 
@@ -51,11 +51,19 @@ describe('gain', () => {
   it('across zero: from below zero to above it, the whole bar is gained', () => {
     expect(gain(p(-2810), 5000)).toEqual({ kept: 0, gained: 1, before: '−$28.10', after: '$21.90 after' });
   });
-  it('to exactly zero: the bar is empty', () => {
-    expect(gain(p(-2810), 2810)).toEqual({ kept: 0, gained: 0, before: '−$28.10', after: '$0.00 after' });
+  // Below zero the bar's full width is the deficit, and what arrives fills it in.
+  it('below zero, to exactly zero: the deficit is filled, gained 1', () => {
+    expect(gain(p(-2810), 2810)).toEqual({ kept: 0, gained: 1, before: '−$28.10', after: '$0.00 after' });
   });
-  it('still below zero after: the bar is empty', () => {
-    expect(gain(p(-2810), 1350)).toEqual({ kept: 0, gained: 0, before: '−$28.10', after: '−$14.60 after' });
+  it('below zero, still below zero after: the share of the deficit filled; the rest of the bar is empty', () => {
+    const g = gain(p(-2810), 1350);
+    expect(g.kept).toBe(0);
+    expect(g.gained).toBeCloseTo(1350 / 2810);
+    expect(g.before).toBe('−$28.10');
+    expect(g.after).toBe('−$14.60 after');
+  });
+  it('below zero, a tiny part of a large deficit still shows 4% of the bar', () => {
+    expect(gain(p(-640000), 1)).toMatchObject({ kept: 0, gained: 0.04 });
   });
   it('amount 0: all kept, nothing gained', () => {
     expect(gain(p(3000), 0)).toEqual({ kept: 1, gained: 0, before: '$30.00', after: '$30.00 after' });
@@ -63,5 +71,15 @@ describe('gain', () => {
   it('amount 0 at or below zero: no solid bar', () => {
     expect(gain(p(0), 0)).toEqual({ kept: 0, gained: 0, before: '$0.00', after: '$0.00 after' });
     expect(gain(p(-500), 0)).toEqual({ kept: 0, gained: 0, before: '−$5.00', after: '−$5.00 after' });
+  });
+});
+
+describe('accepted', () => {
+  it('true when the check does not throw', () => expect(accepted(() => undefined)).toBe(true));
+  it('false when the check refuses with an EngineError', () => {
+    expect(accepted(() => { throw new EngineError('stale', 'no'); })).toBe(false);
+  });
+  it('anything else is a bug, not a refusal: it is thrown on', () => {
+    expect(() => accepted(() => { throw new TypeError('boom'); })).toThrow('boom');
   });
 });

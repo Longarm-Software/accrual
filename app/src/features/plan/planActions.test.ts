@@ -85,17 +85,35 @@ describe('categoryAction', () => {
   });
 });
 
+describe('links: builders refuse ids the parser would not accept', () => {
+  it('moveHref: null for a from or to that is not an id', () => {
+    for (const bad of ['a&amount=1', 'a b', 'a/b', '', 'a=b', 'a?b', 'a#b']) {
+      expect(moveHref({ from: bad })).toBeNull();
+      expect(moveHref({ to: bad, amount: 100 })).toBeNull();
+    }
+  });
+  it('coverHref: null for a category that is not an id', () => {
+    for (const bad of ['a&from=to-budget', 'a b', '']) expect(coverHref(bad)).toBeNull();
+  });
+  it('no button when the link cannot be built', () => {
+    const odd = month(0, [cat('cat&to=x', 500), cat('cat x', -5)]);
+    expect(categoryAction(odd, 'cat&to=x', nov19)).toBeNull();
+    expect(categoryAction(odd, 'cat x', nov19)).toBeNull();
+    expect(noticeAction(odd, nov19)).toBeNull();
+  });
+});
+
 describe('links: build and parse', () => {
   it('round trip: a move', () => {
     for (const link of [{ from: READY }, { to: READY, amount: 1594 }, { from: 'cat-groceries', to: 'cat-dining', amount: 1 }, { to: 'cat-rent' }]) {
-      expect(parseMoveParams(query(moveHref(link)))).toEqual(link);
+      expect(parseMoveParams(query(moveHref(link)!))).toEqual(link);
     }
   });
   it('round trip: the largest amount a write takes', () => {
-    expect(parseMoveParams(query(moveHref({ to: READY, amount: MAX_AMOUNT })))).toEqual({ to: READY, amount: MAX_AMOUNT });
+    expect(parseMoveParams(query(moveHref({ to: READY, amount: MAX_AMOUNT })!))).toEqual({ to: READY, amount: MAX_AMOUNT });
   });
   it('round trip: a cover', () => {
-    expect(parseCoverParams(query(coverHref('cat-dining')))).toEqual({ category: 'cat-dining' });
+    expect(parseCoverParams(query(coverHref('cat-dining')!))).toEqual({ category: 'cat-dining' });
   });
   it('round trip: every action this module makes', () => {
     const over = { ...plan, toBudget: -1594 };
