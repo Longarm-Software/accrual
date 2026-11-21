@@ -263,8 +263,23 @@ What was entered and seen on Android (fake figures throughout):
   amount was lowered with the reference client, the app was sent to the background and brought
   back (which syncs), and Move pressed: "That changed while you were here. Check the numbers and
   try again." with the new figures; a smaller amount then went through. Without a sync in between
-  the app cannot know: the move went through on the figures it had, and, being the later change,
-  replaced the other one, as Actual's own apps do.
+  the move went through on the figures the phone had and, being the later change, replaced the
+  other one. That was fixed before the merge (below).
+
+**What a move or cover does now when the budget changed elsewhere** (final review's fix pass):
+it syncs first, waiting at most 3 seconds (offline, or with a server that does not answer, it
+writes on the phone's copy as an offline write always did), then checks against the budget as
+the server has it. It is refused, with "That changed while you were here" and the new figures,
+when the source no longer has the amount or when either pot differs from what the sheet showed,
+even if the move would still be allowed. A window remains: a change another device makes between
+that sync and the write (about a second for a partner whose app is online, plus a round trip),
+and a change a partner makes offline, which is unbounded: whichever change to the same budget
+cell is later wins when both have synced. That is how Actual's sync works. Seen on the Android
+emulator: a move made after the server's Insurance figure changed was refused with the new
+figure, and the retry left both changes on the server; the same for a cover, where the chosen
+source could no longer pay and the sheet asked for another rather than picking one; with the
+server not answering, Move and Cover showed a spinner for three seconds, the change was written
+on the phone with the Plan showing Offline, and it reached the server after the next sync.
 
 Fixed during the run, each with a test:
 
