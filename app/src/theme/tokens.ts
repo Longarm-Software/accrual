@@ -183,6 +183,8 @@ export const size = {
   tick: 20,
   tickSmall: 12,
   tickStroke: 3,
+  /** The spinner drawn in place of a button's label while its write runs (Save, Move, Cover). */
+  spinnerInline: 22,
   /** The delete key's mark: the height of its arrow-shaped outline. */
   deleteMark: 16,
   /** The date stepper's label at text scale 1: wide enough for "Wed 30 Sep". Multiply by the font scale. */

@@ -10,7 +10,8 @@ import { BiteBar } from '../quickAdd/BiteBar';
 import { Figures } from '../quickAdd/CategoryCard';
 import { NOT_ENOUGH, sourceLabel, type Source } from './cover';
 
-type Props = { source: Source; selected: boolean; onPress(): void };
+/** `disabled`: the cover is under way, so the choice cannot change. */
+type Props = { source: Source; selected: boolean; onPress(): void; disabled?: boolean };
 
 /**
  * One pot that could pay for a cover: its name, the bite the cover takes from it, what it has
@@ -18,14 +19,15 @@ type Props = { source: Source; selected: boolean; onPress(): void };
  * the mint edge. One that cannot cover it all says so and can still be chosen: it then covers
  * what it has.
  */
-export function SourceRow({ source, selected, onPress }: Props) {
+export function SourceRow({ source, selected, onPress, disabled = false }: Props) {
   const theme = useTheme();
   const { bite } = source;
   return (
     <Pressable
       accessibilityRole="radio"
       accessibilityLabel={sourceLabel(source)}
-      accessibilityState={{ checked: selected }}
+      accessibilityState={{ checked: selected, disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({ opacity: pressed ? tint.pressed : 1 })}
     >

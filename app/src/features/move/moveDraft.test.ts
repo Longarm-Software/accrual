@@ -251,6 +251,22 @@ describe('toMove', () => {
   });
 });
 
+describe('picker titles follow the sheet', () => {
+  it('moving money: Move from, Move to', () => {
+    const v = moveView(draft('cat-groceries', 'cat-dining', 0), plan);
+    expect([v.fromTitle, v.toTitle]).toEqual(['Move from', 'Move to']);
+  });
+  it('assigning: Take from, Assign to', () => {
+    const v = moveView(draft(READY, null, 0), plan);
+    expect([v.fromTitle, v.toTitle]).toEqual(['Take from', 'Assign to']);
+  });
+  it('fixing overbudgeting: Take from, Move to', () => {
+    const v = moveView(draft(null, READY, 500), { ...plan, toBudget: -500 });
+    expect(v.title).toBe('Fix overbudgeting');
+    expect([v.fromTitle, v.toTitle]).toEqual(['Take from', 'Move to']);
+  });
+});
+
 describe('moveFromLink: a link, checked against the plan', () => {
   it('keeps pots the plan has, and the amount', () => {
     expect(moveFromLink({ from: READY, to: 'cat-rent', amount: 500 }, plan)).toEqual(newMove({ from: READY, to: 'cat-rent', amount: 500 }));

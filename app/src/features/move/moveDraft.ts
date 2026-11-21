@@ -74,6 +74,8 @@ export function swap(d: MoveDraft): MoveDraft {
 
 export type MoveView = {
   title: string; // "Move money" | "Assign" | "Fix overbudgeting"
+  fromTitle: string; // the From list's title: "Move from" | "Take from"
+  toTitle: string; // the To list's title: "Move to" | "Assign to"
   from: { name: string | null; bite: Bite | null };
   to: { name: string | null; gain: Gain | null };
   canSave: boolean;
@@ -109,6 +111,8 @@ export function moveView(d: MoveDraft, plan: PlanMonth): MoveView {
   else if (d.to === READY && plan.toBudget < 0) title = 'Fix overbudgeting';
   return {
     title,
+    fromTitle: title === 'Move money' ? 'Move from' : 'Take from',
+    toTitle: title === 'Assign' ? 'Assign to' : 'Move to',
     from: { name: from?.name ?? null, bite: fromBite },
     to: { name: to?.name ?? null, gain: to ? gain(to, amount) : null },
     canSave: savable(d, plan),

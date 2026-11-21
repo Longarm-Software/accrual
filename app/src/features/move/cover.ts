@@ -19,7 +19,7 @@ export type CoverView = {
   target: Gain; // the overspent category filling to zero (or part way)
   sources: Source[]; // READY first when it has money, then categories in plan order with money
   selected: PotId | null;
-  button: string; // "Cover $28.10" | "Cover $13.50 of $28.10" | "Nothing to cover with"
+  button: string; // "Cover $28.10" | "Cover $13.50 of $28.10" | "Choose where it comes from" | "Nothing to cover with"
   canSave: boolean;
 };
 
@@ -52,14 +52,28 @@ export function defaultSource(plan: PlanMonth, categoryId: string): PotId | null
   return category ? (pick(sourcesFor(plan, -category.balance))?.id ?? null) : null;
 }
 
-export function coverView(plan: PlanMonth, categoryId: string, selected: PotId | null): CoverView | null {
+/** The button when no source is chosen (after a refusal took the choice away) and some could pay. */
+export const CHOOSE_SOURCE = 'Choose where it comes from';
+
+/**
+ * The cover sheet for `categoryId`, with `selected` chosen. With nothing selected the default
+ * (see `pick`) is chosen, unless `chooseAgain`: after a refusal the person chooses again, so
+ * nothing is (see `keepChoice`). A selection that is not a source falls back the same way.
+ */
+export function coverView(
+  plan: PlanMonth,
+  categoryId: string,
+  selected: PotId | null,
+  { chooseAgain = false }: { chooseAgain?: boolean } = {},
+): CoverView | null {
   const category = overspent(plan, categoryId);
   if (!category) return null;
   const deficit = -category.balance;
   const sources = sourcesFor(plan, deficit);
-  const source = sources.find(s => s.id === selected) ?? pick(sources);
+  const fallback = chooseAgain ? null : pick(sources);
+  const source = sources.find(s => s.id === selected) ?? fallback;
   const covers = source?.covers ?? 0;
-  let button = 'Nothing to cover with';
+  let button = sources.length > 0 ? CHOOSE_SOURCE : 'Nothing to cover with';
   if (source) button = source.enough ? `Cover ${formatMoney(deficit)}` : `Cover ${formatMoney(covers)} of ${formatMoney(deficit)}`;
   const canSave =
     source !== null &&
@@ -84,6 +98,20 @@ export function coverView(plan: PlanMonth, categoryId: string, selected: PotId |
 /** The request covering `category` from `source`, with what the sheet showed of both as `seen`. */
 function request(month: string, category: { id: string; balance: number }, source: Source): CoverRequest {
   return { month, category: category.id, from: source.id, amount: source.covers, seen: { category: category.balance, from: source.has } };
+}
+
+/**
+ * After a refusal, with the plan read again: the source to keep chosen, or null for none. The
+ * one the button named (`before.selected`, chosen or the default) is kept only while the new plan
+ * still lists it and it has at least what the button said it would cover; otherwise nothing is
+ * chosen, so the next press never takes from a pot the person did not pick.
+ */
+export function keepChoice(before: CoverView, plan: PlanMonth): PotId | null {
+  const shown = before.sources.find(s => s.id === before.selected);
+  if (!shown) return null;
+  const category = overspent(plan, before.category);
+  const now = category ? sourcesFor(plan, -category.balance).find(s => s.id === shown.id) : undefined;
+  return now !== undefined && now.has >= shown.covers ? shown.id : null;
 }
 
 /**

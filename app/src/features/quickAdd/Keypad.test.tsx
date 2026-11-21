@@ -166,3 +166,32 @@ describe('a word on Save', () => {
     expect(screen.getByTestId('save-tick')).toBeTruthy();
   });
 });
+
+describe('busy: a write is under way', () => {
+  const drawBusy = () => {
+    const calls = { onKey: jest.fn<void, [Key]>(), onToggleSign: jest.fn(), onSave: jest.fn() };
+    return render(<Keypad {...calls} canSave over={false} saveLabel="Move" busy />).then(() => calls);
+  };
+  it('turns every key off, so presses do nothing', async () => {
+    const { onKey, onToggleSign, onSave } = await drawBusy();
+    for (const name of ['1', '0', 'Double zero', 'Decimal point', 'Delete', 'Expense or income']) {
+      expect(button(name).props.accessibilityState).toMatchObject({ disabled: true });
+      await fireEvent.press(button(name));
+    }
+    await fireEvent.press(button('Move'));
+    expect(onKey).not.toHaveBeenCalled();
+    expect(onToggleSign).not.toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+  it('shows a spinner on Save and keeps its word laid out, unseen, so the key keeps its size', async () => {
+    await drawBusy();
+    expect(button('Move').props.accessibilityState).toMatchObject({ disabled: true, busy: true });
+    expect(screen.getByLabelText('Working')).toBeTruthy();
+    expect(screen.getByText('Move')).toBeTruthy();
+  });
+  it('is off by default: quick add draws as before', async () => {
+    await draw();
+    expect(screen.queryByLabelText('Working')).toBeNull();
+    expect(button('7').props.accessibilityState).toMatchObject({ disabled: false });
+  });
+});

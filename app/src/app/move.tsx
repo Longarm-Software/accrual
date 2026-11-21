@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +8,7 @@ import type { Engine } from '../engine/types';
 import { PotCard } from '../features/move/PotCard';
 import { useMoveSheet, type MoveSheetReady } from '../features/move/useMoveSheet';
 import { canChange, parseMoveParams, type MoveLink } from '../features/plan/planActions';
-import { getPlanShown, getPlanToday } from '../features/plan/planSignal';
+import { getPlanShown, getPlanToday, onPlanTodayChange } from '../features/plan/planSignal';
 import { AmountDisplay } from '../features/quickAdd/AmountDisplay';
 import { Keypad } from '../features/quickAdd/Keypad';
 import { PickerList } from '../features/quickAdd/PickerList';
@@ -35,22 +35,25 @@ import { Body } from '../ui/Text';
  * It acts on the month the Plan is showing when it opens, read from the Plan as quick add reads
  * its "today". Opened any other way (a deep link, no open budget, no Plan behind it) or for a
  * month before the current one, it goes back to the Plan (see BackToPlan) without showing a form.
+ * While it is open it follows the Plan's "today", so a move pressed after the month has ended
+ * writes nothing (see useSheetWrite).
  */
 export default function Move() {
   const session = useSession();
   const params = useLocalSearchParams();
   const [opened] = useState(() => ({ shown: getPlanShown(), today: getPlanToday(), link: parseMoveParams(params) }));
+  const live = useSyncExternalStore(onPlanTodayChange, getPlanToday);
   const { shown, today, link } = opened;
   if (session.status !== 'open' || !session.engine || shown === null || today === null || !canChange(shown.month, today)) {
     return <BackToPlan />;
   }
-  return <Sheet engine={session.engine} month={shown.month} link={link} />;
+  return <Sheet engine={session.engine} month={shown.month} link={link} today={live ?? today} />;
 }
 
 const close = () => router.back();
 
-function Sheet({ engine, month, link }: { engine: Engine; month: string; link: MoveLink }) {
-  const move = useMoveSheet(engine, month, link, { onDone: close });
+function Sheet({ engine, month, link, today }: { engine: Engine; month: string; link: MoveLink; today: Date }) {
+  const move = useMoveSheet(engine, month, link, { onDone: close, today });
   return (
     <AuroraBackground>
       <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
@@ -68,6 +71,12 @@ function Sheet({ engine, month, link }: { engine: Engine; month: string; link: M
           <Centre>
             <Message text="Could not read this budget." />
             <Button title="Try again" onPress={move.retry} />
+          </Centre>
+        )}
+        {move.state === 'ended' && (
+          <Centre>
+            <Message text={move.message} />
+            <Button title="Close" variant="quiet" onPress={close} />
           </Centre>
         )}
         {move.state === 'ready' && <Form move={move} />}
@@ -97,7 +106,7 @@ function Form({ move }: { move: MoveSheetReady }) {
     return (
       <View style={{ flex: 1, padding: space.lg, paddingBottom: space.lg + bottom }}>
         <PickerList
-          title={from ? 'Move from' : 'Move to'}
+          title={from ? move.view.fromTitle : move.view.toTitle}
           items={from ? move.fromChoices : move.toChoices}
           selectedId={from ? move.fromId : move.toId}
           detail={item => item.detail}
@@ -128,9 +137,14 @@ function Form({ move }: { move: MoveSheetReady }) {
         >
           <AmountDisplay text={move.amount} density={density} />
           <View style={{ gap: space.sm }}>
-            <PotCard label="From" name={view.from.name} bar={view.from.bite} onPress={() => setPicker('from')} density={density} />
-            <SwapButton onPress={move.swap} />
-            <PotCard label="To" name={view.to.name} bar={view.to.gain} onPress={() => setPicker('to')} density={density} />
+            {/* While the move is under way the form is frozen: what is written is what was pressed. */}
+            <PotCard
+              label="From" name={view.from.name} bar={view.from.bite} onPress={() => setPicker('from')} density={density} disabled={move.saving}
+            />
+            <SwapButton onPress={move.swap} disabled={move.saving} />
+            <PotCard
+              label="To" name={view.to.name} bar={view.to.gain} onPress={() => setPicker('to')} density={density} disabled={move.saving}
+            />
           </View>
         </ScrollView>
         {moreBelow(scroll) && (
@@ -159,6 +173,7 @@ function Form({ move }: { move: MoveSheetReady }) {
           over={view.over}
           saveLabel={view.button}
           density={density}
+          busy={move.saving}
         />
       </View>
     </View>
@@ -166,7 +181,7 @@ function Form({ move }: { move: MoveSheetReady }) {
 }
 
 /** The round control between the two cards: From and To change places. */
-function SwapButton({ onPress }: { onPress(): void }) {
+function SwapButton({ onPress, disabled }: { onPress(): void; disabled: boolean }) {
   const theme = useTheme();
   const slop = (size.touch - size.control) / 2;
   return (
@@ -174,6 +189,8 @@ function SwapButton({ onPress }: { onPress(): void }) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Swap From and To"
+        accessibilityState={{ disabled }}
+        disabled={disabled}
         onPress={onPress}
         hitSlop={slop}
         style={({ pressed }) => ({ opacity: pressed ? tint.pressed : 1 })}

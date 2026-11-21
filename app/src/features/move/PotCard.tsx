@@ -19,6 +19,8 @@ type Props = {
   onPress(): void;
   /** Compact on a short screen, as quick add's category card. */
   density?: SheetDensity;
+  /** Off while the move is under way: the card cannot be changed. */
+  disabled?: boolean;
 };
 
 const isBite = (bar: Bite | Gain): bar is Bite => 'taken' in bar;
@@ -31,7 +33,7 @@ const isBite = (bar: Bite | Gain): bar is Bite => 'taken' in bar;
  * from pot has gives the coral edge and the warning under the card; a gain that leaves the pot
  * still below zero has its "after" in coral.
  */
-export function PotCard({ label, name, bar, onPress, density = 'regular' }: Props) {
+export function PotCard({ label, name, bar, onPress, density = 'regular', disabled = false }: Props) {
   const theme = useTheme();
   const inset = sheet[density].inset;
   const bite = bar && isBite(bar) ? bar : null;
@@ -44,6 +46,8 @@ export function PotCard({ label, name, bar, onPress, density = 'regular' }: Prop
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={potCardLabel(label, name, bar)}
+        accessibilityState={{ disabled }}
+        disabled={disabled}
         onPress={onPress}
         style={({ pressed }) => ({ opacity: pressed ? tint.pressed : 1 })}
       >

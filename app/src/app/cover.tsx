@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,7 +8,7 @@ import { targetLabel, type CoverView } from '../features/move/cover';
 import { SourceRow } from '../features/move/SourceRow';
 import { useCoverSheet, type CoverSheetReady } from '../features/move/useCoverSheet';
 import { canChange, parseCoverParams } from '../features/plan/planActions';
-import { getPlanShown, getPlanToday } from '../features/plan/planSignal';
+import { getPlanShown, getPlanToday, onPlanTodayChange } from '../features/plan/planSignal';
 import { BiteBar } from '../features/quickAdd/BiteBar';
 import { Figures } from '../features/quickAdd/CategoryCard';
 import { useSession } from '../session/SessionProvider';
@@ -31,12 +31,14 @@ import { Body, Label } from '../ui/Text';
  *
  * It acts on the month the Plan is showing when it opens. Opened any other way (a deep link, no
  * open budget, no Plan behind it), for a month before the current one, or for a category that is
- * not overspent, it goes back to the Plan (see BackToPlan) without showing a form.
+ * not overspent, it goes back to the Plan (see BackToPlan) without showing a form. While it is
+ * open it follows the Plan's "today", so a cover pressed after the month has ended writes nothing.
  */
 export default function Cover() {
   const session = useSession();
   const params = useLocalSearchParams();
   const [opened] = useState(() => ({ shown: getPlanShown(), today: getPlanToday(), link: parseCoverParams(params) }));
+  const live = useSyncExternalStore(onPlanTodayChange, getPlanToday);
   const { shown, today, link } = opened;
   if (
     session.status !== 'open' || !session.engine || shown === null || today === null ||
@@ -44,13 +46,13 @@ export default function Cover() {
   ) {
     return <BackToPlan />;
   }
-  return <Sheet engine={session.engine} month={shown.month} category={link.category} />;
+  return <Sheet engine={session.engine} month={shown.month} category={link.category} today={live ?? today} />;
 }
 
 const close = () => router.back();
 
-function Sheet({ engine, month, category }: { engine: Engine; month: string; category: string }) {
-  const cover = useCoverSheet(engine, month, category, { onDone: close });
+function Sheet({ engine, month, category, today }: { engine: Engine; month: string; category: string; today: Date }) {
+  const cover = useCoverSheet(engine, month, category, { onDone: close, today });
   if (cover.state === 'nothing') return <BackToPlan />;
   return (
     <AuroraBackground>
@@ -71,7 +73,7 @@ function Sheet({ engine, month, category }: { engine: Engine; month: string; cat
             <Button title="Try again" onPress={cover.retry} />
           </Centre>
         )}
-        {cover.state === 'done' && (
+        {(cover.state === 'done' || cover.state === 'ended') && (
           <Centre>
             <Message text={cover.message} />
             <Button title="Close" variant="quiet" onPress={close} />
@@ -100,7 +102,13 @@ function Form({ cover }: { cover: CoverSheetReady }) {
           <Label style={type.figure}>{view.take}</Label>
           <View testID="cover-sources" accessibilityRole="radiogroup" style={{ gap: space.md }}>
             {view.sources.map(source => (
-              <SourceRow key={source.id} source={source} selected={source.id === view.selected} onPress={() => cover.choose(source.id)} />
+              <SourceRow
+                key={source.id}
+                source={source}
+                selected={source.id === view.selected}
+                onPress={() => cover.choose(source.id)}
+                disabled={cover.saving}
+              />
             ))}
           </View>
         </View>
@@ -113,7 +121,7 @@ function Form({ cover }: { cover: CoverSheetReady }) {
             {cover.error}
           </Body>
         )}
-        <Button title={view.button} onPress={() => void cover.save()} disabled={!cover.canSave} />
+        <Button title={view.button} onPress={() => void cover.save()} disabled={!cover.canSave} busy={cover.saving} />
       </View>
     </View>
   );

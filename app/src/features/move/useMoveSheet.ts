@@ -19,6 +19,7 @@ export type MoveSheetReady = {
   fromChoices: PotRow[];
   toChoices: PotRow[];
   canSave: boolean;
+  /** A write is under way: the form is frozen (every change below does nothing) and Move shows progress. */
   saving: boolean;
   error: string | null;
   press(key: Key): void;
@@ -28,15 +29,24 @@ export type MoveSheetReady = {
   save(): Promise<void>;
 };
 
-export type MoveSheet = { state: 'loading' } | { state: 'failed'; retry(): void } | MoveSheetReady;
+export type MoveSheet =
+  | { state: 'loading' }
+  | { state: 'failed'; retry(): void }
+  | { state: 'ended'; message: string }
+  | MoveSheetReady;
 
 /**
  * The move sheet's state: reads `month`'s plan, opens the draft its link asks for (checked
  * against that plan), and moves. After a refusal the plan may have been read again: the draft is
- * kept, less any pot the plan no longer has.
+ * kept, less any pot the plan no longer has. While the move is under way the draft cannot change.
  */
-export function useMoveSheet(engine: Engine, month: string, link: MoveLink, { onDone }: { onDone(): void }): MoveSheet {
-  const sheet = useSheetWrite(engine, month, { onDone });
+export function useMoveSheet(
+  engine: Engine,
+  month: string,
+  link: MoveLink,
+  { onDone, today }: { onDone(): void; today: Date },
+): MoveSheet {
+  const sheet = useSheetWrite(engine, month, { onDone, today });
   // Null until the first change: until then the draft is the link's.
   const [draft, setDraft] = useState<MoveDraft | null>(null);
   if (sheet.state !== 'ready') return sheet;
@@ -45,6 +55,7 @@ export function useMoveSheet(engine: Engine, month: string, link: MoveLink, { on
   const current = fitDraft(draft ?? moveFromLink(link, plan), plan);
   const view = moveView(current, plan);
   const change = (next: (d: MoveDraft) => MoveDraft) => {
+    if (sheet.saving) return;
     setDraft(d => next(fitDraft(d ?? moveFromLink(link, plan), plan)));
     sheet.clearError();
   };

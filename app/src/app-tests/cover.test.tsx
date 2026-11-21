@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 import { EngineError, READY } from '../engine/types';
 import type { Engine, PlanMonth } from '../engine/types';
 import { onSaved, setPlanShown, setPlanToday } from '../features/plan/planSignal';
-import { fakeBudgets, fakeEngine, fakePlanMonth } from '../session/fakeEngine';
+import { fakeBudgets, fakeEngine, fakePlanMonth, withCategory } from '../session/fakeEngine';
 import { SessionProvider, useSession } from '../session/SessionProvider';
 import { saveSession } from '../session/storage';
 import { space } from '../theme/tokens';
@@ -145,19 +145,88 @@ it('stays open with a message, and keeps the choice, when the write fails', asyn
   expect(router.back).not.toHaveBeenCalled();
 });
 
-it('reads the plan again when the budget changed under it, and keeps the choice', async () => {
-  const getPlanMonth = jest.fn<Promise<PlanMonth>, [string]>().mockResolvedValueOnce(fakePlanMonth).mockResolvedValue(shortReady);
-  const coverOverspending = jest.fn(async () => {
-    throw new EngineError('stale', 'x');
-  });
-  await showSheet({ category: 'cat-dining' }, fakeEngine({ coverOverspending, getPlanMonth }));
+const STALE = 'That changed while you were here. Check the numbers and try again.';
+
+it('refuses a cover on figures that changed, reads again, keeps a choice that can still pay, and a retry goes through', async () => {
+  const engine = fakeEngine();
+  const getPlanMonth = jest.spyOn(engine, 'getPlanMonth');
+  await showSheet({ category: 'cat-dining' }, engine);
   await screen.findByRole('header', { name: 'Cover Dining out' });
   await fireEvent.press(source('Groceries'));
+  // Groceries still has more than $28.10, but not what the sheet showed.
+  engine.elsewhere(plan => withCategory(plan, 'cat-groceries', { balance: 5000 }));
   await fireEvent.press(screen.getByRole('button', { name: 'Cover $28.10' }));
-  expect(await screen.findByText('That changed while you were here. Check the numbers and try again.')).toBeTruthy();
+  expect(await screen.findByText(STALE)).toBeTruthy();
   expect(getPlanMonth).toHaveBeenCalledTimes(2);
   expect(checked('Groceries')).toBe(true);
-  expect(source('Ready to budget').props.accessibilityLabel).toMatch(/^Ready to budget, \$10\.00 now/);
+  expect(source('Groceries').props.accessibilityLabel).toBe('Groceries, $50.00 now, $21.90 after');
+  await fireEvent.press(screen.getByRole('button', { name: 'Cover $28.10' }));
+  await waitFor(() => expect(router.back).toHaveBeenCalledTimes(1));
+  const after = (await engine.getPlanMonth('2026-11')).groups.flatMap(g => g.categories);
+  expect(after.find(c => c.id === 'cat-dining')!.balance).toBe(0);
+  expect(after.find(c => c.id === 'cat-groceries')!.balance).toBe(2190);
+});
+
+it('after a refusal, a chosen source that can no longer pay what the button said is not swapped for another: none is chosen', async () => {
+  const engine = fakeEngine();
+  const coverOverspending = jest.spyOn(engine, 'coverOverspending');
+  await showSheet({ category: 'cat-dining' }, engine);
+  await screen.findByRole('header', { name: 'Cover Dining out' });
+  await fireEvent.press(source('Groceries'));
+  engine.elsewhere(plan => withCategory(plan, 'cat-groceries', { balance: 1000 }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Cover $28.10' }));
+  expect(await screen.findByText(STALE)).toBeTruthy();
+  expect(screen.getAllByRole('radio').every(r => r.props.accessibilityState.checked === false)).toBe(true);
+  const choose = screen.getByRole('button', { name: 'Choose where it comes from' });
+  expect(choose.props.accessibilityState).toMatchObject({ disabled: true });
+  await fireEvent.press(choose);
+  expect(coverOverspending).toHaveBeenCalledTimes(1);
+  await fireEvent.press(source('Ready to budget'));
+  expect(screen.getByRole('button', { name: 'Cover $28.10' }).props.accessibilityState).toMatchObject({ disabled: false });
+});
+
+it('keeps the numbers on screen and the message when reading the budget again fails', async () => {
+  const engine = fakeEngine();
+  const read = engine.getPlanMonth;
+  let readFails = false;
+  engine.getPlanMonth = async month => {
+    if (readFails) throw new Error('disk full');
+    return read(month);
+  };
+  await showSheet({ category: 'cat-dining' }, engine);
+  await screen.findByRole('header', { name: 'Cover Dining out' });
+  engine.elsewhere(plan => ({ ...plan, toBudget: 1000 }));
+  readFails = true;
+  await fireEvent.press(screen.getByRole('button', { name: 'Cover $28.10' }));
+  expect(await screen.findByText(STALE)).toBeTruthy();
+  expect(source('Ready to budget').props.accessibilityLabel).toBe('Ready to budget, $312.00 now, $283.90 after');
+  expect(checked('Ready to budget')).toBe(true);
+});
+
+it('freezes the sources while the cover is under way, and the button shows progress', async () => {
+  let finish!: () => void;
+  const coverOverspending = jest.fn(() => new Promise<void>(resolve => (finish = resolve)));
+  await showSheet({ category: 'cat-dining' }, fakeEngine({ coverOverspending }));
+  await fireEvent.press(await screen.findByRole('button', { name: 'Cover $28.10' }));
+  expect(source('Groceries').props.accessibilityState).toMatchObject({ disabled: true, checked: false });
+  await fireEvent.press(source('Groceries'));
+  expect(checked('Groceries')).toBe(false);
+  expect(checked('Ready to budget')).toBe(true);
+  expect(within(screen.getByTestId('cover-footer')).getByLabelText('Working')).toBeTruthy();
+  expect(coverOverspending).toHaveBeenCalledWith(expect.objectContaining({ from: READY, amount: 2810 }));
+  await act(async () => finish());
+});
+
+it('writes nothing, and says so with a way back, when the month has ended while the sheet was open', async () => {
+  const coverOverspending = jest.fn(async () => {});
+  await showSheet({ category: 'cat-dining' }, fakeEngine({ coverOverspending }));
+  const button = await screen.findByRole('button', { name: 'Cover $28.10' });
+  await act(async () => setPlanToday(new Date(2026, 11, 1, 0, 5)));
+  await fireEvent.press(button);
+  expect(await screen.findByText('This month has ended. Changes to past months are not made here.')).toBeTruthy();
+  expect(coverOverspending).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+  expect(router.back).toHaveBeenCalledTimes(1);
 });
 
 it('puts a failed cover\'s message just above the button, where it is seen, not at the end of the list', async () => {
@@ -171,19 +240,12 @@ it('puts a failed cover\'s message just above the button, where it is seen, not 
 });
 
 it('says the category is already covered when, read again, it is no longer overspent, with a way back', async () => {
-  const [bills, everyday, goals] = fakePlanMonth.groups;
-  const covered: PlanMonth = {
-    ...fakePlanMonth,
-    groups: [bills, { ...everyday, categories: [everyday.categories[0], { ...everyday.categories[1], balance: 0 }] }, goals],
-  };
-  const getPlanMonth = jest.fn<Promise<PlanMonth>, [string]>().mockResolvedValueOnce(fakePlanMonth).mockResolvedValue(covered);
-  const coverOverspending = jest.fn(async () => {
-    throw new EngineError('stale', 'x');
-  });
-  await showSheet({ category: 'cat-dining' }, fakeEngine({ coverOverspending, getPlanMonth }));
+  const engine = fakeEngine();
+  await showSheet({ category: 'cat-dining' }, engine);
   const button = await screen.findByRole('button', { name: 'Cover $28.10' });
   // (Redirects before this are the route's own, rendered while the test's session opens.)
   jest.mocked(router.dismissTo).mockClear();
+  engine.elsewhere(plan => withCategory(plan, 'cat-dining', { balance: 0 }));
   await fireEvent.press(button);
   expect(await screen.findByText('Dining out is already covered.')).toBeTruthy();
   expect(router.dismissTo).not.toHaveBeenCalled();

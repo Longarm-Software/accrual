@@ -7,7 +7,7 @@ import { Alert, Dimensions } from 'react-native';
 import { EngineError, READY } from '../engine/types';
 import type { Engine, PlanMonth } from '../engine/types';
 import { onSaved, setPlanShown, setPlanToday } from '../features/plan/planSignal';
-import { fakeBudgets, fakeEngine, fakePlanMonth } from '../session/fakeEngine';
+import { fakeBudgets, fakeEngine, fakePlanMonth, withCategory } from '../session/fakeEngine';
 import { SessionProvider, useSession } from '../session/SessionProvider';
 import { saveSession } from '../session/storage';
 import { sheet as sheetTokens } from '../theme/tokens';
@@ -236,27 +236,113 @@ it('stays open with a message, and keeps the form, when the write fails', async 
   expect(getPlanMonth).toHaveBeenCalledTimes(1);
 });
 
-it('reads the plan again when the budget changed under it, keeps the form, and says so', async () => {
-  const [bills, everyday, goals] = fakePlanMonth.groups;
-  const less: PlanMonth = {
-    ...fakePlanMonth,
-    groups: [bills, { ...everyday, categories: [{ ...everyday.categories[0], balance: 1000 }, everyday.categories[1]] }, goals],
-  };
-  const getPlanMonth = jest.fn<Promise<PlanMonth>, [string]>().mockResolvedValueOnce(fakePlanMonth).mockResolvedValue(less);
-  const moveMoney = jest.fn(async () => {
-    throw new EngineError('stale', 'x');
-  });
-  await showSheet({ from: 'cat-groceries', to: 'cat-rent' }, fakeEngine({ moveMoney, getPlanMonth }));
+const STALE = 'That changed while you were here. Check the numbers and try again.';
+const from = () => card('From').props.accessibilityLabel as string;
+
+it('refuses a move the budget no longer allows, reads it again, keeps the form, and says so', async () => {
+  const engine = fakeEngine();
+  const getPlanMonth = jest.spyOn(engine, 'getPlanMonth');
+  await showSheet({ from: 'cat-groceries', to: 'cat-rent' }, engine);
   await keypad();
   await type('5', '0');
+  // The other device spent from Groceries; the sync before the write brings it in.
+  engine.elsewhere(plan => withCategory(plan, 'cat-groceries', { balance: 1000 }));
   await key('Move');
-  expect(await screen.findByText('That changed while you were here. Check the numbers and try again.')).toBeTruthy();
+  expect(await screen.findByText(STALE)).toBeTruthy();
   expect(getPlanMonth).toHaveBeenCalledTimes(2);
   expect(getPlanMonth).toHaveBeenLastCalledWith('2026-11');
   // The new numbers: Groceries now has $10.00, so $50.00 is too much.
-  expect(card('From').props.accessibilityLabel).toMatch(/^From: Groceries, \$10\.00 now/);
+  expect(from()).toMatch(/^From: Groceries, \$10\.00 now/);
   expect(screen.getByLabelText('$50.00')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Move' }).props.accessibilityState).toMatchObject({ disabled: true });
+  expect(router.back).not.toHaveBeenCalled();
+});
+
+it('refuses a move that is still allowed when the figures are not what the sheet showed, and a retry goes through', async () => {
+  const engine = fakeEngine();
+  await showSheet({ from: 'cat-groceries', to: 'cat-rent' }, engine);
+  await keypad();
+  await type('5', '0');
+  engine.elsewhere(plan => withCategory(plan, 'cat-groceries', { balance: 20000 }));
+  await key('Move');
+  expect(await screen.findByText(STALE)).toBeTruthy();
+  expect(from()).toBe('From: Groceries, $200.00 now, $150.00 after');
+  expect(router.back).not.toHaveBeenCalled();
+  // Pressed again on the numbers now shown, it goes through.
+  await key('Move');
+  await waitFor(() => expect(router.back).toHaveBeenCalledTimes(1));
+  const after = (await engine.getPlanMonth('2026-11')).groups.flatMap(g => g.categories);
+  expect(after.find(c => c.id === 'cat-groceries')!.balance).toBe(15000);
+  expect(after.find(c => c.id === 'cat-rent')!.balance).toBe(5000);
+});
+
+it('keeps the numbers on screen and the message when reading the budget again fails', async () => {
+  const engine = fakeEngine();
+  const read = engine.getPlanMonth;
+  let readFails = false;
+  engine.getPlanMonth = async month => {
+    if (readFails) throw new Error('disk full');
+    return read(month);
+  };
+  await showSheet({ from: 'cat-groceries', to: 'cat-rent' }, engine);
+  await keypad();
+  await type('5', '0');
+  engine.elsewhere(plan => withCategory(plan, 'cat-groceries', { balance: 1000 }));
+  readFails = true;
+  await key('Move');
+  expect(await screen.findByText(STALE)).toBeTruthy();
+  expect(from()).toBe('From: Groceries, $207.62 now, $157.62 after');
+  expect(screen.getByLabelText('$50.00')).toBeTruthy();
+});
+
+it('freezes the form while the move is under way: keys, cards and swap do nothing, and Move shows progress', async () => {
+  let finish!: () => void;
+  const moveMoney = jest.fn(() => new Promise<void>(resolve => (finish = resolve)));
+  await showSheet({ from: 'cat-groceries', to: 'cat-rent' }, fakeEngine({ moveMoney }));
+  await keypad();
+  await type('5');
+  await key('Move');
+  expect(moveMoney).toHaveBeenCalledWith(expect.objectContaining({ from: 'cat-groceries', to: 'cat-rent', amount: 500 }));
+  for (const name of ['7', 'Delete', 'Swap From and To']) {
+    expect(screen.getByRole('button', { name }).props.accessibilityState).toMatchObject({ disabled: true });
+  }
+  expect(card('From').props.accessibilityState).toMatchObject({ disabled: true });
+  expect(card('To').props.accessibilityState).toMatchObject({ disabled: true });
+  await key('7');
+  await key('Delete');
+  await key('Swap From and To');
+  await fireEvent.press(card('From'));
+  expect(screen.getByLabelText('$5.00')).toBeTruthy();
+  expect(from()).toMatch(/^From: Groceries/);
+  expect(screen.queryByText('Move from')).toBeNull();
+  expect(within(screen.getByTestId('move-footer')).getByLabelText('Working')).toBeTruthy();
+  await act(async () => finish());
+  expect(moveMoney).toHaveBeenCalledTimes(1);
+});
+
+it('writes nothing, and says so with a way back, when the month has ended while the sheet was open', async () => {
+  const moveMoney = jest.fn(async () => {});
+  await showSheet({ from: 'cat-groceries', to: 'cat-rent' }, fakeEngine({ moveMoney }));
+  await keypad();
+  await type('5');
+  // The Plan renews its "today" (the app came back after midnight on the last day of November).
+  await act(async () => setPlanToday(new Date(2026, 11, 1, 0, 5)));
+  await key('Move');
+  expect(await screen.findByText('This month has ended. Changes to past months are not made here.')).toBeTruthy();
+  expect(moveMoney).not.toHaveBeenCalled();
+  await key('Close');
+  expect(router.back).toHaveBeenCalledTimes(1);
+});
+
+it('titles the lists after the sheet: Take from and Assign to when assigning', async () => {
+  await showSheet({ from: READY });
+  await keypad();
+  await fireEvent.press(card('To'));
+  expect(screen.getByText('Assign to')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Rent, $0.00' }));
+  await fireEvent.press(card('From'));
+  expect(screen.getByText('Take from')).toBeTruthy();
+  expect(screen.queryByText('Move from')).toBeNull();
 });
 
 it('puts a failed move\'s message just above the keypad, where it is seen, not at the end of the scroll', async () => {

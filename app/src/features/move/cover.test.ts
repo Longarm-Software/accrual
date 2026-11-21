@@ -2,7 +2,7 @@ import { READY, type PlanCategory, type PlanMonth } from '../../engine/types';
 import { checkCover, checkMonthAndAmount } from '../../engine/writeRules';
 import { fakePlanMonth } from '../../session/fakeEngine';
 import { bite } from '../quickAdd/bite';
-import { alreadyCovered, coverView, noLongerToCover, targetLabel, defaultSource, sourceLabel, toCover } from './cover';
+import { CHOOSE_SOURCE, alreadyCovered, coverView, keepChoice, noLongerToCover, targetLabel, defaultSource, sourceLabel, toCover } from './cover';
 import { gain } from './pots';
 
 const plan = fakePlanMonth; // Dining out is $28.10 over; Ready to budget has $312.00
@@ -13,6 +13,9 @@ const month = (toBudget: number, categories: PlanCategory[]): PlanMonth => ({
   ...plan, toBudget, groups: [{ id: 'g', name: 'G', categories }],
 });
 const dining = cat('cat-dining', 'Dining out', -2810);
+const withBalance = (p: PlanMonth, id: string, balance: number): PlanMonth => ({
+  ...p, groups: p.groups.map(g => ({ ...g, categories: g.categories.map(c => (c.id === id ? { ...c, balance } : c)) })),
+});
 
 describe('coverView', () => {
   it('null for a category the plan does not have', () => expect(coverView(plan, 'cat-nope', null)).toBeNull());
@@ -129,6 +132,40 @@ describe('toCover', () => {
       expect(() => checkMonthAndAmount(request.month, request.amount, { start: '2026-01', end: '2027-12' })).not.toThrow();
       expect(() => checkCover(plan, request)).not.toThrow();
     }
+  });
+});
+
+describe('after a refusal: no source is chosen unless the one chosen can still pay what the button said', () => {
+  const before = coverView(plan, 'cat-dining', 'cat-electricity')!; // "Cover $28.10" from Electricity ($120.00)
+  it('kept while it can still pay that', () => {
+    expect(keepChoice(before, withBalance(plan, 'cat-electricity', 2810))).toBe('cat-electricity');
+    // Over by more now: Electricity can still pay the $28.10 the button said; the new button says the rest.
+    expect(keepChoice(before, withBalance(plan, 'cat-dining', -5000))).toBe('cat-electricity');
+  });
+  it('none when it now has less than that, or has gone', () => {
+    expect(keepChoice(before, withBalance(plan, 'cat-electricity', 2809))).toBeNull();
+    expect(keepChoice(before, withBalance(plan, 'cat-electricity', 0))).toBeNull();
+    expect(keepChoice(before, { ...plan, groups: plan.groups.map(g => ({ ...g, categories: g.categories.filter(c => c.id !== 'cat-electricity') })) }))
+      .toBeNull();
+  });
+  it('the default the person did not change counts as chosen: it is the one the button named', () => {
+    const shown = coverView(plan, 'cat-dining', null)!; // Ready to budget
+    expect(keepChoice(shown, { ...plan, toBudget: 1000 })).toBeNull();
+    expect(keepChoice(shown, { ...plan, toBudget: 2810 })).toBe(READY);
+  });
+  it('with none chosen, nothing is selected, the button asks for one and is off; the target gains nothing', () => {
+    const v = coverView(withBalance(plan, 'cat-electricity', 100), 'cat-dining', null, { chooseAgain: true })!;
+    expect(v.selected).toBeNull();
+    expect(v.button).toBe(CHOOSE_SOURCE);
+    expect(CHOOSE_SOURCE).toBe('Choose where it comes from');
+    expect(v.canSave).toBe(false);
+    expect(v.target).toEqual(gain({ id: 'cat-dining', name: 'Dining out', has: -2810 }, 0));
+    expect(v.sources.length).toBeGreaterThan(0);
+  });
+  it('a source chosen after that is selected as usual', () => {
+    const v = coverView(plan, 'cat-dining', 'cat-groceries', { chooseAgain: true })!;
+    expect(v.selected).toBe('cat-groceries');
+    expect(v.canSave).toBe(true);
   });
 });
 

@@ -26,3 +26,14 @@ it('grows to fit a label that wraps at a large text size, centred, instead of cu
   expect(style.minHeight).toBe(size.button);
   expect(StyleSheet.flatten(screen.getByText('Cover $1,300.00 of $2,165.95').props.style).textAlign).toBe('center');
 });
+
+it('busy: off, a spinner over the label, which stays laid out so the button keeps its size', async () => {
+  const onPress = jest.fn();
+  await render(<Button title="Cover $28.10" onPress={onPress} busy />);
+  const button = screen.getByRole('button', { name: 'Cover $28.10' });
+  expect(button.props.accessibilityState).toMatchObject({ disabled: true, busy: true });
+  await fireEvent.press(button);
+  expect(onPress).not.toHaveBeenCalled();
+  expect(screen.getByLabelText('Working')).toBeTruthy();
+  expect(StyleSheet.flatten(screen.getByText('Cover $28.10').props.style).opacity).toBe(0);
+});
