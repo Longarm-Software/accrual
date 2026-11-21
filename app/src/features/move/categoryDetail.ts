@@ -1,5 +1,6 @@
 // What the category screen says: how its balance came about, and its month's transactions.
 import type { ActivityRow, PlanCategory } from '../../engine/types';
+import { currentMonth, monthLabel } from '../../lib/month';
 import { formatMoney } from '../../lib/money';
 import { isOverspent } from '../plan/categoryView';
 import { dateLabel } from '../quickAdd/draft';
@@ -27,6 +28,14 @@ export function activityTotal(rows: ActivityRow[]): number {
 /** "Today", "Yesterday", otherwise e.g. "Tue 17 Nov": quick add's date label, which does exactly this. */
 export function activityDateLabel(date: string, today: Date): string {
   return dateLabel(date, today);
+}
+
+/** Said for a category the month's plan does not have: hidden, deleted, or a bad link. */
+export const NOT_IN_BUDGET = 'This category is not in this budget.';
+
+/** The heading over a month's transactions: "This month", or the month's name for any other. */
+export function activityHeading(month: string, today: Date): string {
+  return month === currentMonth(today) ? 'This month' : monthLabel(month).name;
 }
 
 /** One transaction as the category screen's list draws it. `tone` 'in' is money in: mint, with a "+". */

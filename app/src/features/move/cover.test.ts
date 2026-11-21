@@ -2,7 +2,7 @@ import { READY, type PlanCategory, type PlanMonth } from '../../engine/types';
 import { checkCover, checkMonthAndAmount } from '../../engine/writeRules';
 import { fakePlanMonth } from '../../session/fakeEngine';
 import { bite } from '../quickAdd/bite';
-import { coverView, defaultSource, sourceLabel, toCover } from './cover';
+import { alreadyCovered, coverView, noLongerToCover, targetLabel, defaultSource, sourceLabel, toCover } from './cover';
 import { gain } from './pots';
 
 const plan = fakePlanMonth; // Dining out is $28.10 over; Ready to budget has $312.00
@@ -135,5 +135,27 @@ describe('sourceLabel', () => {
     const v = coverView(month(0, [dining, cat('cat-coffee', 'Coffee', 1350), cat('cat-fun', 'Fun', 5000)]), 'cat-dining', null)!;
     expect(sourceLabel(v.sources[0])).toBe('Coffee, $13.50 now, $0.00 after, not enough for all of it');
     expect(sourceLabel(v.sources[1])).toBe('Fun, $50.00 now, $21.90 after');
+  });
+});
+
+describe('alreadyCovered', () => {
+  it('says the category no longer needs covering', () => expect(alreadyCovered('Dining out')).toBe('Dining out is already covered.'));
+});
+
+describe('noLongerToCover: read again after a refusal, the category needs no cover', () => {
+  it('it is covered', () => {
+    expect(noLongerToCover(month(100, [cat('cat-dining', 'Dining out', 0)]), 'cat-dining')).toBe('Dining out is already covered.');
+  });
+  it('it has gone from the plan', () => {
+    expect(noLongerToCover(month(100, []), 'cat-dining')).toBe('This category is not in this budget.');
+  });
+});
+
+describe('targetLabel', () => {
+  it('names the category and what the cover does to it', () => {
+    const v = coverView(plan, 'cat-dining', null)!;
+    expect(v.name).toBe('Dining out');
+    expect(v.take).toBe('Take $28.10 from');
+    expect(targetLabel(v)).toBe('Dining out, −$28.10 now, $0.00 after');
   });
 });

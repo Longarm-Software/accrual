@@ -10,7 +10,7 @@ import type { Engine, PlanMonth } from '../engine/types';
 import { fakeBudgets, fakeEngine, fakePlanMonth } from '../session/fakeEngine';
 import { SessionProvider, useSession } from '../session/SessionProvider';
 import { loadSession, saveSession } from '../session/storage';
-import { announceSaved } from '../features/plan/planSignal';
+import { announceSaved, getPlanShown } from '../features/plan/planSignal';
 import { size, space } from '../theme/tokens';
 import Add from '../app/add';
 import Home from '../app/index';
@@ -996,4 +996,53 @@ it('leaves an open sheet and its draft alone, and refreshes the Plan behind it',
   await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(engine.addTransaction).toHaveBeenCalledTimes(1));
   expect(engine.addTransaction).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ date: '2026-11-19' }));
+});
+
+// --- Moving money: the way in from the Plan ---
+
+const October: PlanMonth = { ...fakePlanMonth, month: '2026-10' };
+
+it('opens a category from its tile, for the month on screen', async () => {
+  await showPlan(fakeEngine());
+  await screen.findByText('Groceries');
+  await fireEvent.press(screen.getByRole('button', { name: /^Groceries, \$207\.62 available/ }));
+  expect(router.push).toHaveBeenCalledWith('/category/cat-groceries');
+});
+
+it('opens Assign from the top card', async () => {
+  await showPlan(fakeEngine());
+  await screen.findByText('Groceries');
+  await fireEvent.press(screen.getByRole('button', { name: 'Assign' }));
+  expect(router.push).toHaveBeenCalledWith('/move?from=to-budget');
+});
+
+it('opens Cover for the first overspent category from the notice', async () => {
+  await showPlan(fakeEngine());
+  await screen.findByText('Groceries');
+  await fireEvent.press(screen.getByRole('button', { name: 'Cover' }));
+  expect(router.push).toHaveBeenCalledWith('/cover?category=cat-dining');
+});
+
+it('offers neither Assign nor Cover in a past month; its tiles still open', async () => {
+  await showPlan(fakeEngine({ getPlanMonth: async month => (month === '2026-10' ? October : fakePlanMonth) }));
+  await screen.findByText('Groceries');
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Previous month' }).props.accessibilityState).toMatchObject({ disabled: false }),
+  );
+  await fireEvent.press(screen.getByRole('button', { name: 'Previous month' }));
+  expect(await screen.findByText('October')).toBeTruthy();
+  await screen.findByText('Groceries');
+  expect(screen.getByText('Dining out is $28.10 over')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Assign' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Cover' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: /^Groceries,/ }));
+  expect(router.push).toHaveBeenCalledWith('/category/cat-groceries');
+});
+
+it('tells the screens over it which month it shows and its latest read, and stops when it goes', async () => {
+  await showPlan(fakeEngine());
+  await screen.findByText('Groceries');
+  expect(getPlanShown()).toEqual({ month: '2026-11', plan: fakePlanMonth });
+  await screen.unmount();
+  expect(getPlanShown()).toBeNull();
 });

@@ -3,7 +3,7 @@ import { checkMonthAndAmount, checkMove } from '../../engine/writeRules';
 import { fakePlanMonth } from '../../session/fakeEngine';
 import { emptyEntry, entryCents, type Entry, type Key } from '../quickAdd/amountEntry';
 import { bite } from '../quickAdd/bite';
-import { fromChoices, moveView, newMove, swap, toChoices, toMove, withFrom, withKey, withTo, type MoveDraft } from './moveDraft';
+import { fitDraft, fromChoices, moveFromLink, moveView, newMove, swap, toChoices, toMove, withFrom, withKey, withTo, type MoveDraft } from './moveDraft';
 import { gain } from './pots';
 
 const plan = fakePlanMonth; // Ready to budget $312.00; Rent $0; Electricity $120; Dining out −$28.10
@@ -242,5 +242,28 @@ describe('toMove', () => {
     expect(() => toMove(draft(READY, 'cat-rent', 0), '2026-11')).toThrow();
     expect(() => toMove(draft(READY, READY, 100), '2026-11')).toThrow();
     expect(() => toMove(draft(READY, 'cat-rent', 100), '2026-13')).toThrow();
+  });
+});
+
+describe('moveFromLink: a link, checked against the plan', () => {
+  it('keeps pots the plan has, and the amount', () => {
+    expect(moveFromLink({ from: READY, to: 'cat-rent', amount: 500 }, plan)).toEqual(newMove({ from: READY, to: 'cat-rent', amount: 500 }));
+  });
+  it('ignores a pot the plan does not have', () => {
+    expect(moveFromLink({ from: 'cat-gone', to: 'cat-rent' }, plan)).toEqual(newMove({ to: 'cat-rent' }));
+  });
+  it('the same pot twice is kept as from only', () => {
+    expect(moveFromLink({ from: 'cat-rent', to: 'cat-rent' }, plan)).toEqual(newMove({ from: 'cat-rent' }));
+  });
+});
+
+describe('fitDraft: the draft against a plan read again', () => {
+  it('keeps everything when both pots are still there', () => {
+    const d = withKey(draft('cat-groceries', 'cat-rent', 0), '5');
+    expect(fitDraft(d, plan)).toBe(d);
+  });
+  it('drops a pot that has gone, and keeps the rest', () => {
+    const d = withKey(draft('cat-gone', 'cat-rent', 0), '5');
+    expect(fitDraft(d, plan)).toEqual({ ...d, from: null });
   });
 });

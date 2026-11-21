@@ -1,6 +1,5 @@
 import { Redirect, router } from 'expo-router';
 import { useState, useSyncExternalStore } from 'react';
-import type { ReactNode } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { KeyboardAvoidingView, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,7 +19,9 @@ import { radius, sheet, size, space, tint, type, withAlpha } from '../theme/toke
 import { useTheme } from '../theme/useTheme';
 import { AuroraBackground } from '../ui/AuroraBackground';
 import { Button } from '../ui/Button';
+import { Centre, Message } from '../ui/Centre';
 import { Glass } from '../ui/Glass';
+import { SheetHeader } from '../ui/SheetHeader';
 import { Spinner } from '../ui/Spinner';
 import { Body } from '../ui/Text';
 
@@ -53,7 +54,7 @@ function Sheet({ engine, today }: { engine: Engine; today: Date }) {
     <AuroraBackground>
       <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
         {/* Once Save is pressed the transaction is being saved; Cancel cannot undo it. */}
-        <Header cancelDisabled={quick.state === 'ready' && quick.saving} />
+        <SheetHeader title="New transaction" onCancel={close} cancelDisabled={quick.state === 'ready' && quick.saving} />
         {quick.state === 'loading' && (
           <Centre>
             <Spinner />
@@ -76,36 +77,6 @@ function Sheet({ engine, today }: { engine: Engine; today: Date }) {
           ))}
       </SafeAreaView>
     </AuroraBackground>
-  );
-}
-
-function Header({ cancelDisabled }: { cancelDisabled: boolean }) {
-  const theme = useTheme();
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.sm }}>
-      <View style={{ flex: 1, alignItems: 'flex-start' }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Cancel"
-          accessibilityState={{ disabled: cancelDisabled }}
-          disabled={cancelDisabled}
-          onPress={close}
-          style={({ pressed }) => ({
-            minHeight: size.touch,
-            minWidth: size.touch,
-            paddingHorizontal: space.sm,
-            justifyContent: 'center',
-            opacity: cancelDisabled ? tint.disabled : pressed ? tint.pressed : 1,
-          })}
-        >
-          <Text style={[type.row, { color: theme.color.mute }]}>Cancel</Text>
-        </Pressable>
-      </View>
-      <Body style={type.heading} accessibilityRole="header">
-        New transaction
-      </Body>
-      <View style={{ flex: 1 }} />
-    </View>
   );
 }
 
@@ -249,18 +220,5 @@ function Form({ quick }: { quick: QuickAddReady }) {
         </View>
       )}
     </KeyboardAvoidingView>
-  );
-}
-
-function Centre({ children }: { children: ReactNode }) {
-  return <View style={{ flex: 1, justifyContent: 'center', padding: space.lg, gap: space.lg }}>{children}</View>;
-}
-
-function Message({ text }: { text: string }) {
-  const theme = useTheme();
-  return (
-    <Body color={theme.color.mute} style={{ textAlign: 'center' }}>
-      {text}
-    </Body>
   );
 }

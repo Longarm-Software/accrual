@@ -1,6 +1,9 @@
-// What the Plan and the quick-add sheet share. They are separate routes, so neither can pass
-// the other props: the Plan publishes its "today" here for the sheet to date a transaction
-// with, and the sheet says here that it saved one, so the Plan can read its month again.
+// What the Plan shares with the routes opened over it: quick add, the category screen, and the
+// move and cover sheets. They are separate routes, so none can pass another props. The Plan
+// publishes here its "today" (quick add dates a transaction with it), the month it is showing
+// and its latest read of that month (the category screen draws it; a sheet acts on that month);
+// a sheet says here that it changed the budget, so the Plan reads its month again and syncs.
+import type { PlanMonth } from '../../engine/types';
 
 let planToday: Date | null = null;
 const dayListeners = new Set<() => void>();
@@ -29,7 +32,32 @@ export function onPlanTodayChange(listener: () => void): () => void {
   };
 }
 
-/** The sheet saved a transaction. */
+/** The month the Plan is showing, and its latest read of it (null while it has none to show). */
+export type PlanShown = { month: string; plan: PlanMonth | null };
+
+let planShown: PlanShown | null = null;
+const shownListeners = new Set<() => void>();
+
+/** Set by the Plan whenever its month or its read of it changes; null once the Plan has gone. */
+export function setPlanShown(shown: PlanShown | null): void {
+  if (shown === planShown) return;
+  planShown = shown;
+  for (const listener of [...shownListeners]) listener();
+}
+
+export function getPlanShown(): PlanShown | null {
+  return planShown;
+}
+
+/** Shaped for `useSyncExternalStore(onPlanShownChange, getPlanShown)`. Returns the function that stops it. */
+export function onPlanShownChange(listener: () => void): () => void {
+  shownListeners.add(listener);
+  return () => {
+    shownListeners.delete(listener);
+  };
+}
+
+/** A sheet saved a transaction, or moved or covered money. */
 export function announceSaved(): void {
   for (const listener of [...listeners]) listener();
 }

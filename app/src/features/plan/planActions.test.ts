@@ -2,7 +2,7 @@ import { READY, type PlanCategory, type PlanMonth } from '../../engine/types';
 import { MAX_AMOUNT } from '../../engine/writeRules';
 import { fakePlanMonth } from '../../session/fakeEngine';
 import {
-  canChange, categoryAction, coverHref, heroAction, moveHref, noticeAction, parseAmount, parseCoverParams, parseId,
+  canChange, categoryAction, categoryHref, coverHref, heroAction, moveHref, noticeAction, parseAmount, parseCoverParams, parseId,
   parseMoveParams,
 } from './planActions';
 
@@ -147,4 +147,9 @@ describe('links: build and parse', () => {
     expect(parseCoverParams({ category: '' })).toEqual({});
     expect(parseCoverParams({ category: ['cat-a', 'cat-b'] })).toEqual({});
   });
+});
+
+describe('categoryHref', () => {
+  it('the category screen’s link', () => expect(categoryHref('cat-dining')).toBe('/category/cat-dining'));
+  it('null for an id a link cannot carry', () => expect(categoryHref('a/b')).toBeNull());
 });

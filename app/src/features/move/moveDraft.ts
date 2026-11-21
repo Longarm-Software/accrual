@@ -21,6 +21,24 @@ function entryOf(amount: number | undefined): Entry {
   return { digits: String(Math.floor(amount / 100)), decimals: String(amount % 100).padStart(2, '0') };
 }
 
+/**
+ * The draft a link opens: its pots where the plan has them (an unknown id is ignored, and the
+ * same pot twice is kept as `from` only), and its amount.
+ */
+export function moveFromLink(link: { from?: PotId; to?: PotId; amount?: number }, plan: PlanMonth): MoveDraft {
+  const has = (id: PotId | undefined): id is PotId => id !== undefined && pot(plan, id) !== null;
+  const from = has(link.from) ? link.from : undefined;
+  const to = has(link.to) && link.to !== from ? link.to : undefined;
+  return newMove({ from, to, amount: link.amount });
+}
+
+/** The draft against a plan read again (after a refusal): a pot the plan no longer has is let go. */
+export function fitDraft(d: MoveDraft, plan: PlanMonth): MoveDraft {
+  const from = d.from !== null && pot(plan, d.from) === null ? null : d.from;
+  const to = d.to !== null && pot(plan, d.to) === null ? null : d.to;
+  return from === d.from && to === d.to ? d : { ...d, from, to };
+}
+
 export function newMove(start: { from?: PotId; to?: PotId; amount?: number }): MoveDraft {
   const entry = entryOf(start.amount);
   return { from: start.from ?? null, to: start.to ?? null, entry, prefilled: !isEmpty(entry) };

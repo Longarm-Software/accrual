@@ -1,7 +1,7 @@
 import type { PlanCategory } from '../../engine/types';
 import { fakeActivity, fakePlanMonth } from '../../session/fakeEngine';
 import type { ActivityRow } from '../../engine/types';
-import { activityDateLabel, activityLines, activityTotal, detailRows } from './categoryDetail';
+import { activityDateLabel, activityHeading, activityLines, activityTotal, detailRows } from './categoryDetail';
 
 const named = (name: string): PlanCategory => fakePlanMonth.groups.flatMap(g => g.categories).find(c => c.name === name)!;
 const base: PlanCategory = {
@@ -77,5 +77,13 @@ describe('activityLines', () => {
       ['a', 'Today · Everyday Checking'],
       ['b', 'Tue 3 Nov · Everyday Checking'],
     ]);
+  });
+});
+
+describe('activityHeading', () => {
+  it('This month for the current month', () => expect(activityHeading('2026-11', nov19)).toBe('This month'));
+  it('the month’s name for any other', () => {
+    expect(activityHeading('2026-10', nov19)).toBe('October');
+    expect(activityHeading('2026-12', nov19)).toBe('December');
   });
 });

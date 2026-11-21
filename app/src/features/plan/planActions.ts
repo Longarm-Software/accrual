@@ -28,6 +28,11 @@ export function moveHref(link: MoveLink): string | null {
   return parts.length === 0 ? '/move' : `/move?${parts.join('&')}`;
 }
 
+/** The category screen's link, or null when `id` is not an id `parseId` accepts. */
+export function categoryHref(id: string): string | null {
+  return parseId(id) === null ? null : `/category/${id}`;
+}
+
 /** The cover link, or null when `category` is not an id `parseId` accepts. */
 export function coverHref(category: string): string | null {
   return parseId(category) === null ? null : `/cover?category=${category}`;
