@@ -254,6 +254,7 @@ export function overspentNotice(month: PlanMonth): string | null;
 | 8 | `month` is today's month and `daysLeftInMonth >= 2` | `ok` | `{perDay} a day for {n} days` where perDay is `balance / n` rounded **down** to whole dollars (amended in the final fix pass; it was rounded to the nearest, which can promise more than is left: $30.00 over 12 days showed "$3 a day", $36 in all); if that is `$0` (under $1 a day), `{left} left for {n} days` with `formatMoney(balance)` | `used / (used + balance)` |
 | 9 | `month` is today's month (so it is the last day) | `ok` | `{left} left today` with `formatMoney(balance)` | `used / (used + balance)` |
 | 10 | `month` is before today's month | `ok` | `{left} left over` with `formatMoney(balance)` | `used / (used + balance)` |
+| 10a | `budgeted === 0` and `balance > 0` (so a future month whose money was only carried in; added by plan 4, decision 11) | `ok` | `{left} carried in` with `formatMoney(balance)` | `used / (used + balance)` |
 | 11 | otherwise (a future month) | `ok` | `Budgeted` | `used / (used + balance)` |
 
 > **Amended during implementation.** `used` is `max(0, -spent)`, so a net refund counts as not

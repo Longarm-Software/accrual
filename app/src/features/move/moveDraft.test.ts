@@ -1,0 +1,206 @@
+import { READY, type PlanMonth } from '../../engine/types';
+import { checkMonthAndAmount, checkMove } from '../../engine/writeRules';
+import { fakePlanMonth } from '../../session/fakeEngine';
+import { emptyEntry, entryCents, press, type Entry } from '../quickAdd/amountEntry';
+import { bite } from '../quickAdd/bite';
+import { fromChoices, moveView, newMove, swap, toChoices, toMove, withFrom, withTo, type MoveDraft } from './moveDraft';
+import { gain } from './pots';
+
+const plan = fakePlanMonth; // Ready to budget $312.00; Rent $0; Electricity $120; Dining out −$28.10
+const e = (digits: string, decimals: string | null = null): Entry => ({ digits, decimals });
+const draft = (from: string | null, to: string | null, cents: number): MoveDraft => ({
+  ...newMove({ amount: cents }),
+  from,
+  to,
+});
+
+describe('newMove', () => {
+  it('from X: to null, empty entry', () => {
+    expect(newMove({ from: 'cat-groceries' })).toEqual({ from: 'cat-groceries', to: null, entry: emptyEntry });
+  });
+  it('to READY with an amount: from null, the entry shows the amount', () => {
+    const d = newMove({ to: READY, amount: 1594 });
+    expect(d).toEqual({ from: null, to: READY, entry: e('15', '94') });
+    expect(entryCents(d.entry)).toBe(1594);
+  });
+  // Pinned: a pre-filled amount always shows both decimals, so it reads like any amount on the
+  // screen ($15.00, not $15), and the keypad then acts on it the same way whatever the amount:
+  // delete removes the last cent digit and keeps the value until the point goes; a digit is
+  // refused (two decimals at most) until something is deleted.
+  it('whole dollars show two decimals: 1500 is 15.00', () => {
+    expect(newMove({ amount: 1500 }).entry).toEqual(e('15', '00'));
+  });
+  it('under a dollar: 50 is 0.50, as if typed ". 5 0"', () => {
+    expect(newMove({ amount: 50 }).entry).toEqual(e('0', '50'));
+    expect(newMove({ amount: 5 }).entry).toEqual(e('0', '05'));
+  });
+  it('the keypad on a pre-filled amount: delete steps back a digit at a time, a digit is refused', () => {
+    const { entry } = newMove({ amount: 1500 });
+    expect(press(entry, 'back')).toEqual(e('15', '0'));
+    expect(entryCents(press(entry, 'back'))).toBe(1500);
+    expect(press(press(press(entry, 'back'), 'back'), 'back')).toEqual(e('15'));
+    expect(press(entry, '7')).toEqual(entry);
+    expect(press(newMove({ amount: 1594 }).entry, 'back')).toEqual(e('15', '9'));
+  });
+  it('a large amount groups nothing and keeps every digit', () => {
+    expect(newMove({ amount: 123456789 }).entry).toEqual(e('1234567', '89'));
+  });
+  it('no amount, zero, negative or fractional: an empty entry', () => {
+    for (const amount of [undefined, 0, -100, 12.5, NaN]) expect(newMove({ amount }).entry).toEqual(emptyEntry);
+  });
+});
+
+describe('withFrom, withTo, swap', () => {
+  it('withFrom sets from', () => expect(withFrom(draft(null, READY, 0), 'cat-rent').from).toBe('cat-rent'));
+  it('withFrom the current to: from becomes it, to becomes null', () => {
+    expect(withFrom(draft('cat-rent', READY, 100), READY)).toMatchObject({ from: READY, to: null });
+  });
+  it('withTo sets to', () => expect(withTo(draft(READY, null, 0), 'cat-rent').to).toBe('cat-rent'));
+  it('withTo the current from: to becomes it, from becomes null', () => {
+    expect(withTo(draft(READY, 'cat-rent', 100), READY)).toMatchObject({ from: null, to: READY });
+  });
+  it('swap: from and to change places, the entry is kept', () => {
+    const d = draft('cat-groceries', READY, 1840);
+    expect(swap(d)).toEqual({ from: READY, to: 'cat-groceries', entry: d.entry });
+  });
+  it('swap with one side empty', () => {
+    expect(swap(draft('cat-groceries', null, 0))).toMatchObject({ from: null, to: 'cat-groceries' });
+  });
+});
+
+describe('moveView', () => {
+  it('title: Assign when from is READY', () => {
+    expect(moveView(draft(READY, 'cat-rent', 0), plan).title).toBe('Assign');
+  });
+  it('title: Fix overbudgeting when to is READY and the month is overbudgeted', () => {
+    const over: PlanMonth = { ...plan, toBudget: -1594 };
+    expect(moveView(draft('cat-groceries', READY, 1594), over).title).toBe('Fix overbudgeting');
+  });
+  it('title: Move money otherwise, including to READY when it is not below zero', () => {
+    expect(moveView(draft('cat-groceries', 'cat-dining', 0), plan).title).toBe('Move money');
+    expect(moveView(draft('cat-groceries', READY, 0), plan).title).toBe('Move money');
+    expect(moveView(draft(null, null, 0), plan).title).toBe('Move money');
+  });
+  it('from: the name and the bite on the from pot', () => {
+    const v = moveView(draft('cat-groceries', 'cat-dining', 1840), plan);
+    expect(v.from).toEqual({ name: 'Groceries', bite: bite({ name: 'Groceries', balance: 20762 }, 1840) });
+  });
+  it('from: null name and bite when from is not set', () => {
+    expect(moveView(draft(null, 'cat-dining', 1840), plan).from).toEqual({ name: null, bite: null });
+  });
+  it('to: the name and the gain on the to pot', () => {
+    const v = moveView(draft('cat-groceries', 'cat-dining', 1840), plan);
+    expect(v.to).toEqual({ name: 'Dining out', gain: gain({ id: 'cat-dining', name: 'Dining out', has: -2810 }, 1840) });
+  });
+  it('to: null name and gain when to is not set', () => {
+    expect(moveView(draft('cat-groceries', null, 1840), plan).to).toEqual({ name: null, gain: null });
+  });
+  it('over: more than the from pot has', () => {
+    expect(moveView(draft('cat-electricity', 'cat-dining', 12001), plan).over).toBe(true);
+    expect(moveView(draft('cat-electricity', 'cat-dining', 12000), plan).over).toBe(false);
+  });
+  it('over: any amount from a pot at or below zero', () => {
+    expect(moveView(draft('cat-rent', 'cat-dining', 1), plan).over).toBe(true);
+    expect(moveView(draft('cat-dining', 'cat-rent', 1), plan).over).toBe(true);
+  });
+  it('over: never with no amount, and never with from not set', () => {
+    expect(moveView(draft('cat-rent', 'cat-dining', 0), plan).over).toBe(false);
+    expect(moveView(draft(null, 'cat-dining', 999999), plan).over).toBe(false);
+  });
+  it('from READY, more than Ready to budget has: over, cannot save', () => {
+    const v = moveView(draft(READY, 'cat-rent', 31201), plan);
+    expect(v.over).toBe(true);
+    expect(v.canSave).toBe(false);
+    expect(v.from.bite?.warning).toBe('That is $0.01 more than Ready to budget has');
+  });
+  it('canSave: from and to set and different, an amount, not over', () => {
+    expect(moveView(draft(READY, 'cat-rent', 31200), plan).canSave).toBe(true);
+    expect(moveView(draft('cat-groceries', READY, 1), plan).canSave).toBe(true);
+  });
+  it('canSave: not without from, to or an amount, nor between a pot and itself', () => {
+    expect(moveView(draft(null, 'cat-rent', 100), plan).canSave).toBe(false);
+    expect(moveView(draft(READY, null, 100), plan).canSave).toBe(false);
+    expect(moveView(draft(READY, 'cat-rent', 0), plan).canSave).toBe(false);
+    expect(moveView(draft('cat-groceries', 'cat-groceries', 100), plan).canSave).toBe(false);
+  });
+  it('canSave: not with a pot the plan does not have', () => {
+    expect(moveView(draft('cat-nope', READY, 100), plan).canSave).toBe(false);
+    expect(moveView(draft(READY, 'cat-nope', 100), plan).canSave).toBe(false);
+  });
+  it('whenever canSave is true, the adapter\'s own rules accept the move', () => {
+    const ids = [READY, 'cat-rent', 'cat-electricity', 'cat-groceries', 'cat-dining', 'cat-emergency'];
+    for (const from of ids) {
+      for (const to of ids) {
+        for (const cents of [1, 12000, 12001, 31200, 31201, 640000]) {
+          const d = draft(from, to, cents);
+          if (!moveView(d, plan).canSave) continue;
+          const move = toMove(d, plan.month);
+          expect(() => checkMonthAndAmount(move.month, move.amount, { start: '2026-01', end: '2027-12' })).not.toThrow();
+          expect(() => checkMove(plan, move)).not.toThrow();
+        }
+      }
+    }
+  });
+  it('button: Assign when from is READY, otherwise Move', () => {
+    expect(moveView(draft(READY, 'cat-rent', 100), plan).button).toBe('Assign');
+    expect(moveView(draft('cat-groceries', READY, 100), plan).button).toBe('Move');
+    expect(moveView(draft(null, null, 0), plan).button).toBe('Move');
+  });
+});
+
+describe('fromChoices', () => {
+  it('every pot except the current to, with its amount; disabled at or below zero', () => {
+    expect(fromChoices(draft(null, 'cat-groceries', 0), plan)).toEqual([
+      { id: READY, name: 'Ready to budget', detail: { text: '$312.00', tone: 'mute' } },
+      { id: 'cat-rent', name: 'Rent', detail: { text: '$0.00', tone: 'mute' }, disabled: true },
+      { id: 'cat-electricity', name: 'Electricity', detail: { text: '$120.00', tone: 'mute' } },
+      { id: 'cat-insurance', name: 'Insurance', detail: { text: '$100.00', tone: 'mute' } },
+      { id: 'cat-dining', name: 'Dining out', detail: { text: '−$28.10', tone: 'over' }, disabled: true },
+      { id: 'cat-emergency', name: 'Emergency fund', detail: { text: '$6,400.00', tone: 'mute' } },
+    ]);
+  });
+  it('Ready to budget below zero is coral and disabled', () => {
+    const rows = fromChoices(draft(null, null, 0), { ...plan, toBudget: -500 });
+    expect(rows[0]).toEqual({ id: READY, name: 'Ready to budget', detail: { text: '−$5.00', tone: 'over' }, disabled: true });
+  });
+  it('a negative balance that rolls over is quiet, not coral, and still disabled', () => {
+    const rolling: PlanMonth = {
+      ...plan,
+      groups: [{ id: 'g', name: 'G', categories: [{ ...plan.groups[1].categories[1], carryover: true }] }],
+    };
+    expect(fromChoices(draft(null, null, 0), rolling)[1]).toEqual({
+      id: 'cat-dining', name: 'Dining out', detail: { text: '−$28.10', tone: 'mute' }, disabled: true,
+    });
+  });
+});
+
+describe('toChoices', () => {
+  it('every pot except the current from, same detail, none disabled', () => {
+    const rows = toChoices(draft(READY, null, 0), plan);
+    expect(rows.map(r => r.id)).toEqual([
+      'cat-rent', 'cat-electricity', 'cat-insurance', 'cat-groceries', 'cat-dining', 'cat-emergency',
+    ]);
+    expect(rows.every(r => r.disabled === undefined)).toBe(true);
+    expect(rows[4]).toEqual({ id: 'cat-dining', name: 'Dining out', detail: { text: '−$28.10', tone: 'over' } });
+  });
+  it('READY is offered when from is a category', () => {
+    expect(toChoices(draft('cat-groceries', null, 0), plan)[0]).toEqual({
+      id: READY, name: 'Ready to budget', detail: { text: '$312.00', tone: 'mute' },
+    });
+  });
+});
+
+describe('toMove', () => {
+  it('the request moveMoney takes', () => {
+    expect(toMove(draft(READY, 'cat-rent', 1594), '2026-11')).toEqual({
+      month: '2026-11', from: READY, to: 'cat-rent', amount: 1594,
+    });
+  });
+  it('throws when the draft cannot be saved', () => {
+    expect(() => toMove(draft(null, 'cat-rent', 100), '2026-11')).toThrow();
+    expect(() => toMove(draft(READY, null, 100), '2026-11')).toThrow();
+    expect(() => toMove(draft(READY, 'cat-rent', 0), '2026-11')).toThrow();
+    expect(() => toMove(draft(READY, READY, 100), '2026-11')).toThrow();
+    expect(() => toMove(draft(READY, 'cat-rent', 100), '2026-13')).toThrow();
+  });
+});

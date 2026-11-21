@@ -1,0 +1,67 @@
+import { READY } from '../../engine/types';
+import { fakePlanMonth } from '../../session/fakeEngine';
+import { gain, pot, pots, READY_NAME, type Pot } from './pots';
+
+const p = (has: number): Pot => ({ id: 'cat-x', name: 'X', has });
+
+describe('pots', () => {
+  it('Ready to budget first, then every category of every group in plan order, with its balance', () => {
+    expect(pots(fakePlanMonth)).toEqual([
+      { id: READY, name: 'Ready to budget', has: 31200 },
+      { id: 'cat-rent', name: 'Rent', has: 0 },
+      { id: 'cat-electricity', name: 'Electricity', has: 12000 },
+      { id: 'cat-insurance', name: 'Insurance', has: 10000 },
+      { id: 'cat-groceries', name: 'Groceries', has: 20762 },
+      { id: 'cat-dining', name: 'Dining out', has: -2810 },
+      { id: 'cat-emergency', name: 'Emergency fund', has: 640000 },
+    ]);
+  });
+  it('READY_NAME is the pot\'s name', () => expect(READY_NAME).toBe('Ready to budget'));
+  it('a month overbudgeted: Ready to budget has a negative amount', () => {
+    expect(pots({ ...fakePlanMonth, toBudget: -12000 })[0]).toEqual({ id: READY, name: READY_NAME, has: -12000 });
+  });
+});
+
+describe('pot', () => {
+  it('finds Ready to budget and a category', () => {
+    expect(pot(fakePlanMonth, READY)).toEqual({ id: READY, name: READY_NAME, has: 31200 });
+    expect(pot(fakePlanMonth, 'cat-dining')).toEqual({ id: 'cat-dining', name: 'Dining out', has: -2810 });
+  });
+  it('null for an id the plan does not have', () => expect(pot(fakePlanMonth, 'cat-nope')).toBeNull());
+});
+
+describe('gain', () => {
+  it('a gain onto money already there: kept is the old share', () => {
+    const g = gain(p(3000), 1000);
+    expect(g.kept).toBeCloseTo(0.75);
+    expect(g.gained).toBeCloseTo(0.25);
+    expect(g.kept + g.gained).toBe(1);
+    expect(g.before).toBe('$30.00');
+    expect(g.after).toBe('$40.00 after');
+  });
+  it('a tiny gain still shows 4% of the bar, taken from kept', () => {
+    const g = gain(p(640000), 1);
+    expect(g.gained).toBe(0.04);
+    expect(g.kept).toBe(0.96);
+    expect(g.after).toBe('$6,400.01 after');
+  });
+  it('from zero: the whole bar is gained', () => {
+    expect(gain(p(0), 500)).toEqual({ kept: 0, gained: 1, before: '$0.00', after: '$5.00 after' });
+  });
+  it('across zero: from below zero to above it, the whole bar is gained', () => {
+    expect(gain(p(-2810), 5000)).toEqual({ kept: 0, gained: 1, before: '−$28.10', after: '$21.90 after' });
+  });
+  it('to exactly zero: the bar is empty', () => {
+    expect(gain(p(-2810), 2810)).toEqual({ kept: 0, gained: 0, before: '−$28.10', after: '$0.00 after' });
+  });
+  it('still below zero after: the bar is empty', () => {
+    expect(gain(p(-2810), 1350)).toEqual({ kept: 0, gained: 0, before: '−$28.10', after: '−$14.60 after' });
+  });
+  it('amount 0: all kept, nothing gained', () => {
+    expect(gain(p(3000), 0)).toEqual({ kept: 1, gained: 0, before: '$30.00', after: '$30.00 after' });
+  });
+  it('amount 0 at or below zero: no solid bar', () => {
+    expect(gain(p(0), 0)).toEqual({ kept: 0, gained: 0, before: '$0.00', after: '$0.00 after' });
+    expect(gain(p(-500), 0)).toEqual({ kept: 0, gained: 0, before: '−$5.00', after: '−$5.00 after' });
+  });
+});
