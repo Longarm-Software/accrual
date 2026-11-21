@@ -131,3 +131,73 @@ it('outlines each key with the key edge, so the keys show on the light page too'
   const style = [button('5').props.style].flat(Infinity).reduce((all, s) => ({ ...all, ...s }), {});
   expect(style.borderColor).toBe(themes.dark.color.keyEdge);
 });
+
+describe('without the sign key (the move sheet)', () => {
+  it('leaves the +/− key out, and its cell empty so the grid keeps its shape', async () => {
+    await render(<Keypad onKey={() => {}} sign={false} onSave={() => {}} canSave over={false} />);
+    expect(screen.queryByRole('button', { name: 'Expense or income' })).toBeNull();
+    expect(screen.getByTestId('keypad-empty-cell')).toHaveStyle({ flex: 1 });
+    for (const name of ['4', '5', '6', 'Delete', 'Save']) expect(button(name)).toBeTruthy();
+  });
+  it('the types refuse a sign key with no handler', () => {
+    // @ts-expect-error: the sign key is shown by default, so it needs onToggleSign
+    const missing = <Keypad onKey={() => {}} onSave={() => {}} canSave over={false} />;
+    // @ts-expect-error: sign={false} takes no handler
+    const extra = <Keypad onKey={() => {}} sign={false} onToggleSign={() => {}} onSave={() => {}} canSave over={false} />;
+    expect([missing, extra]).toHaveLength(2);
+  });
+  it('with onToggleSign the key is there and the cell is not', async () => {
+    await draw();
+    expect(screen.queryByTestId('keypad-empty-cell')).toBeNull();
+  });
+});
+
+describe('a word on Save', () => {
+  it('shows the word instead of the tick, and is named by it', async () => {
+    const onSave = jest.fn();
+    await render(<Keypad onKey={() => {}} sign={false} onSave={onSave} canSave over={false} saveLabel="Move" />);
+    expect(screen.getByText('Move')).toBeTruthy();
+    expect(screen.queryByTestId('save-tick')).toBeNull();
+    await fireEvent.press(button('Move'));
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+  it('the tick by default', async () => {
+    await draw();
+    expect(screen.getByTestId('save-tick')).toBeTruthy();
+  });
+});
+
+describe('busy: a write is under way', () => {
+  const drawBusy = () => {
+    const calls = { onKey: jest.fn<void, [Key]>(), onToggleSign: jest.fn(), onSave: jest.fn() };
+    return render(<Keypad {...calls} canSave over={false} saveLabel="Move" busy />).then(() => calls);
+  };
+  it('turns every key off, so presses do nothing', async () => {
+    const { onKey, onToggleSign, onSave } = await drawBusy();
+    for (const name of ['1', '0', 'Double zero', 'Decimal point', 'Delete', 'Expense or income']) {
+      expect(button(name).props.accessibilityState).toMatchObject({ disabled: true });
+      await fireEvent.press(button(name));
+    }
+    await fireEvent.press(button('Move'));
+    expect(onKey).not.toHaveBeenCalled();
+    expect(onToggleSign).not.toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+  it('shows a spinner on Save and keeps its word laid out, unseen, so the key keeps its size', async () => {
+    await drawBusy();
+    expect(button('Move').props.accessibilityState).toMatchObject({ disabled: true, busy: true });
+    expect(screen.getByLabelText('Working')).toBeTruthy();
+    expect(screen.getByText('Move')).toBeTruthy();
+  });
+  it('says busy is over, not just leaves it out, once the write ends: Android keeps a state key a render drops', async () => {
+    const calls = { onKey: jest.fn<void, [Key]>(), onToggleSign: jest.fn(), onSave: jest.fn() };
+    await render(<Keypad {...calls} canSave over={false} saveLabel="Move" busy />);
+    await screen.rerender(<Keypad {...calls} canSave over={false} saveLabel="Move" busy={false} />);
+    expect(button('Move').props.accessibilityState).toEqual({ disabled: false, busy: false });
+  });
+  it('is off by default: quick add draws as before', async () => {
+    await draw();
+    expect(screen.queryByLabelText('Working')).toBeNull();
+    expect(button('7').props.accessibilityState).toMatchObject({ disabled: false });
+  });
+});

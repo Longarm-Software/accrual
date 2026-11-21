@@ -8,8 +8,9 @@ on port 5007. Never point it at a real server or a real budget.
 ## Layout
 
 After the [foundation plan](../docs/superpowers/plans/2026-11-19-foundation.md), plan 2 (the
-Plan screen) and plan 3 ([quick add](../docs/superpowers/plans/2026-11-19-quick-add.md)), with
-what each file is for:
+Plan screen), plan 3 ([quick add](../docs/superpowers/plans/2026-11-19-quick-add.md)) and plan 4
+([moving money](../docs/superpowers/plans/2026-11-21-moving-money.md)), with what each file is
+for:
 
 ```
 app/                               (was spike/app)
@@ -23,19 +24,29 @@ app/                               (was spike/app)
     shims/async-storage.ts         header comment only: what is kept in memory, what on disk
   harness/                         unchanged, except verify.ts (new checks: plan month, month
                                    bounds, opening offline; quick-add lists, adding a transaction
-                                   with a new or existing payee, the sync time bound) and paths
-                                   updated for the move
+                                   with a new or existing payee, the sync time bound; a category's
+                                   transactions in this month and the last, moving, covering and
+                                   assigning against the reference client, and the writes'
+                                   refusals) and paths updated for the move
   modules/accrual-sqlite-functions/   unchanged
   src/
     app/                           Expo Router routes (screens only, no logic)
-      _layout.tsx                  fonts, splash screen, session provider, Stack (quick add as a
-                                   modal), Android navigation bar style following the theme
+      _layout.tsx                  fonts, splash screen, session provider, Stack (quick add, move
+                                   and cover as modals, a category pushed), Android navigation
+                                   bar style following the theme
       index.tsx                    the Plan: month switcher, top card, notice, groups of tiles,
                                    pull to refresh, Offline chip, the + button; re-reads today
                                    and syncs on returning to the foreground; redirects when not
                                    ready, or to dev-check when the scripted run is on
       add.tsx                      quick add: amount, payee, category with the bite, account,
                                    date, keypad; the keypad gives way to the keyboard for the payee
+      category/[id].tsx            one category in the Plan's month: what it has, budgeted / spent /
+                                   carried in / left, its transactions (read-only), and Move money
+                                   or Cover (no button in a past month)
+      move.tsx                     the move sheet (also Assign and Fix): amount, From and To pots
+                                   with the bite and the gain, swap, keypad with Move or Assign
+      cover.tsx                    the cover sheet: the overspent category filling in, the pots
+                                   that could pay with what each would take, one chosen, Cover
       connect.tsx                  server address, password, budget list
       opening.tsx                  first-download and reopen progress; opens the copy on the
                                    phone when the server cannot be reached
@@ -45,9 +56,13 @@ app/                               (was spike/app)
                                    as a route, so tests cannot live there (a test checks this)
     engine/
       types.ts                     Engine, RemoteBudget, PlanMonth, MonthBounds, OpenStage,
-                                   QuickAddLists, NewTransaction, EngineError
+                                   QuickAddLists, NewTransaction, ActivityRow, the move and cover
+                                   requests, EngineError (incl. 'stale' and 'invalid-move')
       adapter.ts                   createEngine(): the only file that touches the bundle;
-                                   a sync gives up after 15 seconds
+                                   a sync gives up after 15 seconds; moves and covers call
+                                   Actual's own budget actions after checking the month as it is
+      writeRules.ts                what a write must satisfy (a YYYY-MM month in the budget, a
+                                   positive whole amount, a real pot, enough in it)
       recentUse.ts                 recent payees, each one's last category, the newest
                                    transaction's account (pure; the adapter supplies the rows)
     session/
@@ -66,11 +81,15 @@ app/                               (was spike/app)
                                    a time, and a save made during one is owed another
         foreground.ts              what returning to the app changes: a new day, a new month
         useReturnToForeground.ts   calls back when the app comes back from the background
-        quickAddSignal.ts          what the Plan and the sheet share: today, and "a save happened"
+        planSignal.ts              what the Plan shares with the sheets and the category screen:
+                                   today, the month shown with its read, and "a save happened"
+        planActions.ts             which button the top card, the notice and a category screen
+                                   get (Assign, Fix, Cover, Move money), and the links they open
+        ActionPill.tsx             the small Assign / Fix / Cover pill
         AddButton.tsx              the round + above the navigation bar
         CategoryTile.tsx           one category: two to a row, or a full-width row at large text
-        HeroCard.tsx               Ready to budget, the spent / set aside / free bar
-        Notice.tsx                 "3 categories are $551.52 over" (informs only, no button)
+        HeroCard.tsx               Ready to budget, the spent / set aside / free bar, Assign or Fix
+        Notice.tsx                 "3 categories are $551.52 over", with Cover
         GroupHeader.tsx            group name and what its categories have left
         MonthSwitcher.tsx          previous and next month, stopping at the budget's ends
         AccountMenu.tsx            the budget's name and Sign out
@@ -89,7 +108,23 @@ app/                               (was spike/app)
         CategoryCard.tsx           the category, Suggested or Change, the bite bar, what is left
         BiteBar.tsx                the bar: solid what stays, hatched what this takes
         DateStepper.tsx            ‹ Today ›, a day at a time, never past today
-        PickerList.tsx             the category and account lists
+        PickerList.tsx             the category and account lists (and the pots, for moving)
+      move/                        the category screen and the move and cover sheets
+        pots.ts                    what can be a pot (categories and Ready to budget, never hidden
+                                   or income), what each has, the choices for From and To
+        moveDraft.ts               the move sheet's state: pots, amount, bite and gain, the button
+        cover.ts                   the cover sheet: the sources, what each would take, which one
+                                   is chosen first, "Cover $X" or "Cover $X of $Y"
+        categoryDetail.ts          the category screen's rows and headings
+        writeFailure.ts            a refused write -> the sentence shown
+        useMoveSheet.ts            reads the month, holds the draft, moves
+        useCoverSheet.ts           reads the month, holds the choice, covers
+        useSheetWrite.ts           the write, the re-read when it was 'stale', the sync after
+        useCategoryActivity.ts     a category's transactions in a month, read again after a save
+        PotCard.tsx                From or To: the pot, Change, the bar, now and after
+        SourceRow.tsx              one pot that could pay a cover, with its ring
+        DetailRows.tsx             Budgeted, Spent, Carried in, Left
+        ActivityList.tsx           the month's transactions, newest first
     theme/
       tokens.ts                    Aurora colours (dark, light), radii, spacing, type
       contrast.ts                  WCAG contrast ratio
@@ -99,7 +134,10 @@ app/                               (was spike/app)
       Glass.tsx                    frosted tile on iOS, solid tile on Android
       Text.tsx                     Body, Label, Display
       Money.tsx                    "$207" with a smaller ".62"
-      Button.tsx                   primary (gradient) and quiet (glass)
+      Button.tsx                   primary (gradient) and quiet (glass); grows for a long label
+      SheetHeader.tsx              a sheet's Cancel and title
+      BackToPlan.tsx               leaves a screen with nothing to show for the Plan under it
+      Centre.tsx                   a centred message and its button
       Chip.tsx                     a small status pill ("Offline")
       ProgressBar.tsx              a tile's bar
       Spinner.tsx                  a ring that turns on the native thread
@@ -160,6 +198,121 @@ below instead of the app. To use the app itself, move that file aside and restar
 `--clear` so the change is picked up.
 
 ## What works
+
+### Moving money (plan 4)
+
+The eleven checks from plan 4, run by hand on 2026-11-21 on the Android emulator (1080 × 2400,
+gesture navigation and the light theme unless the check says otherwise) against the test server,
+with the fake budget "Spike Small", in a debug build. The emulator's date was Saturday 21 November
+2026. Server-side figures were read back with `@actual-app/api`, as
+`tools/test-server/scripts/reference.mjs` does; states were arranged with it too (well-formed
+months and amounts only).
+
+| # | Check | iOS simulator | Android emulator |
+|---|---|---|---|
+| 1 | The top card shows `Assign` and the notice `Cover`; neither in a past month | Not run | Passed |
+| 2 | A tile opens its category: Budgeted + Spent + Carried in = Left, the transactions add up to Spent, and the server agrees | Not run | Passed |
+| 3 | `Assign`: amount, category, the bite and the gain; Ready to budget falls and the category rises by the amount, on the phone and the server | Not run | Passed |
+| 4 | More than Ready to budget has: coral bar, the line, and the button does nothing | Not run | Passed |
+| 5 | `Move money` from a category screen to another category; swap; both tiles change by the amount | Not run | Passed |
+| 6 | `Cover` from the notice: the preselected source follows the rule; choosing another moves the button and bars; after it the category is at zero and the notice names the next | Not run | Passed |
+| 7 | A deficit larger than any pot: the button reads `Cover X of Y`, and the category stays over by the difference | Not run | Passed |
+| 8 | Overbudgeted: `Fix` opens the sheet with the shortfall filled in; taking it from a category brings Ready to budget to zero | Not run | Passed |
+| 9 | With the server stopped a move still works and the Plan says Offline; with it back and a pull, the server has it | Not run | Passed |
+| 10 | Light and dark, three-button navigation, the largest text size, a 360 × 640 screen: nothing cut off, the cover button clear of the navigation bar | Not run | Passed, after fixes (below); see what was left |
+| 11 | A past month's category screen has no button; a link to `/move` in a past month goes back to the Plan | Not run | Passed, after fixes (below) |
+
+**iOS:** built with Xcode 26.6, installed on the simulator and launched; one screenshot of its first
+screen (Connect). Nothing on the build machine can tap the simulator, so none of the eleven checks
+was run there.
+
+What was entered and seen on Android (fake figures throughout):
+
+- **1:** November: `Assign` on the top card ($7,106.86), and "2 categories are $546.61 over" with
+  `Cover`. October: no pill and no `Cover`.
+- **2:** Water: $92.94 − $230.39 + $166.40 = $28.95, and its four transactions add up to $230.39;
+  Pets: $73.90 − $385.25 + $361.19 = $49.84. The reference client listed the same transactions in
+  the same order.
+- **3:** $25.00 to Pets: "$7,081.86 after" on From, "$74.84 after" on To; afterwards Ready to
+  budget $7,081.86 and Pets $74.84, and the server the same.
+- **4:** $8,000 against $7,081.86: "−$918.14 after" and "That is $918.14 more than Ready to budget
+  has".
+- **5:** $30.50 from Coffee ($204.81) to Water ($28.95); swapped, Water could not pay it (coral,
+  "$1.55 more than Water has"); swapped back and moved: Coffee $174.31, Water $59.45. Actual wrote
+  its own note on the month ("Reassigned 30.50 from Coffee → Water").
+- **6:** Electricity −$298.80 with Ready to budget at $7,081.86, so Ready to budget was
+  preselected. Choosing Water ($59.45) changed the button to "Cover $59.45 of $298.80"; Phone
+  covered it all. Electricity $0.00, Phone $908.23, and the notice said "Subscriptions is $247.81
+  over".
+- **7:** a $9,000 expense added to Subscriptions on the server: "Cover $7,081.86 of $9,247.81",
+  Ready to budget preselected as the pot with the most. After it Subscriptions was $2,165.95 over
+  and Ready to budget $0.00.
+- **8:** $500 more budgeted to Water on the server: "Overbudgeted −$500.00" with `Fix`; the sheet
+  opened as "Fix overbudgeting" with $500.00 and To Ready to budget; from Water, "Every dollar has
+  a job".
+- **9:** $100 from Insurance to Ready to budget with the server stopped: the Plan showed $100.00
+  and Offline; after restarting it and pulling, the server had it.
+- **10:** dark with three-button navigation; font scale 2.0 (Android 16's largest); 360 × 640
+  points at 2.0 and at 1.0; light at 2.0. The emulator was put back to 1080 × 2400, 420 dpi, light,
+  gesture navigation and font scale 1.0 afterwards.
+- **11:** Water in October: Budgeted, Spent, Left and October's three transactions, no button.
+  With the Plan on October, `adb shell am start -a android.intent.action.VIEW -d "accrual://move"`
+  left the same Plan on October, and Back then left the app. A link to `/cover` for a category
+  that is not overspent did the same.
+- **A move after the budget changed elsewhere:** with a move sheet open, the from pot's budgeted
+  amount was lowered with the reference client, the app was sent to the background and brought
+  back (which syncs), and Move pressed: "That changed while you were here. Check the numbers and
+  try again." with the new figures; a smaller amount then went through. Without a sync in between
+  the move went through on the figures the phone had and, being the later change, replaced the
+  other one. That was fixed before the merge (below).
+
+**What a move or cover does now when the budget changed elsewhere** (final review's fix pass):
+it syncs first, waiting at most 3 seconds (offline, or with a server that does not answer, it
+writes on the phone's copy as an offline write always did), then checks against the budget as
+the server has it. It is refused, with "That changed while you were here" and the new figures,
+when the source no longer has the amount or when either pot differs from what the sheet showed,
+even if the move would still be allowed. A window remains: a change another device makes between
+that sync and the write (about a second for a partner whose app is online, plus a round trip),
+and a change a partner makes offline, which is unbounded: whichever change to the same budget
+cell is later wins when both have synced. That is how Actual's sync works. Seen on the Android
+emulator: a move made after the server's Insurance figure changed was refused with the new
+figure, and the retry left both changes on the server; the same for a cover, where the chosen
+source could no longer pay and the sheet asked for another rather than picking one; with the
+server not answering, Move and Cover showed a spinner for three seconds, the change was written
+on the phone with the Plan showing Offline, and it reached the server after the next sync.
+
+Fixed during the run, each with a test:
+
+- **A past month's category screen listed every later month's transactions too.** The query gave
+  the date both bounds in one condition, and Actual's query language keeps only one of them.
+  `engine:verify` now checks last month's lists against the reference client.
+- **Leaving a sheet with nothing to show stacked a second Plan** (check 11): it replaced itself
+  with a new Plan, in the current month, over the one already there. It now goes back down to
+  that Plan, or, opened by a link with nothing under it, puts the Plan in its place.
+- **A refused move's or cover's message was out of sight**, at the end of the form under the
+  keypad, or below the list of sources. It now sits just above the keypad or the button.
+- **At the largest text size a long label was cut off inside the cover button**; buttons now grow
+  for it. **A long sheet title squeezed Cancel into three lines**; Cancel keeps its width and the
+  title gets smaller to fit.
+- **The top card's amount sat lower when it had a pill** (about 13 points at normal text), so it
+  jumped between months; the label's line is now the pill's height either way.
+
+Seen and not changed:
+
+- On a 360 × 640 screen the move sheet shows only the From card above the keypad (To needs a
+  scroll), as quick add's form does at that size; at the largest text the sheet shows about one
+  card at a time.
+- At the largest text size on a 360 × 640 screen the `+` sits over the notice's `Cover` when the
+  Plan is at the top: a tap there opened quick add. The month switcher also runs past the right
+  edge at that size.
+- Each change of the system text size (Android) restarts the screen and, in this debug build,
+  logs "Looks like you have configured linking in multiple places" once.
+- With the largest text, a long sheet title ("Cover Subscriptions") is drawn smaller than Cancel.
+- In a past month the notice has no button, so it is shorter and the tiles start higher than in
+  the current month.
+- The swap control is a small glass circle with two chevrons; in the dark theme it is faint.
+- Debug build only: expo-dev-menu's "Tools" gear floats at the top right, over the Account button
+  and, at the largest text size, over the month switcher's next arrow.
 
 ### Quick add (plan 3)
 

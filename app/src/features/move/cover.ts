@@ -1,0 +1,148 @@
+// The cover sheet as data: an overspent category, the pots that could pay, and which one will.
+import { READY, type CoverRequest, type PlanCategory, type PlanMonth, type PotId } from '../../engine/types';
+import { checkCover } from '../../engine/writeRules';
+import { formatMoney } from '../../lib/money';
+import { isOverspent } from '../plan/categoryView';
+import { bite, type Bite } from '../quickAdd/bite';
+import { NOT_IN_BUDGET } from './categoryDetail';
+import { accepted, gain, pots, wellFormed, type Gain } from './pots';
+
+export type Source = { id: PotId; name: string; has: number; bite: Bite; covers: number; enough: boolean };
+export type CoverView = {
+  title: string; // "Cover Dining out"
+  name: string; // the overspent category's name
+  take: string; // "Take $28.10 from", over the sources
+  month: string; // the plan's month, YYYY-MM
+  category: string; // the overspent category's id
+  deficit: number; // positive cents
+  balance: number; // the category's balance as drawn: −deficit
+  target: Gain; // the overspent category filling to zero (or part way)
+  sources: Source[]; // READY first when it has money, then categories in plan order with money
+  selected: PotId | null;
+  button: string; // "Cover $28.10" | "Cover $13.50 of $28.10" | "Choose where it comes from" | "Nothing to cover with"
+  canSave: boolean;
+};
+
+function overspent(plan: PlanMonth, categoryId: string): PlanCategory | null {
+  const category = plan.groups.flatMap(g => g.categories).find(c => c.id === categoryId);
+  return category && isOverspent(category) ? category : null;
+}
+
+/** Every pot with money in it, Ready to budget first. The overspent category has none, so it is never one. */
+function sourcesFor(plan: PlanMonth, deficit: number): Source[] {
+  return pots(plan)
+    .filter(p => p.has > 0)
+    .map(p => {
+      const covers = Math.min(deficit, p.has);
+      return { id: p.id, name: p.name, has: p.has, covers, enough: p.has >= deficit, bite: bite({ name: p.name, balance: p.has }, covers) };
+    });
+}
+
+// Ready to budget if it is enough; else the first that is enough; else the one with the most, the first of equals.
+function pick(sources: Source[]): Source | null {
+  const ready = sources.find(s => s.id === READY);
+  if (ready?.enough) return ready;
+  const enough = sources.find(s => s.enough);
+  if (enough) return enough;
+  return sources.reduce<Source | null>((best, s) => (best === null || s.has > best.has ? s : best), null);
+}
+
+export function defaultSource(plan: PlanMonth, categoryId: string): PotId | null {
+  const category = overspent(plan, categoryId);
+  return category ? (pick(sourcesFor(plan, -category.balance))?.id ?? null) : null;
+}
+
+/** The button when no source is chosen (after a refusal took the choice away) and some could pay. */
+export const CHOOSE_SOURCE = 'Choose where it comes from';
+
+/**
+ * The cover sheet for `categoryId`, with `selected` chosen. With nothing selected the default
+ * (see `pick`) is chosen, unless `chooseAgain`: after a refusal the person chooses again, so
+ * nothing is (see `keepChoice`). A selection that is not a source falls back the same way.
+ */
+export function coverView(
+  plan: PlanMonth,
+  categoryId: string,
+  selected: PotId | null,
+  { chooseAgain = false }: { chooseAgain?: boolean } = {},
+): CoverView | null {
+  const category = overspent(plan, categoryId);
+  if (!category) return null;
+  const deficit = -category.balance;
+  const sources = sourcesFor(plan, deficit);
+  const fallback = chooseAgain ? null : pick(sources);
+  const source = sources.find(s => s.id === selected) ?? fallback;
+  const covers = source?.covers ?? 0;
+  let button = sources.length > 0 ? CHOOSE_SOURCE : 'Nothing to cover with';
+  if (source) button = source.enough ? `Cover ${formatMoney(deficit)}` : `Cover ${formatMoney(covers)} of ${formatMoney(deficit)}`;
+  const canSave =
+    source !== null &&
+    wellFormed(plan.month, covers) &&
+    accepted(() => checkCover(plan, request(plan.month, category, source)));
+  return {
+    title: `Cover ${category.name}`,
+    name: category.name,
+    take: `Take ${formatMoney(deficit)} from`,
+    month: plan.month,
+    category: category.id,
+    deficit,
+    balance: category.balance,
+    target: gain({ id: category.id, name: category.name, has: category.balance }, covers),
+    sources,
+    selected: source?.id ?? null,
+    button,
+    canSave,
+  };
+}
+
+/** The request covering `category` from `source`, with what the sheet showed of both as `seen`. */
+function request(month: string, category: { id: string; balance: number }, source: Source): CoverRequest {
+  return { month, category: category.id, from: source.id, amount: source.covers, seen: { category: category.balance, from: source.has } };
+}
+
+/**
+ * After a refusal, with the plan read again: the source to keep chosen, or null for none. The
+ * one the button named (`before.selected`, chosen or the default) is kept only while the new plan
+ * still lists it and it has at least what the button said it would cover; otherwise nothing is
+ * chosen, so the next press never takes from a pot the person did not pick.
+ */
+export function keepChoice(before: CoverView, plan: PlanMonth): PotId | null {
+  const shown = before.sources.find(s => s.id === before.selected);
+  if (!shown) return null;
+  const category = overspent(plan, before.category);
+  const now = category ? sourcesFor(plan, -category.balance).find(s => s.id === shown.id) : undefined;
+  return now !== undefined && now.has >= shown.covers ? shown.id : null;
+}
+
+/**
+ * What Cover sends to `engine.coverOverspending`, with what the sheet showed (the category's
+ * balance and the source's amount) as `seen`. Throws when the view cannot be saved.
+ */
+export function toCover(view: CoverView): CoverRequest {
+  const source = view.sources.find(s => s.id === view.selected);
+  if (!view.canSave || !source) throw new Error('This cover cannot be saved');
+  return request(view.month, { id: view.category, balance: view.balance }, source);
+}
+
+/** What a screen reader says for the overspent category's card: what it has now, and after the cover. */
+export function targetLabel(view: CoverView): string {
+  return `${view.name}, ${view.target.before} now, ${view.target.after}`;
+}
+
+/** Said when, read again after a refusal, the category is no longer overspent. */
+export const alreadyCovered = (name: string): string => `${name} is already covered.`;
+
+/** What the cover sheet says when `coverView` is null after a refusal: covered, or gone from the plan. */
+export function noLongerToCover(plan: PlanMonth, categoryId: string): string {
+  const category = plan.groups.flatMap(g => g.categories).find(c => c.id === categoryId);
+  return category ? alreadyCovered(category.name) : NOT_IN_BUDGET;
+}
+
+/** Said under a source's amounts, and in its label, when it cannot cover all of the deficit. */
+export const NOT_ENOUGH = 'not enough for all of it';
+
+/** What a screen reader says for a cover source; whether it is chosen is said by its radio role. */
+export function sourceLabel(source: Source): string {
+  const text = `${source.name}, ${source.bite.before} now, ${source.bite.after}`;
+  return source.enough ? text : `${text}, ${NOT_ENOUGH}`;
+}

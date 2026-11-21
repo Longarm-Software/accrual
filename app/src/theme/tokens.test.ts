@@ -40,3 +40,16 @@ it.each(['dark', 'light'] as const)('a keypad key has an edge that shows against
   const { keyEdge, page } = themes[name].color;
   expect(contrastRatio(over(keyEdge, page), page)).toBeGreaterThanOrEqual(1.2);
 });
+
+// The top card's pill is filled: the accent gradient with `onAccent`, or coral with `onOver`.
+it.each(['dark', 'light'] as const)('a filled pill\'s word passes WCAG AA on the %s theme', name => {
+  const theme = themes[name];
+  for (const end of theme.gradient) expect(contrastRatio(theme.color.onAccent, end)).toBeGreaterThanOrEqual(4.5);
+  expect(contrastRatio(theme.color.onOver, theme.color.over)).toBeGreaterThanOrEqual(4.5);
+});
+
+// An unchecked round check mark is a control: its ring must show (WCAG 1.4.11, 3:1) on a tile.
+it.each(['dark', 'light'] as const)('an empty check mark shows against a %s tile', name => {
+  const { control, solid } = themes[name].color;
+  expect(contrastRatio(control, solid)).toBeGreaterThanOrEqual(3);
+});

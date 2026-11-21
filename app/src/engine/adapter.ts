@@ -5,8 +5,9 @@
 // There is one engine per process. Calling createEngine again signs in afresh and
 // replaces the previous session; an Engine returned earlier must not be used after that.
 import { recentUse, type UseRow } from './recentUse';
-import { EngineError } from './types';
-import type { Auth, Engine, PlanCategory, PlanMonth, QuickAddLists, RemoteBudget } from './types';
+import { EngineError, READY } from './types';
+import type { ActivityRow, Auth, Engine, MonthBounds, PlanCategory, PlanMonth, QuickAddLists, RemoteBudget } from './types';
+import { checkCover, checkCoverShape, checkMonthAndAmount, checkMove, checkMoveShape, checkTransaction } from './writeRules';
 
 export * from './types';
 
@@ -43,6 +44,9 @@ const fail = (code: unknown, message: string) =>
 const SIGN_IN_TIMEOUT_MS = 5000;
 // A sync gives up after this long, for the same reason; see `sync` below.
 const SYNC_TIMEOUT_MS = 15000;
+// The sync before a budget write waits this long at most; see `syncQuietly` below. A person is
+// waiting on a button, so it is much shorter than a background sync's limit.
+const PRE_WRITE_SYNC_MS = 3000;
 // How many of the newest transactions quick add reads to order payees and suggest categories.
 const RECENT_USE_ROWS = 1000;
 
@@ -52,11 +56,13 @@ export async function createEngine(
     dataDir?: string;
     /** For the harness. */ signInTimeoutMs?: number;
     /** For the harness. */ syncTimeoutMs?: number;
+    /** For the harness and tests. */ preWriteSyncTimeoutMs?: number;
   } & Auth,
 ): Promise<Engine> {
   const dataDir = config.dataDir ?? core.defaultDocumentDir();
   const { serverURL } = config;
   const syncTimeoutMs = config.syncTimeoutMs ?? SYNC_TIMEOUT_MS;
+  const preWriteSyncMs = config.preWriteSyncTimeoutMs ?? PRE_WRITE_SYNC_MS;
   let lib: Lib;
   let offline = false;
   if ('password' in config) {
@@ -88,6 +94,123 @@ export async function createEngine(
       if (e instanceof EngineError) throw e;
       throw fail(e?.code, 'Could not sign in');
     }
+  }
+
+  // The currency Actual's own client passes to the budget actions; see `moveMoney`.
+  const currency = async (): Promise<string> => {
+    const prefs = await lib.send('preferences/get');
+    return typeof prefs?.defaultCurrencyCode === 'string' ? prefs.defaultCurrencyCode : '';
+  };
+  // The month a budget write is checked against, read just before it. The month and amount are
+  // checked first, so no read is made with a month the budget does not have.
+  const currentMonth = async (month: string, amount: number): Promise<PlanMonth> => {
+    let bounds: MonthBounds;
+    try {
+      bounds = await readMonthBounds();
+    } catch {
+      throw new EngineError('internal', 'Could not read the budget');
+    }
+    checkMonthAndAmount(month, amount, bounds);
+    try {
+      return await readPlanMonth(month);
+    } catch (e) {
+      if (e instanceof EngineError) throw e;
+      throw new EngineError('internal', 'Could not read the budget');
+    }
+  };
+  // The sync before a budget write. Each budget cell is last-writer-wins, and the actions write
+  // absolute amounts (budgeted ± amount) computed from the phone's copy, so a write made on a copy
+  // that has not pulled another device's change replaces that change. Pulling first means the
+  // write's checks, and the action, see the budget as the server has it.
+  //
+  // It never stops the write. A failure (offline, server down: refused at once) or any other
+  // rejection, an expired session included, is ignored: the write is made on the phone's copy, as
+  // an offline write always was, and the Plan's own sync after the save reports the state and
+  // signs out if it must. A server that silently drops packets would hold the person at the
+  // button, so the wait is bounded by PRE_WRITE_SYNC_MS; the sync keeps running underneath.
+  //
+  // How it meets the other syncs: loot-core runs one sync at a time (`fullSync` is wrapped in
+  // `once`), so if the Plan's sync is running this joins it rather than starting a second, and a
+  // sync the Plan starts while this one runs joins this one. Nothing here touches the Plan's own
+  // one-in-flight and owed-after-a-save bookkeeping (usePlanMonth), so nothing waits on anything
+  // else. A write made while a sync is still running (after the bound) is still uploaded by it:
+  // `_fullSync` compares its merkle trie with the server's at the end and goes round again when
+  // they differ, which a change made meanwhile makes them do.
+  async function syncQuietly(): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const bound = new Promise<void>(resolve => {
+      timer = setTimeout(resolve, preWriteSyncMs);
+    });
+    // Settles either way, so neither a late failure nor the race can go unhandled.
+    const run = lib.send('api/sync').then(
+      () => {},
+      () => {},
+    );
+    await Promise.race([run, bound]).finally(() => clearTimeout(timer));
+  }
+
+  // A budget action that throws inside loot-core rejects with 'internal'.
+  const budgetAction = async (message: string, run: () => Promise<void>) => {
+    try {
+      await run();
+    } catch {
+      throw new EngineError('internal', message);
+    }
+  };
+
+  // The Plan screen's month; see `getPlanMonth`. Budget writes also read it, to check against.
+  async function readPlanMonth(month: string): Promise<PlanMonth> {
+    const prefs = await lib.send('preferences/get');
+    if (prefs?.budgetType === 'tracking') throw fail('tracking-budget', 'Tracking budgets are not supported');
+    const { grouped } = await lib.send('get-categories');
+    const cells: { name: string; value: unknown }[] = await lib.send('envelope-budget-month', { month });
+    const values = new Map(cells.map(c => [c.name.slice(c.name.indexOf('!') + 1), c.value]));
+    const amount = (name: string) => {
+      const v = values.get(name);
+      return typeof v === 'number' ? v : 0;
+    };
+    const groups = (grouped as any[])
+      .filter(g => !g.is_income && !g.hidden)
+      .map(g => ({
+        id: g.id as string,
+        name: g.name as string,
+        categories: ((g.categories ?? []) as any[])
+          .filter(c => !c.hidden)
+          .map((c): PlanCategory => {
+            // The goal cells copy the month's budget row (handleBudgetChange in server/budget/base.ts),
+            // null when no template has set them; an unset cell reads as 0. So only a positive
+            // amount is a goal. `long-goal` is 1 for a `#goal` line, a balance to reach
+            // (runGoal in budget/category-template-context.ts), and null otherwise.
+            const goal = values.get(`goal-${c.id}`);
+            return {
+              id: c.id,
+              name: c.name,
+              budgeted: amount(`budget-${c.id}`),
+              spent: amount(`sum-amount-${c.id}`),
+              balance: amount(`leftover-${c.id}`),
+              carryover: Boolean(values.get(`carryover-${c.id}`)),
+              goal: typeof goal === 'number' && goal > 0 ? goal : null,
+              longGoal: Boolean(values.get(`long-goal-${c.id}`)),
+            };
+          }),
+      }));
+    const plan: PlanMonth = {
+      month,
+      toBudget: amount('to-budget'),
+      totalIncome: amount('total-income'),
+      // The envelope sheet stores this negated, as money leaving "to budget" (server/budget/envelope.ts).
+      totalBudgeted: 0 - amount('total-budgeted'),
+      totalSpent: amount('total-spent'),
+      groups,
+    };
+    return plan;
+  }
+
+  // `get-budget-bounds` (server/budget/app.ts -> createAllBudgets in budget/base.ts): from three
+  // months before the earliest transaction to twelve months after the current one, inclusive.
+  async function readMonthBounds(): Promise<MonthBounds> {
+    const { start, end } = await lib.send('get-budget-bounds');
+    return { start, end };
   }
 
   return {
@@ -166,58 +289,8 @@ export async function createEngine(
     // A tracking budget has no envelope cells (`tracking-budget-month` reads different ones), so
     // it is refused. Its type is the synced preference `budgetType`, absent meaning envelope
     // (`isTrackingBudget` in server/budget/actions.ts).
-    async getPlanMonth(month) {
-      const prefs = await lib.send('preferences/get');
-      if (prefs?.budgetType === 'tracking') throw fail('tracking-budget', 'Tracking budgets are not supported');
-      const { grouped } = await lib.send('get-categories');
-      const cells: { name: string; value: unknown }[] = await lib.send('envelope-budget-month', { month });
-      const values = new Map(cells.map(c => [c.name.slice(c.name.indexOf('!') + 1), c.value]));
-      const amount = (name: string) => {
-        const v = values.get(name);
-        return typeof v === 'number' ? v : 0;
-      };
-      const groups = (grouped as any[])
-        .filter(g => !g.is_income && !g.hidden)
-        .map(g => ({
-          id: g.id as string,
-          name: g.name as string,
-          categories: ((g.categories ?? []) as any[])
-            .filter(c => !c.hidden)
-            .map((c): PlanCategory => {
-              // The goal cells copy the month's budget row (handleBudgetChange in server/budget/base.ts),
-              // null when no template has set them; an unset cell reads as 0. So only a positive
-              // amount is a goal. `long-goal` is 1 for a `#goal` line, a balance to reach
-              // (runGoal in budget/category-template-context.ts), and null otherwise.
-              const goal = values.get(`goal-${c.id}`);
-              return {
-                id: c.id,
-                name: c.name,
-                budgeted: amount(`budget-${c.id}`),
-                spent: amount(`sum-amount-${c.id}`),
-                balance: amount(`leftover-${c.id}`),
-                carryover: Boolean(values.get(`carryover-${c.id}`)),
-                goal: typeof goal === 'number' && goal > 0 ? goal : null,
-                longGoal: Boolean(values.get(`long-goal-${c.id}`)),
-              };
-            }),
-        }));
-      const plan: PlanMonth = {
-        month,
-        toBudget: amount('to-budget'),
-        totalIncome: amount('total-income'),
-        // The envelope sheet stores this negated, as money leaving "to budget" (server/budget/envelope.ts).
-        totalBudgeted: 0 - amount('total-budgeted'),
-        totalSpent: amount('total-spent'),
-        groups,
-      };
-      return plan;
-    },
-    // `get-budget-bounds` (server/budget/app.ts -> createAllBudgets in budget/base.ts): from three
-    // months before the earliest transaction to twelve months after the current one, inclusive.
-    async getMonthBounds() {
-      const { start, end } = await lib.send('get-budget-bounds');
-      return { start, end };
-    },
+    getPlanMonth: month => readPlanMonth(month),
+    getMonthBounds: () => readMonthBounds(),
     getMonth: month => lib.send('api/budget-month', { month }),
     // What the quick-add sheet offers. `api/accounts-get` returns live accounts in Actual's order
     // (sort_order, name) with `offbudget` and `closed` as booleans (accountModel in
@@ -288,6 +361,110 @@ export async function createEngine(
       };
       return lists;
     },
+    // A category's transactions for the month, as the category screen lists them. The default
+    // `splits: 'inline'` is the mode wanted here: it leaves split parents out (`is_parent = 0`) and
+    // keeps their children, each with its own category; a parent's category reads as null anyway
+    // (the `v_transactions_internal` view in server/aql/schema/index.ts). Inline reads
+    // `v_transactions_internal_alive`, which already drops deleted transactions and the children
+    // of deleted parents; `tombstone: false` is kept so the rule does not hang on the mode.
+    // Only on-budget accounts count, as in the `sum-amount` cell the Plan's `spent` comes from
+    // (getSumAmountsByMonth in server/budget/base.ts), so the rows add up to `spent`. Dates are
+    // stored as YYYYMMDD integers, so `-31` bounds every month. A transfer's payee is the other
+    // account's transfer payee; the row names that account (`payee.transfer_acct.name`) rather
+    // than trusting the payee's own name to match it.
+    async getCategoryActivity(categoryId, month) {
+      const query = lib
+        .q('transactions')
+        .options({ splits: 'inline' })
+        .filter({
+          category: categoryId,
+          // Two conditions, not `{ $gte, $lte }` in one object: given both on one field, AQL keeps
+          // only one, and a past month listed every later month's transactions too.
+          $and: [{ date: { $gte: `${month}-01` } }, { date: { $lte: `${month}-31` } }],
+          'account.offbudget': false,
+          tombstone: false,
+        })
+        .select([
+          'id',
+          'date',
+          'amount',
+          'notes',
+          { payeeName: 'payee.name' },
+          { transferName: 'payee.transfer_acct.name' },
+          { accountName: 'account.name' },
+        ])
+        .orderBy([{ date: 'desc' }, { sort_order: 'desc' }]);
+      const rows: any[] = (await lib.send('api/query', { query: query.serialize() })).data;
+      return rows.map(
+        (r): ActivityRow => ({
+          id: r.id,
+          date: r.date,
+          amount: r.amount,
+          payee: r.transferName || r.payeeName || null,
+          account: r.accountName ?? '',
+          notes: r.notes ?? null,
+        }),
+      );
+    },
+    // Moving and covering call Actual's own budget actions (server/budget/actions.ts), registered
+    // as `budget/...` mutators wrapped in `undoable` (server/budget/app.ts), so the budget rows and
+    // the movement note on the month are what Actual's apps would write, and they sync like any
+    // other change. Months are YYYY-MM (`sheetForMonth`, `dbMonth`).
+    //
+    // loot-core checks almost none of what it is given (see writeRules.ts), and two people edit
+    // the same budget, so a sheet can be showing older figures. Each write therefore syncs, reads
+    // the budget's bounds and the month as they are now, immediately before the action, and
+    // refuses with 'invalid-move' or 'stale' anything that would not do exactly what was asked,
+    // or whose figures differ from what the sheet showed (`seen`). With the checks passed, every
+    // action below moves exactly `amount`:
+    //
+    // `transfer-category` subtracts from `from`'s budgeted amount and adds to `to`'s, or to nothing
+    // when `to` is 'to-budget' (READY), and appends "Reassigned …" to the month's note. It checks
+    // nothing itself. `transfer-category` cannot move FROM READY: it would write a budget row for
+    // a category called 'to-budget'. So READY as `from` goes through `transfer-available`, as
+    // Actual's own Ready to budget menu does. That adds to the category, clamped to between zero
+    // and what Ready to budget has, and writes no note; the check that Ready to budget has the
+    // amount keeps the clamp from ever cutting a move short.
+    //
+    // `currencyCode` only sets the decimal places of the amount in that note (`getCurrency` falls
+    // back to "None", two places, for a missing or unknown code). Actual's web app passes
+    // `format.currency.code`, which is the synced preference `defaultCurrencyCode` or '' (useFormat),
+    // so the same is passed here.
+    //
+    // Each write runs in this order: the checks that need no read (the request's shape: month,
+    // amount, ids, `seen`), so nothing is synced or read for a request that is refused anyway; the
+    // sync (`syncQuietly`); the currency; the bounds and the month; the checks against them; the
+    // action. Nothing but the action itself is awaited after the checks.
+    async moveMoney(move) {
+      checkMoveShape(move);
+      const { month, from, to, amount } = move;
+      await syncQuietly();
+      const currencyCode = await currency();
+      checkMove(await currentMonth(month, amount), move);
+      await budgetAction('Could not move the money', async () => {
+        if (from === READY) {
+          await lib.send('budget/transfer-available', { month, amount, category: to });
+        } else {
+          await lib.send('budget/transfer-category', { month, amount, from, to, currencyCode });
+        }
+      });
+    },
+    // `cover-overspending` takes a positive amount and inverts it itself. Given an amount it never
+    // reads the category's balance: it moves min(amount, what `from` has) whether or not the
+    // category is overspent, and treats an amount of 0 as "cover all of it". The checks refuse a
+    // category that is not overspent, an amount above what it is over by or above what the source
+    // has, and READY as the category (that would write a budget row for a category 'to-budget').
+    // It syncs and checks in the same order as a move.
+    async coverOverspending(cover) {
+      checkCoverShape(cover);
+      const { month, category, from, amount } = cover;
+      await syncQuietly();
+      const currencyCode = await currency();
+      checkCover(await currentMonth(month, amount), cover);
+      await budgetAction('Could not cover the overspending', async () => {
+        await lib.send('budget/cover-overspending', { month, to: category, from, amount, currencyCode });
+      });
+    },
     getAccounts: () => lib.send('api/accounts-get'),
     getTransactions: (accountId, startDate, endDate) =>
       lib.send('api/transactions-get', { accountId, startDate, endDate }),
@@ -300,7 +477,10 @@ export async function createEngine(
         .orderBy({ date: 'desc' });
       return (await lib.send('api/query', { query: query.serialize() })).data;
     },
+    // loot-core stores the date as parseInt of its digits without checking it, so a malformed
+    // date would be stored as NaN; the date and amount are checked first (writeRules.ts).
     async addTransaction(accountId, transaction) {
+      checkTransaction(transaction);
       await lib.send('api/transactions-add', { accountId, transactions: [transaction] });
     },
     // `api/sync` (server/api.ts) throws an Error carrying `code`, the reason from the failed sync:

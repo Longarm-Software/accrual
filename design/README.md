@@ -24,8 +24,8 @@ Plan 2 built the Plan screen from round 1 B. It leaves out three things the mock
 ## Round 3: the bite, motion and a logo
 
 **Status:** reviewed and accepted on 19 November 2026. The logo is 1 · Ring; its files are in
-[`brand/`](brand/README.md). The bite is built for quick add (plan 3, below); the other sheets,
-the motion spec and the logo are not built yet.
+[`brand/`](brand/README.md). The bite is built for quick add (plan 3) and for moving, covering and
+assigning (plan 4), both below; the motion spec and the logo are not built yet.
 
 ### The bite
 
@@ -59,6 +59,33 @@ a small bite. A bite is never drawn narrower than 4% of the bar, so it stays vis
 The built sheet also differs from the board in two smaller ways: the date sits next to the
 account rather than at the top right of the header, and the payee is a field rather than a
 pill under the amount.
+
+**Built in plan 4 (moving money), differing from the board on purpose:**
+
+- **One sheet moves and assigns.** The board has a Move money sheet and a separate Assign screen.
+  The app has one: *From*, *To* and an amount, where a pot is a category or Ready to budget.
+  Assigning is a move from Ready to budget, un-assigning a move to it, and fixing an overbudgeted
+  month (the top card's `Fix`) a move to it with the shortfall filled in. One sheet means one set
+  of rules for what can move, and Actual's own actions for assigning are moves between a category
+  and Ready to budget anyway.
+- **No suggested split.** The board's Assign spreads Ready to budget across goals ("Needs money
+  first", "Your goals", with steppers). That needs goal templates, which most budgets do not have,
+  so assigning is to one category at a time.
+- **A source that is not enough can still be chosen.** On the board's Cover sheet a pot that
+  cannot cover the whole amount is greyed out ("not enough"). In the app it stays choosable, says
+  "not enough for all of it", and the button then reads "Cover $59.45 of $298.80": covering part
+  of an overspend is still useful, and when the deficit is bigger than every pot it is the only
+  way to cover any of it. Ready to budget is chosen first when it can cover everything; otherwise
+  the first category, in the Plan's order, that can; otherwise the pot with the most.
+- **Covering is a full sheet**, not a half sheet over the dimmed Plan: it lists every pot that
+  could pay, which does not fit in half a screen. It has no keypad, because the amount is known.
+- **The move sheet's keypad has no `+/−`**, so the key under delete is empty. A move's direction
+  is From and To, and the swap control between the cards changes it.
+- **Past months are read-only.** A category's screen opens for any month, but nothing can be
+  moved, covered or assigned before the current month: that changes every month after it.
+- **A move cannot take more than the *from* pot has.** The bar turns coral, a line says by how
+  much, and the button is off, as in quick add. Actual itself would let a category go negative
+  this way; on a phone that should not be one tap.
 
 ### Motion
 

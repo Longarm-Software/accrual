@@ -55,5 +55,7 @@ export function categoryView(category: PlanCategory, when: { month: string; toda
     return view('ok', `${formatMoney(balance)} left today`, share);
   }
   if (order < 0) return view('ok', `${formatMoney(balance)} left over`, share);
+  // A future month with nothing budgeted yet: what it has came in from the months before.
+  if (budgeted === 0 && balance > 0) return view('ok', `${formatMoney(balance)} carried in`, share);
   return view('ok', 'Budgeted', share);
 }

@@ -68,25 +68,38 @@ export function CategoryCard({ name, suggested, bite, onPress, density = 'regula
             {name !== null && bite && (
               <View style={{ gap: space.sm }}>
                 <BiteBar kept={bite.kept} taken={bite.taken} state={bite.state} />
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: space.md }}>
-                  <Text style={[type.figure, styles.figures, { color: theme.color.mute }]}>{bite.before}</Text>
-                  <Text style={[type.figure, styles.figures, { fontFamily: font.semibold, color: afterColor }]}>{bite.after}</Text>
-                </View>
+                <Figures before={bite.before} after={bite.after} afterColor={afterColor} />
               </View>
             )}
           </View>
         </Glass>
       </Pressable>
-      {bite?.warning && (
-        <Glass radius={radius.field} style={{ paddingHorizontal: space.lg, paddingVertical: inset }}>
-          {/* Android announces it as it appears. iOS has no live region, so the card's label says it
-              instead, and the strip is hidden from VoiceOver so it is not read twice. */}
-          <Body style={type.notice} accessibilityLiveRegion="polite" accessibilityElementsHidden>
-            {bite.warning}
-          </Body>
-        </Glass>
-      )}
+      {bite?.warning && <Warning text={bite.warning} density={density} />}
     </View>
+  );
+}
+
+/** Under a pot's bar: what it has now at the left, what it will have after at the right. Shared with the move sheet's pot cards. */
+export function Figures({ before, after, afterColor }: { before: string; after: string; afterColor: string }) {
+  const theme = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: space.md }}>
+      <Text style={[type.figure, styles.figures, { color: theme.color.mute }]}>{before}</Text>
+      <Text style={[type.figure, styles.figures, { fontFamily: font.semibold, color: afterColor }]}>{after}</Text>
+    </View>
+  );
+}
+
+/** The warning strip directly under a pot's card. Shared with the move sheet's pot cards. */
+export function Warning({ text, density = 'regular' }: { text: string; density?: SheetDensity }) {
+  return (
+    <Glass radius={radius.field} style={{ paddingHorizontal: space.lg, paddingVertical: sheet[density].inset }}>
+      {/* Android announces it as it appears. iOS has no live region, so the card's label says it
+          instead, and the strip is hidden from VoiceOver so it is not read twice. */}
+      <Body style={type.notice} accessibilityLiveRegion="polite" accessibilityElementsHidden>
+        {text}
+      </Body>
+    </Glass>
   );
 }
 
