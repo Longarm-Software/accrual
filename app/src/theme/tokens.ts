@@ -103,6 +103,10 @@ export const type = {
   figure: { fontFamily: font.medium, fontSize: 13 },
   /** The account and the date on quick add. */
   meta: { fontFamily: font.semibold, fontSize: 14 },
+  /** A small pill button's word: Assign on the top card, Cover on the notice. */
+  action: { fontFamily: font.semibold, fontSize: 13 },
+  /** A pot card's FROM and TO: small capitals, spaced. */
+  caps: { fontFamily: font.semibold, fontSize: 11, letterSpacing: 0.8 },
   /** A row's name in a list on a sheet, and a payee match. */
   row: { fontFamily: font.medium, fontSize: 15.5 },
 } as const;
@@ -115,8 +119,10 @@ export const amount = {
   tracking: -0.015,
   hero: 58,
   tile: 27,
-  /** A tile amount of $1,000 or more either way, one size down so it fits. */
+  /** A tile amount of $1,000 or more either way, one size down so it fits. Also a list's total line. */
   tileLong: 22,
+  /** An amount in a list of rows (a category's details, its transactions): the size of body text. */
+  row: type.body.fontSize,
   /** The amount being typed on quick add. */
   entry: 88,
   /** The amount being typed on a short screen (the compact sheet). */
@@ -163,6 +169,10 @@ export const size = {
   entryCompact: 68,
   /** The bite bar's thickness. */
   bite: 10,
+  /** A small pill button on a card or the notice. Its touch area is extended to `touch`. */
+  action: 32,
+  /** The round check mark at the right of a cover source. */
+  check: 22,
   /** The tick on Save, and the smaller one on a picked row. */
   tick: 20,
   tickSmall: 12,

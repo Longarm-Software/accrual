@@ -11,10 +11,13 @@ import type { SheetDensity } from './sheetLayout';
 
 type Props = {
   onKey(key: Key): void;
-  onToggleSign(): void;
+  /** Without it there is no +/− key and its cell is left empty: a move has no sign. */
+  onToggleSign?(): void;
   onSave(): void;
   canSave: boolean;
   over: boolean;
+  /** A short word on Save instead of the tick ("Move"); it also names the key. */
+  saveLabel?: string;
   /** Compact on a short screen: keys at the touch minimum, so the form above keeps its room. */
   density?: SheetDensity;
 };
@@ -30,11 +33,13 @@ export const REPEAT_MS = 80;
  *   7 8 9 ✓
  *   . 0 00 ✓   (Save fills the right of the last two rows)
  *
+ * Without `onToggleSign` the +/− cell is empty, so every other key keeps its place.
+ *
  * Keys answer on every press, with no debounce, so a fast double press counts twice.
  * Holding delete repeats it until it is let go (rather than clearing), so a long amount can be
  * taken back a digit at a time without lifting the thumb, and nothing is lost to a slip.
  */
-export function Keypad({ onKey, onToggleSign, onSave, canSave, over, density = 'regular' }: Props) {
+export function Keypad({ onKey, onToggleSign, onSave, canSave, over, saveLabel, density = 'regular' }: Props) {
   const theme = useTheme();
   const height = sheet[density].key;
   const digit = (key: Key, label: string = key) => (
@@ -57,11 +62,15 @@ export function Keypad({ onKey, onToggleSign, onSave, canSave, over, density = '
         {digit('4')}
         {digit('5')}
         {digit('6')}
-        <KeyButton label="Expense or income" height={height} onPress={onToggleSign}>
-          <Text style={[type.key, { color: theme.color.mute }]} maxFontSizeMultiplier={textScale.key}>
-            +/−
-          </Text>
-        </KeyButton>
+        {onToggleSign ? (
+          <KeyButton label="Expense or income" height={height} onPress={onToggleSign}>
+            <Text style={[type.key, { color: theme.color.mute }]} maxFontSizeMultiplier={textScale.key}>
+              +/−
+            </Text>
+          </KeyButton>
+        ) : (
+          <View testID="keypad-empty-cell" style={{ flex: 1, minHeight: height }} />
+        )}
       </View>
       <View style={styles.row}>
         <View style={styles.left}>
@@ -76,7 +85,7 @@ export function Keypad({ onKey, onToggleSign, onSave, canSave, over, density = '
             {digit('00', 'Double zero')}
           </View>
         </View>
-        <SaveKey height={height} onSave={onSave} canSave={canSave} over={over} />
+        <SaveKey height={height} onSave={onSave} canSave={canSave} over={over} label={saveLabel} />
       </View>
     </View>
   );
@@ -144,12 +153,15 @@ function DeleteKey({ height, onDelete }: { height: number; onDelete: () => void 
   );
 }
 
-function SaveKey({ height, onSave, canSave, over }: { height: number; onSave: () => void; canSave: boolean; over: boolean }) {
+type SaveProps = { height: number; onSave: () => void; canSave: boolean; over: boolean; label?: string };
+
+function SaveKey({ height, onSave, canSave, over, label }: SaveProps) {
   const theme = useTheme();
+  const ink = over ? theme.color.onOver : theme.color.onAccent;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Save"
+      accessibilityLabel={label ?? 'Save'}
       accessibilityState={{ disabled: !canSave }}
       disabled={!canSave}
       onPress={onSave}
@@ -171,7 +183,18 @@ function SaveKey({ height, onSave, canSave, over }: { height: number; onSave: ()
           style={StyleSheet.absoluteFill}
         />
       )}
-      <Tick size={size.tick} stroke={size.tickStroke} color={over ? theme.color.onOver : theme.color.onAccent} />
+      {label === undefined ? (
+        <Tick testID="save-tick" size={size.tick} stroke={size.tickStroke} color={ink} />
+      ) : (
+        <Text
+          style={[type.heading, { color: ink, paddingHorizontal: space.xs }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          maxFontSizeMultiplier={textScale.key}
+        >
+          {label}
+        </Text>
+      )}
     </Pressable>
   );
 }

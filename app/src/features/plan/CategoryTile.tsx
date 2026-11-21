@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import type { PlanCategory } from '../../engine/types';
 import { radius, size, space, tint, type, withAlpha } from '../../theme/tokens';
@@ -16,6 +16,8 @@ type Props = {
   compact: boolean;
   /** The amount's size, shared by the row (`rowAmountSize`). Alone, the tile picks its own. */
   amountSize?: number;
+  /** Given, the whole tile is one button that opens the category. */
+  onPress?(): void;
 };
 
 /**
@@ -23,8 +25,11 @@ type Props = {
  * amount pushed to the bottom so tiles side by side line up whatever the name's length.
  * Not compact (large text, one column), it is a row: name and note on the left, the
  * amount on the right, the bar underneath.
+ *
+ * With `onPress` the tile is one button, read out as before with a hint that it opens the
+ * category. The button grows as the tile does, so tiles in a row keep one height.
  */
-export function CategoryTile({ category, view, compact, amountSize = rowAmountSize([category.balance]) }: Props) {
+export function CategoryTile({ category, view, compact, amountSize = rowAmountSize([category.balance]), onPress }: Props) {
   const theme = useTheme();
   const c = theme.color[statusColor(view.status)];
   const over = view.status === 'over';
@@ -44,12 +49,17 @@ export function CategoryTile({ category, view, compact, amountSize = rowAmountSi
   );
   const bar = <ProgressBar fill={view.fill} color={c} />;
 
-  return (
+  const label = tileLabel(category, view);
+  const tile = (
     <Glass
       radius={radius.tile}
       style={[{ flexGrow: 1 }, over && { borderWidth: size.border, borderColor: withAlpha(c, tint.tileOverEdge) }]}
     >
-      <View accessible accessibilityLabel={tileLabel(category, view)} style={{ flexGrow: 1, padding: compact ? space.md : space.lg }}>
+      <View
+        accessible={!onPress}
+        accessibilityLabel={onPress ? undefined : label}
+        style={{ flexGrow: 1, padding: compact ? space.md : space.lg }}
+      >
         {compact ? (
           <>
             {name}
@@ -73,5 +83,17 @@ export function CategoryTile({ category, view, compact, amountSize = rowAmountSi
         )}
       </View>
     </Glass>
+  );
+  if (!onPress) return tile;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={`Opens ${category.name}`}
+      onPress={onPress}
+      style={({ pressed }) => ({ flexGrow: 1, opacity: pressed ? tint.pressed : 1 })}
+    >
+      {tile}
+    </Pressable>
   );
 }

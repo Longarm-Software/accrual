@@ -131,3 +131,31 @@ it('outlines each key with the key edge, so the keys show on the light page too'
   const style = [button('5').props.style].flat(Infinity).reduce((all, s) => ({ ...all, ...s }), {});
   expect(style.borderColor).toBe(themes.dark.color.keyEdge);
 });
+
+describe('without the sign key (the move sheet)', () => {
+  it('leaves the +/− key out, and its cell empty so the grid keeps its shape', async () => {
+    await render(<Keypad onKey={() => {}} onSave={() => {}} canSave over={false} />);
+    expect(screen.queryByRole('button', { name: 'Expense or income' })).toBeNull();
+    expect(screen.getByTestId('keypad-empty-cell')).toHaveStyle({ flex: 1 });
+    for (const name of ['4', '5', '6', 'Delete', 'Save']) expect(button(name)).toBeTruthy();
+  });
+  it('with onToggleSign the key is there and the cell is not', async () => {
+    await draw();
+    expect(screen.queryByTestId('keypad-empty-cell')).toBeNull();
+  });
+});
+
+describe('a word on Save', () => {
+  it('shows the word instead of the tick, and is named by it', async () => {
+    const onSave = jest.fn();
+    await render(<Keypad onKey={() => {}} onSave={onSave} canSave over={false} saveLabel="Move" />);
+    expect(screen.getByText('Move')).toBeTruthy();
+    expect(screen.queryByTestId('save-tick')).toBeNull();
+    await fireEvent.press(button('Move'));
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+  it('the tick by default', async () => {
+    await draw();
+    expect(screen.getByTestId('save-tick')).toBeTruthy();
+  });
+});

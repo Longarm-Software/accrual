@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { StyleSheet } from 'react-native';
 
-import { themes } from '../../theme/tokens';
+import { themes, tint } from '../../theme/tokens';
 import type { RowDetail } from './draft';
 import { PickerList } from './PickerList';
 
@@ -93,4 +93,31 @@ it('keeps rows at least 48 points high', async () => {
     const style = [screen.getByRole('button', { name }).props.style].flat(Infinity).reduce((all, s) => ({ ...all, ...s }), {});
     expect(style.minHeight).toBeGreaterThanOrEqual(48);
   }
+});
+
+describe('a disabled row', () => {
+  type Row = { id: string; name: string; disabled?: boolean };
+  const rows: Row[] = [
+    { id: 'a', name: 'Groceries' },
+    { id: 'b', name: 'Rent', disabled: true },
+  ];
+  const drawRows = async () => {
+    const onPick = jest.fn();
+    await render(<PickerList<Row> title="From" items={rows} selectedId={null} onPick={onPick} onClose={() => {}} />);
+    return onPick;
+  };
+  it('is dimmed and says it is disabled', async () => {
+    await drawRows();
+    const rent = screen.getByRole('button', { name: 'Rent' });
+    expect(rent.props.accessibilityState).toMatchObject({ disabled: true });
+    expect(rent).toHaveStyle({ opacity: tint.disabled });
+    expect(screen.getByRole('button', { name: 'Groceries' }).props.accessibilityState).toMatchObject({ disabled: false });
+  });
+  it('does not call onPick', async () => {
+    const onPick = await drawRows();
+    await fireEvent.press(screen.getByRole('button', { name: 'Rent' }));
+    expect(onPick).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Groceries' }));
+    expect(onPick).toHaveBeenCalledWith(rows[0]);
+  });
 });

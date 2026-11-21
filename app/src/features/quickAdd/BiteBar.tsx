@@ -8,7 +8,10 @@ import { hatch, radius, size, spring } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import type { Bite } from './bite';
 
-type Props = { kept: number; taken: number; state: Bite['state'] };
+/** A bite (quick add, a move's from pot), or a gain (`gained`: a move's to pot, a cover's target). */
+type Props =
+  | { kept: number; taken: number; state: Bite['state']; gained?: undefined }
+  | { kept: number; gained: number; taken?: undefined; state?: undefined };
 
 /**
  * What a purchase takes from a category. The bar's full width is what the category has now;
@@ -17,22 +20,39 @@ type Props = { kept: number; taken: number; state: Bite['state'] };
  *
  * The two parts are flex siblings, so they always fill the bar exactly, whatever rounding is
  * in `kept` and `taken`. The split springs to each new value as digits are typed.
+ *
+ * A gain is the mirror: the solid part is what was there, then the part arriving, hatched in
+ * the funded colour. A gain need not fill the bar (a pot below zero, part covered), so a third
+ * part, the empty track, takes what is left; a bite never draws it.
  */
-export function BiteBar({ kept, taken, state }: Props) {
+export function BiteBar(props: Props) {
+  const { kept } = props;
+  const isGain = props.gained !== undefined;
+  const taken = isGain ? props.gained : props.taken;
   const theme = useTheme();
   const [width, setWidth] = useState(0);
   const split = useSharedValue(kept);
   const rest = useSharedValue(taken);
+  const empty = useSharedValue(1 - kept - taken);
   useEffect(() => {
     split.value = withSpring(kept, spring.bite);
     rest.value = withSpring(taken, spring.bite);
-  }, [kept, taken, split, rest]);
+    empty.value = withSpring(1 - kept - taken, spring.bite);
+  }, [kept, taken, split, rest, empty]);
   // A spring may overshoot; a flex weight below zero is not allowed.
   const keptStyle = useAnimatedStyle(() => ({ flexGrow: Math.max(0, split.value) }));
   const takenStyle = useAnimatedStyle(() => ({ flexGrow: Math.max(0, rest.value) }));
+  const emptyStyle = useAnimatedStyle(() => ({ flexGrow: Math.max(0, empty.value) }));
 
-  const over = state === 'over';
-  const hatched = state !== 'none';
+  const over = props.state === 'over';
+  const hatched = isGain ? taken > 0 : props.state !== 'none';
+  const stripe = isGain ? theme.color.ok : over ? theme.color.over : theme.color.need;
+  const hatchId = isGain ? 'bite-hatch-gain' : over ? 'bite-hatch-over' : 'bite-hatch-fits';
+  // The bright edge marks where the arriving (or taken) part meets the solid one; a gain onto
+  // nothing starts at the bar's left end, where there is nothing to mark.
+  const edge = hatched && !over && taken > 0 && (!isGain || kept > 0);
+  // A gain filling a deficit starts at the bar's left end and may stop short of its right one.
+  const fromLeft = isGain && kept === 0;
   return (
     <View
       testID="bite-bar"
@@ -43,17 +63,19 @@ export function BiteBar({ kept, taken, state }: Props) {
         <LinearGradient colors={theme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
       </Animated.View>
       <Animated.View
-        testID="bite-taken"
-        style={[styles.part, takenStyle, hatched && !over && taken > 0 && { borderLeftWidth: size.stroke, borderLeftColor: theme.color.need }]}
+        testID={isGain ? 'bite-gained' : 'bite-taken'}
+        style={[styles.part, takenStyle, edge && { borderLeftWidth: size.stroke, borderLeftColor: stripe }]}
       >
         {hatched && (
           // Anchored to the bar's right end, not the part's left, so the stripes stay still while
-          // the part's width springs; the part clips them.
-          <View testID={over ? 'bite-hatch-over' : 'bite-hatch-fits'} style={[styles.hatch, { width }]}>
-            <Stripes width={width} color={over ? theme.color.over : theme.color.need} />
+          // the part's width springs; the part clips them. A gain filling a deficit ends where the
+          // amount takes it, so its stripes are anchored to the bar's left end instead.
+          <View testID={hatchId} style={[styles.hatch, fromLeft ? styles.fromLeft : styles.fromRight, { width }]}>
+            <Stripes width={width} color={stripe} />
           </View>
         )}
       </Animated.View>
+      {isGain && <Animated.View testID="bite-rest" style={[styles.part, emptyStyle]} />}
     </View>
   );
 }
@@ -86,5 +108,7 @@ const Stripes = memo(function Stripes({ width, color }: { width: number; color: 
 
 const styles = StyleSheet.create({
   part: { flexBasis: 0, flexShrink: 1, height: '100%', overflow: 'hidden' },
-  hatch: { position: 'absolute', top: 0, bottom: 0, right: 0 },
+  hatch: { position: 'absolute', top: 0, bottom: 0 },
+  fromRight: { right: 0 },
+  fromLeft: { left: 0 },
 });

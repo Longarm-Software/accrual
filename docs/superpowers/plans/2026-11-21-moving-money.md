@@ -282,6 +282,8 @@ Notice:       gains { action?: { label: string; onPress(): void } }
 CategoryTile: gains { onPress?(): void }
 ```
 
+As built (Task 3): `BiteBar` takes either a bite (`kept`, `taken`, `state`) or a gain (`kept`, `gained`); a gain that does not fill the bar leaves the rest as the empty track. `PotCard` also takes `density?` as quick add's card does. `Keypad` leaves out the `+/−` key (its cell stays empty) when `onToggleSign` is not given, and `saveLabel?: string` puts a word on Save instead of the tick. The `action` on `HeroCard` and `Notice` is `CardAction` from `features/plan/ActionPill.tsx`. `Source` carries `has`.
+
 **What each shows and does**
 
 | Component | Requirement |

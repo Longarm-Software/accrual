@@ -7,7 +7,7 @@ import { Tick } from '../../ui/Tick';
 import { Body, Label } from '../../ui/Text';
 import type { RowDetail } from './draft';
 
-type Props<T extends { id: string; name: string }> = {
+type Props<T extends Item> = {
   title: string;
   items: T[];
   selectedId: string | null;
@@ -20,11 +20,14 @@ type Props<T extends { id: string; name: string }> = {
   onPickNone?(): void;
 };
 
+/** A row: `disabled` rows are dimmed and cannot be picked (a pot with nothing to move). */
+type Item = { id: string; name: string; disabled?: boolean };
+
 /**
  * A list that fills the sheet: a title, Close, and one row per item, the selected one ticked.
  * A row may carry a detail at its right, such as a category's balance.
  */
-export function PickerList<T extends { id: string; name: string }>({
+export function PickerList<T extends Item>({
   title,
   items,
   selectedId,
@@ -78,7 +81,13 @@ export function PickerList<T extends { id: string; name: string }>({
             ) : undefined
           }
           renderItem={({ item }) => (
-            <Row name={item.name} detail={detail?.(item)} selected={item.id === selectedId} onPress={() => onPick(item)} />
+            <Row
+              name={item.name}
+              detail={detail?.(item)}
+              selected={item.id === selectedId}
+              disabled={item.disabled === true}
+              onPress={() => onPick(item)}
+            />
           )}
         />
       </Glass>
@@ -86,18 +95,19 @@ export function PickerList<T extends { id: string; name: string }>({
   );
 }
 
-type RowProps = { name: string; detail?: RowDetail; selected: boolean; onPress: () => void };
+type RowProps = { name: string; detail?: RowDetail; selected: boolean; disabled?: boolean; onPress: () => void };
 
-function Row({ name, detail, selected, onPress }: RowProps) {
+function Row({ name, detail, selected, disabled = false, onPress }: RowProps) {
   const theme = useTheme();
   const toneColor = { over: theme.color.over, mute: theme.color.mute };
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={detail ? `${name}, ${detail.text}` : name}
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.row, { opacity: pressed ? tint.pressed : 1 }]}
+      style={({ pressed }) => [styles.row, { opacity: disabled ? tint.disabled : pressed ? tint.pressed : 1 }]}
     >
       <View style={styles.mark}>{selected && <Tick testID="picker-tick" size={size.tickSmall} color={theme.color.ok} />}</View>
       <Text style={[type.row, { flex: 1, color: theme.color.ink }]}>{name}</Text>
