@@ -66,7 +66,7 @@ export function useMoveSheet(engine: Engine, month: string, link: MoveLink, { on
     // toMove is only asked when the view says the move can be saved; it throws otherwise.
     save: async () => {
       if (!view.canSave) return;
-      const move = toMove(current, plan.month);
+      const move = toMove(current, plan);
       await sheet.write(() => engine.moveMoney(move));
     },
   };

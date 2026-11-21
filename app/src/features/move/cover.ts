@@ -1,5 +1,5 @@
 // The cover sheet as data: an overspent category, the pots that could pay, and which one will.
-import { READY, type PlanCategory, type PlanMonth, type PotId } from '../../engine/types';
+import { READY, type CoverRequest, type PlanCategory, type PlanMonth, type PotId } from '../../engine/types';
 import { checkCover } from '../../engine/writeRules';
 import { formatMoney } from '../../lib/money';
 import { isOverspent } from '../plan/categoryView';
@@ -15,6 +15,7 @@ export type CoverView = {
   month: string; // the plan's month, YYYY-MM
   category: string; // the overspent category's id
   deficit: number; // positive cents
+  balance: number; // the category's balance as drawn: −deficit
   target: Gain; // the overspent category filling to zero (or part way)
   sources: Source[]; // READY first when it has money, then categories in plan order with money
   selected: PotId | null;
@@ -60,11 +61,10 @@ export function coverView(plan: PlanMonth, categoryId: string, selected: PotId |
   const covers = source?.covers ?? 0;
   let button = 'Nothing to cover with';
   if (source) button = source.enough ? `Cover ${formatMoney(deficit)}` : `Cover ${formatMoney(covers)} of ${formatMoney(deficit)}`;
-  const request = { month: plan.month, category: category.id, from: source?.id ?? READY, amount: covers };
   const canSave =
     source !== null &&
-    wellFormed(request.month, request.amount) &&
-    accepted(() => checkCover(plan, request));
+    wellFormed(plan.month, covers) &&
+    accepted(() => checkCover(plan, request(plan.month, category, source)));
   return {
     title: `Cover ${category.name}`,
     name: category.name,
@@ -72,6 +72,7 @@ export function coverView(plan: PlanMonth, categoryId: string, selected: PotId |
     month: plan.month,
     category: category.id,
     deficit,
+    balance: category.balance,
     target: gain({ id: category.id, name: category.name, has: category.balance }, covers),
     sources,
     selected: source?.id ?? null,
@@ -80,11 +81,19 @@ export function coverView(plan: PlanMonth, categoryId: string, selected: PotId |
   };
 }
 
-/** What Cover sends to `engine.coverOverspending`. Throws when the view cannot be saved. */
-export function toCover(view: CoverView): { month: string; category: string; from: PotId; amount: number } {
+/** The request covering `category` from `source`, with what the sheet showed of both as `seen`. */
+function request(month: string, category: { id: string; balance: number }, source: Source): CoverRequest {
+  return { month, category: category.id, from: source.id, amount: source.covers, seen: { category: category.balance, from: source.has } };
+}
+
+/**
+ * What Cover sends to `engine.coverOverspending`, with what the sheet showed (the category's
+ * balance and the source's amount) as `seen`. Throws when the view cannot be saved.
+ */
+export function toCover(view: CoverView): CoverRequest {
   const source = view.sources.find(s => s.id === view.selected);
   if (!view.canSave || !source) throw new Error('This cover cannot be saved');
-  return { month: view.month, category: view.category, from: source.id, amount: source.covers };
+  return request(view.month, { id: view.category, balance: view.balance }, source);
 }
 
 /** What a screen reader says for the overspent category's card: what it has now, and after the cover. */

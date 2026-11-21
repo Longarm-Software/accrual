@@ -111,12 +111,14 @@ describe('defaultSource', () => {
 describe('toCover', () => {
   it('what coverOverspending takes: the whole deficit from a source that is enough', () => {
     expect(toCover(coverView(plan, 'cat-dining', null)!)).toEqual({
-      month: '2026-11', category: 'cat-dining', from: READY, amount: 2810,
+      month: '2026-11', category: 'cat-dining', from: READY, amount: 2810, seen: { category: -2810, from: 31200 },
     });
   });
   it('only what the selected source has when it is not enough', () => {
     const v = coverView(month(0, [dining, cat('cat-coffee', 'Coffee', 1350)]), 'cat-dining', null)!;
-    expect(toCover(v)).toEqual({ month: '2026-11', category: 'cat-dining', from: 'cat-coffee', amount: 1350 });
+    expect(toCover(v)).toEqual({
+      month: '2026-11', category: 'cat-dining', from: 'cat-coffee', amount: 1350, seen: { category: -2810, from: 1350 },
+    });
   });
   it('throws when the view cannot be saved', () => {
     expect(() => toCover(coverView(month(0, [dining]), 'cat-dining', null)!)).toThrow();

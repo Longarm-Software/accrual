@@ -7,7 +7,7 @@
 import { recentUse, type UseRow } from './recentUse';
 import { EngineError, READY } from './types';
 import type { ActivityRow, Auth, Engine, MonthBounds, PlanCategory, PlanMonth, QuickAddLists, RemoteBudget } from './types';
-import { checkCover, checkMonthAndAmount, checkMove, checkTransaction } from './writeRules';
+import { checkCover, checkCoverShape, checkMonthAndAmount, checkMove, checkMoveShape, checkTransaction } from './writeRules';
 
 export * from './types';
 
@@ -44,6 +44,9 @@ const fail = (code: unknown, message: string) =>
 const SIGN_IN_TIMEOUT_MS = 5000;
 // A sync gives up after this long, for the same reason; see `sync` below.
 const SYNC_TIMEOUT_MS = 15000;
+// The sync before a budget write waits this long at most; see `syncQuietly` below. A person is
+// waiting on a button, so it is much shorter than a background sync's limit.
+const PRE_WRITE_SYNC_MS = 3000;
 // How many of the newest transactions quick add reads to order payees and suggest categories.
 const RECENT_USE_ROWS = 1000;
 
@@ -53,11 +56,13 @@ export async function createEngine(
     dataDir?: string;
     /** For the harness. */ signInTimeoutMs?: number;
     /** For the harness. */ syncTimeoutMs?: number;
+    /** For the harness and tests. */ preWriteSyncTimeoutMs?: number;
   } & Auth,
 ): Promise<Engine> {
   const dataDir = config.dataDir ?? core.defaultDocumentDir();
   const { serverURL } = config;
   const syncTimeoutMs = config.syncTimeoutMs ?? SYNC_TIMEOUT_MS;
+  const preWriteSyncMs = config.preWriteSyncTimeoutMs ?? PRE_WRITE_SYNC_MS;
   let lib: Lib;
   let offline = false;
   if ('password' in config) {
@@ -113,6 +118,37 @@ export async function createEngine(
       throw new EngineError('internal', 'Could not read the budget');
     }
   };
+  // The sync before a budget write. Each budget cell is last-writer-wins, and the actions write
+  // absolute amounts (budgeted ± amount) computed from the phone's copy, so a write made on a copy
+  // that has not pulled another device's change replaces that change. Pulling first means the
+  // write's checks, and the action, see the budget as the server has it.
+  //
+  // It never stops the write. A failure (offline, server down: refused at once) or any other
+  // rejection, an expired session included, is ignored: the write is made on the phone's copy, as
+  // an offline write always was, and the Plan's own sync after the save reports the state and
+  // signs out if it must. A server that silently drops packets would hold the person at the
+  // button, so the wait is bounded by PRE_WRITE_SYNC_MS; the sync keeps running underneath.
+  //
+  // How it meets the other syncs: loot-core runs one sync at a time (`fullSync` is wrapped in
+  // `once`), so if the Plan's sync is running this joins it rather than starting a second, and a
+  // sync the Plan starts while this one runs joins this one. Nothing here touches the Plan's own
+  // one-in-flight and owed-after-a-save bookkeeping (usePlanMonth), so nothing waits on anything
+  // else. A write made while a sync is still running (after the bound) is still uploaded by it:
+  // `_fullSync` compares its merkle trie with the server's at the end and goes round again when
+  // they differ, which a change made meanwhile makes them do.
+  async function syncQuietly(): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const bound = new Promise<void>(resolve => {
+      timer = setTimeout(resolve, preWriteSyncMs);
+    });
+    // Settles either way, so neither a late failure nor the race can go unhandled.
+    const run = lib.send('api/sync').then(
+      () => {},
+      () => {},
+    );
+    await Promise.race([run, bound]).finally(() => clearTimeout(timer));
+  }
+
   // A budget action that throws inside loot-core rejects with 'internal'.
   const budgetAction = async (message: string, run: () => Promise<void>) => {
     try {
@@ -376,10 +412,11 @@ export async function createEngine(
     // other change. Months are YYYY-MM (`sheetForMonth`, `dbMonth`).
     //
     // loot-core checks almost none of what it is given (see writeRules.ts), and two people edit
-    // the same budget, so a sheet can be showing older figures. Each write therefore reads the
-    // budget's bounds and the month as they are now, immediately before the action, and refuses
-    // with 'invalid-move' or 'stale' anything that would not do exactly what was asked. With the
-    // checks passed, every action below moves exactly `amount`:
+    // the same budget, so a sheet can be showing older figures. Each write therefore syncs, reads
+    // the budget's bounds and the month as they are now, immediately before the action, and
+    // refuses with 'invalid-move' or 'stale' anything that would not do exactly what was asked,
+    // or whose figures differ from what the sheet showed (`seen`). With the checks passed, every
+    // action below moves exactly `amount`:
     //
     // `transfer-category` subtracts from `from`'s budgeted amount and adds to `to`'s, or to nothing
     // when `to` is 'to-budget' (READY), and appends "Reassigned …" to the month's note. It checks
@@ -393,14 +430,21 @@ export async function createEngine(
     // back to "None", two places, for a missing or unknown code). Actual's web app passes
     // `format.currency.code`, which is the synced preference `defaultCurrencyCode` or '' (useFormat),
     // so the same is passed here.
+    //
+    // Each write runs in this order: the checks that need no read (the request's shape: month,
+    // amount, ids, `seen`), so nothing is synced or read for a request that is refused anyway; the
+    // sync (`syncQuietly`); the currency; the bounds and the month; the checks against them; the
+    // action. Nothing but the action itself is awaited after the checks.
     async moveMoney(move) {
+      checkMoveShape(move);
       const { month, from, to, amount } = move;
+      await syncQuietly();
+      const currencyCode = await currency();
       checkMove(await currentMonth(month, amount), move);
       await budgetAction('Could not move the money', async () => {
         if (from === READY) {
           await lib.send('budget/transfer-available', { month, amount, category: to });
         } else {
-          const currencyCode = await currency();
           await lib.send('budget/transfer-category', { month, amount, from, to, currencyCode });
         }
       });
@@ -410,11 +454,14 @@ export async function createEngine(
     // category is overspent, and treats an amount of 0 as "cover all of it". The checks refuse a
     // category that is not overspent, an amount above what it is over by or above what the source
     // has, and READY as the category (that would write a budget row for a category 'to-budget').
+    // It syncs and checks in the same order as a move.
     async coverOverspending(cover) {
+      checkCoverShape(cover);
       const { month, category, from, amount } = cover;
+      await syncQuietly();
+      const currencyCode = await currency();
       checkCover(await currentMonth(month, amount), cover);
       await budgetAction('Could not cover the overspending', async () => {
-        const currencyCode = await currency();
         await lib.send('budget/cover-overspending', { month, to: category, from, amount, currencyCode });
       });
     },

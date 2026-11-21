@@ -1,6 +1,6 @@
 // The move sheet as data: from one pot to another, an amount. The sheet draws it; these
 // functions are the only way it changes.
-import { READY, type PlanMonth, type PotId } from '../../engine/types';
+import { READY, type MoveRequest, type PlanMonth, type PotId } from '../../engine/types';
 import { checkMove } from '../../engine/writeRules';
 import { formatMoney } from '../../lib/money';
 import { isOverspent } from '../plan/categoryView';
@@ -81,6 +81,22 @@ export type MoveView = {
   button: string; // "Assign" | "Move"
 };
 
+/**
+ * The request a draft makes against `plan`, with what the plan says each pot has as `seen`, or
+ * null without both pots. A pot the plan does not have is seen as 0; the checks refuse it anyway.
+ */
+function request(d: MoveDraft, plan: PlanMonth): MoveRequest | null {
+  if (d.from === null || d.to === null) return null;
+  const seen = { from: pot(plan, d.from)?.has ?? 0, to: pot(plan, d.to)?.has ?? 0 };
+  return { month: plan.month, from: d.from, to: d.to, amount: entryCents(d.entry), seen };
+}
+
+/** True when the adapter's own rules accept the draft's request against `plan`. */
+function savable(d: MoveDraft, plan: PlanMonth): boolean {
+  const move = request(d, plan);
+  return move !== null && wellFormed(move.month, move.amount) && accepted(() => checkMove(plan, move));
+}
+
 export function moveView(d: MoveDraft, plan: PlanMonth): MoveView {
   const amount = entryCents(d.entry);
   const from = d.from === null ? null : pot(plan, d.from);
@@ -88,11 +104,6 @@ export function moveView(d: MoveDraft, plan: PlanMonth): MoveView {
   const fromBite = from ? bite({ name: from.name, balance: from.has }, amount) : null;
   // bite's "over" is exactly amount > max(has, 0) for an amount above zero: one comparison, not two.
   const over = fromBite?.state === 'over';
-  const canSave =
-    d.from !== null &&
-    d.to !== null &&
-    wellFormed(plan.month, amount) &&
-    accepted(() => checkMove(plan, { from: d.from!, to: d.to!, amount }));
   let title = 'Move money';
   if (d.from === READY) title = 'Assign';
   else if (d.to === READY && plan.toBudget < 0) title = 'Fix overbudgeting';
@@ -100,7 +111,7 @@ export function moveView(d: MoveDraft, plan: PlanMonth): MoveView {
     title,
     from: { name: from?.name ?? null, bite: fromBite },
     to: { name: to?.name ?? null, gain: to ? gain(to, amount) : null },
-    canSave,
+    canSave: savable(d, plan),
     over,
     button: d.from === READY ? 'Assign' : 'Move',
   };
@@ -135,14 +146,13 @@ export function toChoices(d: MoveDraft, plan: PlanMonth): PotRow[] {
 }
 
 /**
- * What Move sends to `engine.moveMoney`. Only call it when the view's `canSave` is true. Without
- * the plan it cannot see what the from pot has, so it refuses everything else `canSave` refuses:
- * a missing or repeated pot, a malformed month or amount.
+ * What Move sends to `engine.moveMoney`: the draft's pots and amount in `plan`'s month, and as
+ * `seen` what `plan` (the one the sheet is drawn from) says each pot has, so the engine refuses
+ * the move if the budget is no longer what the person saw. Throws for anything `canSave` refuses,
+ * a move of more than the from pot has included.
  */
-export function toMove(d: MoveDraft, month: string): { month: string; from: PotId; to: PotId; amount: number } {
-  const amount = entryCents(d.entry);
-  if (d.from === null || d.to === null || d.from === d.to || !wellFormed(month, amount)) {
-    throw new Error('This move cannot be saved yet');
-  }
-  return { month, from: d.from, to: d.to, amount };
+export function toMove(d: MoveDraft, plan: PlanMonth): MoveRequest {
+  const move = request(d, plan);
+  if (move === null || !savable(d, plan)) throw new Error('This move cannot be saved yet');
+  return move;
 }

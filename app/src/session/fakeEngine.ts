@@ -78,14 +78,32 @@ export const fakeActivity: ActivityRow[] = [
 
 const fakeBounds = { start: '2026-01', end: '2027-12' };
 
+/** The fake, plus what a test needs to play the other device. */
+export type FakeEngine = Engine & {
+  /**
+   * Another device changed the budget and the change has reached the phone (the adapter's sync
+   * before a write pulls it): the next read, and the next write's checks, see `edit(plan)`.
+   */
+  elsewhere(edit: (plan: PlanMonth) => PlanMonth): void;
+};
+
+/** `plan` with one category's figures changed, as another device would leave them. */
+export function withCategory(plan: PlanMonth, id: string, change: Partial<PlanCategory>): PlanMonth {
+  return {
+    ...plan,
+    groups: plan.groups.map(g => ({ ...g, categories: g.categories.map(c => (c.id === id ? { ...c, ...change } : c)) })),
+  };
+}
+
 /**
  * An in-memory Engine for component tests. Every engine starts from `fakePlanMonth`, which it
  * returns for any month. Moving and covering refuse what the adapter refuses (the same checks,
- * from writeRules.ts, against the month as it stands) and otherwise change that month: `amount`
- * leaves one pot and reaches the other. For a category that is its budgeted and balance, for READY
- * its toBudget; totalBudgeted follows the categories, so it changes only when READY is one end.
+ * from writeRules.ts, against the month as it stands, `seen` included) and otherwise change that
+ * month: `amount` leaves one pot and reaches the other. For a category that is its budgeted and
+ * balance, for READY its toBudget; totalBudgeted follows the categories, so it changes only when
+ * READY is one end.
  */
-export function fakeEngine(overrides: Partial<Engine> = {}): Engine {
+export function fakeEngine(overrides: Partial<Engine> = {}): FakeEngine {
   let plan: PlanMonth = fakePlanMonth;
   const shift = (pot: PotId, delta: number) => {
     plan =
@@ -138,6 +156,9 @@ export function fakeEngine(overrides: Partial<Engine> = {}): Engine {
     getTransactions: async () => [],
     searchTransactions: async () => [],
     addTransaction: async (_accountId, transaction) => checkTransaction(transaction),
+    elsewhere: edit => {
+      plan = edit(plan);
+    },
     ...overrides,
   };
 }

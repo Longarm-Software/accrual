@@ -113,7 +113,9 @@ it('covers from the chosen source, then goes back to the Plan and tells it', asy
   await fireEvent.press(source('Ready to budget'));
   await fireEvent.press(screen.getByRole('button', { name: 'Cover $10.00 of $28.10' }));
   await waitFor(() => expect(router.back).toHaveBeenCalledTimes(1));
-  expect(coverOverspending).toHaveBeenCalledWith({ month: '2026-11', category: 'cat-dining', from: READY, amount: 1000 });
+  expect(coverOverspending).toHaveBeenCalledWith({
+    month: '2026-11', category: 'cat-dining', from: READY, amount: 1000, seen: { category: -2810, from: 1000 },
+  });
   expect(saved).toHaveBeenCalledTimes(1);
   stop();
 });

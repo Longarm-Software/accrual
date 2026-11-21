@@ -174,7 +174,7 @@ describe('moveView', () => {
         for (const cents of [1, 12000, 12001, 31200, 31201, 640000]) {
           const d = draft(from, to, cents);
           if (!moveView(d, plan).canSave) continue;
-          const move = toMove(d, plan.month);
+          const move = toMove(d, plan);
           expect(() => checkMonthAndAmount(move.month, move.amount, { start: '2026-01', end: '2027-12' })).not.toThrow();
           expect(() => checkMove(plan, move)).not.toThrow();
         }
@@ -231,17 +231,23 @@ describe('toChoices', () => {
 });
 
 describe('toMove', () => {
-  it('the request moveMoney takes', () => {
-    expect(toMove(draft(READY, 'cat-rent', 1594), '2026-11')).toEqual({
-      month: '2026-11', from: READY, to: 'cat-rent', amount: 1594,
+  it('the request moveMoney takes, with what the sheet showed each pot having', () => {
+    expect(toMove(draft(READY, 'cat-rent', 1594), plan)).toEqual({
+      month: '2026-11', from: READY, to: 'cat-rent', amount: 1594, seen: { from: 31200, to: 0 },
     });
+    expect(toMove(draft('cat-groceries', 'cat-dining', 100), plan).seen).toEqual({ from: 20762, to: -2810 });
   });
   it('throws when the draft cannot be saved', () => {
-    expect(() => toMove(draft(null, 'cat-rent', 100), '2026-11')).toThrow();
-    expect(() => toMove(draft(READY, null, 100), '2026-11')).toThrow();
-    expect(() => toMove(draft(READY, 'cat-rent', 0), '2026-11')).toThrow();
-    expect(() => toMove(draft(READY, READY, 100), '2026-11')).toThrow();
-    expect(() => toMove(draft(READY, 'cat-rent', 100), '2026-13')).toThrow();
+    expect(() => toMove(draft(null, 'cat-rent', 100), plan)).toThrow();
+    expect(() => toMove(draft(READY, null, 100), plan)).toThrow();
+    expect(() => toMove(draft(READY, 'cat-rent', 0), plan)).toThrow();
+    expect(() => toMove(draft(READY, READY, 100), plan)).toThrow();
+    expect(() => toMove(draft(READY, 'cat-rent', 100), { ...plan, month: '2026-13' })).toThrow();
+    expect(() => toMove(draft('cat-nope', 'cat-rent', 100), plan)).toThrow();
+  });
+  it('throws for more than the from pot has: it has the plan, so it refuses an over-move itself', () => {
+    expect(() => toMove(draft('cat-electricity', 'cat-rent', 12001), plan)).toThrow();
+    expect(() => toMove(draft(READY, 'cat-rent', 31201), plan)).toThrow();
   });
 });
 

@@ -169,7 +169,9 @@ it('moves the money, then goes back to the Plan and tells it', async () => {
   await type('5', '0');
   await key('Move');
   await waitFor(() => expect(router.back).toHaveBeenCalledTimes(1));
-  expect(moveMoney).toHaveBeenCalledWith({ month: '2026-11', from: 'cat-groceries', to: 'cat-rent', amount: 5000 });
+  expect(moveMoney).toHaveBeenCalledWith({
+    month: '2026-11', from: 'cat-groceries', to: 'cat-rent', amount: 5000, seen: { from: 20762, to: 0 },
+  });
   expect(saved).toHaveBeenCalledTimes(1);
   stop();
 });

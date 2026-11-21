@@ -1,6 +1,8 @@
 import { READY } from './types';
 import type { PlanMonth } from './types';
-import { MAX_AMOUNT, checkCover, checkMonthAndAmount, checkMove, checkTransaction, isDate, isMonth } from './writeRules';
+import {
+  MAX_AMOUNT, checkCover, checkCoverShape, checkMonthAndAmount, checkMove, checkMoveShape, checkTransaction, isDate, isMonth,
+} from './writeRules';
 
 const cat = (id: string, balance: number) => ({
   id, name: `Name of ${id}`, budgeted: 1000, spent: 0, balance, carryover: false, goal: null, longGoal: false,
@@ -52,8 +54,14 @@ describe('checkMonthAndAmount', () => {
   });
 });
 
+// What a sheet drawn from `p` saw of a pot: READY's toBudget, a category's balance (0 for one it does not have).
+const has = (id: string, p = plan) =>
+  id === READY ? p.toBudget : (p.groups.flatMap(g => g.categories).find(c => c.id === id)?.balance ?? 0);
+const fresh = (from: string, to: string, p = plan) => ({ from: has(from, p), to: has(to, p) });
+
 describe('checkMove', () => {
-  const move = (from: string, to: string, amount: number) => code(() => checkMove(plan, { from, to, amount }));
+  const move = (from: string, to: string, amount: number) =>
+    code(() => checkMove(plan, { month: '2026-11', from, to, amount, seen: fresh(from, to) }));
   test('allows moves between categories and Ready to budget within what the source has', () => {
     expect(move('cat-a', 'cat-b', 3000)).toBeNull();
     expect(move('cat-a', READY, 1)).toBeNull();
@@ -72,13 +80,27 @@ describe('checkMove', () => {
     expect(move('cat-b', 'cat-a', 1)).toBe('stale');
     expect(move('cat-c', READY, 1)).toBe('stale');
     expect(move(READY, 'cat-a', 5001)).toBe('stale');
-    expect(code(() => checkMove({ ...plan, toBudget: -10 }, { from: READY, to: 'cat-a', amount: 1 }))).toBe('stale');
+    const short = { ...plan, toBudget: -10 };
+    expect(code(() => checkMove(short, { month: '2026-11', from: READY, to: 'cat-a', amount: 1, seen: fresh(READY, 'cat-a', short) })))
+      .toBe('stale');
+  });
+  test('rejects with stale when either pot has other figures than the sheet saw, even when the move is still allowed', () => {
+    const request = { month: '2026-11', from: 'cat-a', to: 'cat-b', amount: 100 };
+    expect(code(() => checkMove(plan, { ...request, seen: { from: 3000, to: -400 } }))).toBeNull();
+    expect(code(() => checkMove(plan, { ...request, seen: { from: 3500, to: -400 } }))).toBe('stale');
+    expect(code(() => checkMove(plan, { ...request, seen: { from: 3000, to: -300 } }))).toBe('stale');
+    expect(code(() => checkMove(plan, { ...request, from: READY, seen: { from: 4999, to: -400 } }))).toBe('stale');
+  });
+  test('refuses a request without the figures it was drawn from', () => {
+    expect(code(() => checkMove(plan, { month: '2026-11', from: 'cat-a', to: 'cat-b', amount: 100 } as any))).toBe('invalid-move');
+    expect(code(() => checkMove(plan, { month: '2026-11', from: 'cat-a', to: 'cat-b', amount: 100, seen: { from: 3000 } } as any)))
+      .toBe('invalid-move');
   });
 });
 
 describe('checkCover', () => {
   const cover = (category: string, from: string, amount: number, p = plan) =>
-    code(() => checkCover(p, { category, from, amount }));
+    code(() => checkCover(p, { month: '2026-11', category, from, amount, seen: { category: has(category, p), from: has(from, p) } }));
   test('allows covering all or part of the overspending from a pot that has the amount', () => {
     expect(cover('cat-b', 'cat-a', 400)).toBeNull();
     expect(cover('cat-b', READY, 100)).toBeNull();
@@ -97,6 +119,40 @@ describe('checkCover', () => {
     expect(cover('cat-b', 'cat-a', 401)).toBe('stale');
     expect(cover('cat-b', 'cat-c', 100)).toBe('stale');
     expect(cover('cat-b', READY, 400, { ...plan, toBudget: 399 })).toBe('stale');
+  });
+  test('rejects with stale when the category or the source has other figures than the sheet saw', () => {
+    const request = { month: '2026-11', category: 'cat-b', from: 'cat-a', amount: 400 };
+    expect(code(() => checkCover(plan, { ...request, seen: { category: -400, from: 3000 } }))).toBeNull();
+    // Overspent by more than was shown: covering what was shown would leave it still over.
+    expect(code(() => checkCover(plan, { ...request, seen: { category: -300, from: 3000 } }))).toBe('stale');
+    expect(code(() => checkCover(plan, { ...request, amount: 300, seen: { category: -300, from: 3000 } }))).toBe('stale');
+    expect(code(() => checkCover(plan, { ...request, seen: { category: -400, from: 2000 } }))).toBe('stale');
+  });
+  test('refuses a request without the figures it was drawn from', () => {
+    expect(code(() => checkCover(plan, { month: '2026-11', category: 'cat-b', from: 'cat-a', amount: 400 } as any))).toBe('invalid-move');
+  });
+});
+
+describe('checkMoveShape and checkCoverShape: what can be refused without reading the budget', () => {
+  const move = { month: '2026-11', from: 'cat-a', to: 'cat-b', amount: 100, seen: { from: 3000, to: -400 } };
+  const cover = { month: '2026-11', category: 'cat-b', from: 'cat-a', amount: 100, seen: { category: -400, from: 3000 } };
+  test('accepts a well-formed request whatever the budget holds', () => {
+    expect(code(() => checkMoveShape(move))).toBeNull();
+    expect(code(() => checkMoveShape({ ...move, from: 'cat-unknown', seen: { from: -1, to: 0 } }))).toBeNull();
+    expect(code(() => checkCoverShape(cover))).toBeNull();
+  });
+  test('refuses a malformed month, amount, id or seen, the same pot twice, and READY as the covered category', () => {
+    const bad = [
+      { ...move, month: '2026-13' }, { ...move, month: 'not-a-month' }, { ...move, amount: 0 }, { ...move, amount: 1.5 },
+      { ...move, amount: MAX_AMOUNT + 1 }, { ...move, from: '' }, { ...move, to: 'a/b' }, { ...move, to: 'cat-a' },
+      { ...move, seen: undefined }, { ...move, seen: { from: 1.5, to: 0 } }, { ...move, seen: { from: '1', to: 0 } }, null,
+    ];
+    for (const request of bad) expect(code(() => checkMoveShape(request as any))).toBe('invalid-move');
+    const badCovers = [
+      { ...cover, month: '2026-00' }, { ...cover, amount: -1 }, { ...cover, category: READY }, { ...cover, from: 'cat-b' },
+      { ...cover, from: 'x y' }, { ...cover, seen: { category: -400 } }, { ...cover, seen: null },
+    ];
+    for (const request of badCovers) expect(code(() => checkCoverShape(request as any))).toBe('invalid-move');
   });
 });
 
@@ -125,11 +181,12 @@ test('error messages carry no ids, names or amounts', () => {
       messages.push(e.message);
     }
   };
-  keep(() => checkMove(plan, { from: 'cat-a', to: 'cat-b', amount: 3001 }));
-  keep(() => checkMove(plan, { from: 'cat-unknown', to: 'cat-b', amount: 1 }));
-  keep(() => checkCover(plan, { category: 'cat-b', from: 'cat-a', amount: 401 }));
+  keep(() => checkMove(plan, { month: '2026-11', from: 'cat-a', to: 'cat-b', amount: 3001, seen: fresh('cat-a', 'cat-b') }));
+  keep(() => checkMove(plan, { month: '2026-11', from: 'cat-unknown', to: 'cat-b', amount: 1, seen: fresh('cat-unknown', 'cat-b') }));
+  keep(() => checkMove(plan, { month: '2026-11', from: 'cat-a', to: 'cat-b', amount: 1, seen: { from: 777, to: 777 } }));
+  keep(() => checkCover(plan, { month: '2026-11', category: 'cat-b', from: 'cat-a', amount: 401, seen: { category: -400, from: 3000 } }));
   keep(() => checkMonthAndAmount('2099-01', 777, bounds));
   keep(() => checkTransaction({ date: '2026-02-30', amount: 777 }));
-  expect(messages).toHaveLength(5);
+  expect(messages).toHaveLength(6);
   for (const m of messages) expect(m).not.toMatch(/cat-|Name of|\d/);
 });
