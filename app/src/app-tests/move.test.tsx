@@ -258,6 +258,21 @@ it('refuses a move the budget no longer allows, reads it again, keeps the form, 
   expect(router.back).not.toHaveBeenCalled();
 });
 
+it('tells the Plan to read again after a refusal, so the screens under the sheet are not left out of date', async () => {
+  const engine = fakeEngine();
+  const told = jest.fn();
+  const stop = onSaved(told);
+  await showSheet({ from: 'cat-groceries', to: 'cat-rent' }, engine);
+  await keypad();
+  await type('5', '0');
+  engine.elsewhere(plan => withCategory(plan, 'cat-groceries', { balance: 1000 }));
+  await key('Move');
+  expect(await screen.findByText(STALE)).toBeTruthy();
+  expect(told).toHaveBeenCalledTimes(1);
+  expect(router.back).not.toHaveBeenCalled();
+  stop();
+});
+
 it('refuses a move that is still allowed when the figures are not what the sheet showed, and a retry goes through', async () => {
   const engine = fakeEngine();
   await showSheet({ from: 'cat-groceries', to: 'cat-rent' }, engine);

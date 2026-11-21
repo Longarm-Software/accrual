@@ -76,6 +76,7 @@ last because it touches every screen.
 | In a past month the notice has no button, so it is shorter and the tiles start higher than in the current month. | Plan 6 |
 | The move sheet's swap control (two chevrons in a small glass circle) is faint in the dark theme, and plainer than the design's. | Plan 6 |
 | Each change of the system text size on Android restarts the screen and, in a debug build, logs "Looks like you have configured linking in multiple places" once. Goes with the `configChanges` row above. | Plan 6 |
+| Switching the system from dark to light once failed to take in the app until it was reopened; seen once on the emulator and not reproduced. | Plan 6 |
 
 ## Settled
 

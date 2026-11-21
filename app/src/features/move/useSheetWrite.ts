@@ -116,6 +116,9 @@ export function useSheetWrite(engine: Engine, month: string, { onDone, today }: 
           } catch {
             // Keep the numbers shown; the sentence still says to check them.
           }
+          // The budget changed under the Plan too: have it read its month, so the screens under
+          // the sheet do not go on showing the figures the refusal just proved out of date.
+          announceSaved();
         }
         busy.current = false;
         if (mounted.current) {
