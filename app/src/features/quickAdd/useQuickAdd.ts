@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 
 import type { AccountChoice, Engine, PayeeChoice, PlanMonth, QuickAddLists } from '../../engine/types';
 import { currentMonth } from '../../lib/month';
-import { announceSaved } from '../plan/quickAddSignal';
+import { announceSaved } from '../plan/planSignal';
 import { entryText, press, type EntryText, type Key } from './amountEntry';
 import {
   canSave, canStepForward, cardView, categoryChoices, dateLabel, expenseCategoryIds, newDraft, resolvePayee, stepDate,

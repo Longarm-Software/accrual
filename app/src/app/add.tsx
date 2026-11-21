@@ -6,7 +6,7 @@ import { KeyboardAvoidingView, Pressable, ScrollView, Text, View, useWindowDimen
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Engine } from '../engine/types';
-import { getPlanToday, onPlanTodayChange } from '../features/plan/quickAddSignal';
+import { getPlanToday, onPlanTodayChange } from '../features/plan/planSignal';
 import { AmountDisplay } from '../features/quickAdd/AmountDisplay';
 import { CategoryCard } from '../features/quickAdd/CategoryCard';
 import { DateStepper } from '../features/quickAdd/DateStepper';

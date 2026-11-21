@@ -15,7 +15,7 @@ import { GroupHeader } from '../features/plan/GroupHeader';
 import { HeroCard } from '../features/plan/HeroCard';
 import { MonthSwitcher } from '../features/plan/MonthSwitcher';
 import { Notice } from '../features/plan/Notice';
-import { onSaved, setPlanToday } from '../features/plan/quickAddSignal';
+import { onSaved, setPlanToday } from '../features/plan/planSignal';
 import { groupAvailable, hasCategories, heroView, overspentNotice, syncLabel } from '../features/plan/planSummary';
 import { rowAmountSize } from '../features/plan/tile';
 import { usePlanMonth } from '../features/plan/usePlanMonth';

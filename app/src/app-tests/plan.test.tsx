@@ -10,7 +10,7 @@ import type { Engine, PlanMonth } from '../engine/types';
 import { fakeBudgets, fakeEngine, fakePlanMonth } from '../session/fakeEngine';
 import { SessionProvider, useSession } from '../session/SessionProvider';
 import { loadSession, saveSession } from '../session/storage';
-import { announceSaved } from '../features/plan/quickAddSignal';
+import { announceSaved } from '../features/plan/planSignal';
 import { size, space } from '../theme/tokens';
 import Add from '../app/add';
 import Home from '../app/index';

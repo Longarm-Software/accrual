@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { Alert, Dimensions, Platform, StyleSheet } from 'react-native';
 
 import type { Engine, NewTransaction, PlanMonth } from '../engine/types';
-import { onSaved, setPlanToday } from '../features/plan/quickAddSignal';
+import { onSaved, setPlanToday } from '../features/plan/planSignal';
 import { fakeBudgets, fakeEngine, fakePlanMonth, fakeQuickAddLists } from '../session/fakeEngine';
 import { SessionProvider, useSession } from '../session/SessionProvider';
 import { saveSession } from '../session/storage';
