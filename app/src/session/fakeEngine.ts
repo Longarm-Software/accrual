@@ -1,5 +1,6 @@
 // An in-memory Engine for component tests. Fake data only.
-import { EngineError, READY } from '../engine/types';
+import { READY } from '../engine/types';
+import { checkCover, checkMonthAndAmount, checkMove, checkTransaction } from '../engine/writeRules';
 import type { ActivityRow, Engine, PlanCategory, PlanMonth, PotId, QuickAddLists, RemoteBudget } from '../engine/types';
 
 export const fakeBudgets: RemoteBudget[] = [
@@ -75,22 +76,24 @@ export const fakeActivity: ActivityRow[] = [
   { id: 'tx-noodles-1', date: '2026-11-02', amount: -9150, payee: 'Noodle Bar', account: 'Everyday Checking', notes: 'birthday' },
 ];
 
+const fakeBounds = { start: '2026-01', end: '2027-12' };
+
 /**
- * An in-memory Engine for component tests. Moving and covering change the month `getPlanMonth`
- * returns afterwards: a move takes `amount` from one pot and adds it to the other (budgeted and
- * balance for a category, toBudget for READY); a cover is a move of up to `amount`, capped at
- * what the source has, as loot-core caps it. Every engine starts from `fakePlanMonth`.
+ * An in-memory Engine for component tests. Every engine starts from `fakePlanMonth`, which it
+ * returns for any month. Moving and covering refuse what the adapter refuses (the same checks,
+ * from writeRules.ts, against the month as it stands) and otherwise change that month: `amount`
+ * leaves one pot and reaches the other. For a category that is its budgeted and balance, for READY
+ * its toBudget; totalBudgeted follows the categories, so it changes only when READY is one end.
  */
 export function fakeEngine(overrides: Partial<Engine> = {}): Engine {
   let plan: PlanMonth = fakePlanMonth;
-  const has = (pot: PotId) =>
-    pot === READY ? plan.toBudget : (plan.groups.flatMap(g => g.categories).find(c => c.id === pot)?.balance ?? 0);
   const shift = (pot: PotId, delta: number) => {
     plan =
       pot === READY
         ? { ...plan, toBudget: plan.toBudget + delta }
         : {
             ...plan,
+            totalBudgeted: plan.totalBudgeted + delta,
             groups: plan.groups.map(g => ({
               ...g,
               categories: g.categories.map(c =>
@@ -111,16 +114,19 @@ export function fakeEngine(overrides: Partial<Engine> = {}): Engine {
       for (const stage of ['downloading', 'syncing'] as const) await onStage(stage);
     },
     getPlanMonth: async () => plan,
-    getMonthBounds: async () => ({ start: '2026-01', end: '2027-12' }),
+    getMonthBounds: async () => fakeBounds,
     getQuickAddLists: async () => fakeQuickAddLists,
-    getCategoryActivity: async categoryId => (categoryId === 'cat-dining' ? fakeActivity : []),
-    moveMoney: async ({ from, to, amount }) => {
-      if (amount <= 0 || from === to) throw new EngineError('invalid-move', 'Not a move');
-      move(from, to, amount);
+    getCategoryActivity: async (categoryId, month) =>
+      categoryId === 'cat-dining' ? fakeActivity.filter(row => row.date.startsWith(`${month}-`)) : [],
+    moveMoney: async request => {
+      checkMonthAndAmount(request.month, request.amount, fakeBounds);
+      checkMove(plan, request);
+      move(request.from, request.to, request.amount);
     },
-    coverOverspending: async ({ category, from, amount }) => {
-      if (amount <= 0) throw new EngineError('invalid-move', 'Not a cover');
-      move(from, category, Math.max(0, Math.min(amount, has(from))));
+    coverOverspending: async request => {
+      checkMonthAndAmount(request.month, request.amount, fakeBounds);
+      checkCover(plan, request);
+      move(request.from, request.category, request.amount);
     },
     getMonth: async month => ({
       month, toBudget: 31200, totalBudgeted: 588000, totalSpent: 341617, totalIncome: 619200, totalBalance: 246383,
@@ -131,7 +137,7 @@ export function fakeEngine(overrides: Partial<Engine> = {}): Engine {
     getAccounts: async () => [],
     getTransactions: async () => [],
     searchTransactions: async () => [],
-    addTransaction: async () => {},
+    addTransaction: async (_accountId, transaction) => checkTransaction(transaction),
     ...overrides,
   };
 }

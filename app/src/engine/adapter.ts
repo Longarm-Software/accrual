@@ -6,7 +6,8 @@
 // replaces the previous session; an Engine returned earlier must not be used after that.
 import { recentUse, type UseRow } from './recentUse';
 import { EngineError, READY } from './types';
-import type { ActivityRow, Auth, Engine, PlanCategory, PlanMonth, QuickAddLists, RemoteBudget } from './types';
+import type { ActivityRow, Auth, Engine, MonthBounds, PlanCategory, PlanMonth, QuickAddLists, RemoteBudget } from './types';
+import { checkCover, checkMonthAndAmount, checkMove, checkTransaction } from './writeRules';
 
 export * from './types';
 
@@ -95,12 +96,22 @@ export async function createEngine(
     const prefs = await lib.send('preferences/get');
     return typeof prefs?.defaultCurrencyCode === 'string' ? prefs.defaultCurrencyCode : '';
   };
-  // Checked before any budget action runs. loot-core does not check the month: given one that is
-  // not YYYY-MM it writes budget rows whose month is NaN, and every client that later downloads
-  // the budget fails while applying them. A fractional amount would be stored as is.
-  const checkWrite = (month: string, amount: number) => {
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw fail('invalid-move', 'Not a month');
-    if (!Number.isInteger(amount) || amount <= 0) throw fail('invalid-move', 'The amount must be above zero');
+  // The month a budget write is checked against, read just before it. The month and amount are
+  // checked first, so no read is made with a month the budget does not have.
+  const currentMonth = async (month: string, amount: number): Promise<PlanMonth> => {
+    let bounds: MonthBounds;
+    try {
+      bounds = await readMonthBounds();
+    } catch {
+      throw new EngineError('internal', 'Could not read the budget');
+    }
+    checkMonthAndAmount(month, amount, bounds);
+    try {
+      return await readPlanMonth(month);
+    } catch (e) {
+      if (e instanceof EngineError) throw e;
+      throw new EngineError('internal', 'Could not read the budget');
+    }
   };
   // A budget action that throws inside loot-core rejects with 'internal'.
   const budgetAction = async (message: string, run: () => Promise<void>) => {
@@ -110,6 +121,61 @@ export async function createEngine(
       throw new EngineError('internal', message);
     }
   };
+
+  // The Plan screen's month; see `getPlanMonth`. Budget writes also read it, to check against.
+  async function readPlanMonth(month: string): Promise<PlanMonth> {
+    const prefs = await lib.send('preferences/get');
+    if (prefs?.budgetType === 'tracking') throw fail('tracking-budget', 'Tracking budgets are not supported');
+    const { grouped } = await lib.send('get-categories');
+    const cells: { name: string; value: unknown }[] = await lib.send('envelope-budget-month', { month });
+    const values = new Map(cells.map(c => [c.name.slice(c.name.indexOf('!') + 1), c.value]));
+    const amount = (name: string) => {
+      const v = values.get(name);
+      return typeof v === 'number' ? v : 0;
+    };
+    const groups = (grouped as any[])
+      .filter(g => !g.is_income && !g.hidden)
+      .map(g => ({
+        id: g.id as string,
+        name: g.name as string,
+        categories: ((g.categories ?? []) as any[])
+          .filter(c => !c.hidden)
+          .map((c): PlanCategory => {
+            // The goal cells copy the month's budget row (handleBudgetChange in server/budget/base.ts),
+            // null when no template has set them; an unset cell reads as 0. So only a positive
+            // amount is a goal. `long-goal` is 1 for a `#goal` line, a balance to reach
+            // (runGoal in budget/category-template-context.ts), and null otherwise.
+            const goal = values.get(`goal-${c.id}`);
+            return {
+              id: c.id,
+              name: c.name,
+              budgeted: amount(`budget-${c.id}`),
+              spent: amount(`sum-amount-${c.id}`),
+              balance: amount(`leftover-${c.id}`),
+              carryover: Boolean(values.get(`carryover-${c.id}`)),
+              goal: typeof goal === 'number' && goal > 0 ? goal : null,
+              longGoal: Boolean(values.get(`long-goal-${c.id}`)),
+            };
+          }),
+      }));
+    const plan: PlanMonth = {
+      month,
+      toBudget: amount('to-budget'),
+      totalIncome: amount('total-income'),
+      // The envelope sheet stores this negated, as money leaving "to budget" (server/budget/envelope.ts).
+      totalBudgeted: 0 - amount('total-budgeted'),
+      totalSpent: amount('total-spent'),
+      groups,
+    };
+    return plan;
+  }
+
+  // `get-budget-bounds` (server/budget/app.ts -> createAllBudgets in budget/base.ts): from three
+  // months before the earliest transaction to twelve months after the current one, inclusive.
+  async function readMonthBounds(): Promise<MonthBounds> {
+    const { start, end } = await lib.send('get-budget-bounds');
+    return { start, end };
+  }
 
   return {
     offline,
@@ -187,58 +253,8 @@ export async function createEngine(
     // A tracking budget has no envelope cells (`tracking-budget-month` reads different ones), so
     // it is refused. Its type is the synced preference `budgetType`, absent meaning envelope
     // (`isTrackingBudget` in server/budget/actions.ts).
-    async getPlanMonth(month) {
-      const prefs = await lib.send('preferences/get');
-      if (prefs?.budgetType === 'tracking') throw fail('tracking-budget', 'Tracking budgets are not supported');
-      const { grouped } = await lib.send('get-categories');
-      const cells: { name: string; value: unknown }[] = await lib.send('envelope-budget-month', { month });
-      const values = new Map(cells.map(c => [c.name.slice(c.name.indexOf('!') + 1), c.value]));
-      const amount = (name: string) => {
-        const v = values.get(name);
-        return typeof v === 'number' ? v : 0;
-      };
-      const groups = (grouped as any[])
-        .filter(g => !g.is_income && !g.hidden)
-        .map(g => ({
-          id: g.id as string,
-          name: g.name as string,
-          categories: ((g.categories ?? []) as any[])
-            .filter(c => !c.hidden)
-            .map((c): PlanCategory => {
-              // The goal cells copy the month's budget row (handleBudgetChange in server/budget/base.ts),
-              // null when no template has set them; an unset cell reads as 0. So only a positive
-              // amount is a goal. `long-goal` is 1 for a `#goal` line, a balance to reach
-              // (runGoal in budget/category-template-context.ts), and null otherwise.
-              const goal = values.get(`goal-${c.id}`);
-              return {
-                id: c.id,
-                name: c.name,
-                budgeted: amount(`budget-${c.id}`),
-                spent: amount(`sum-amount-${c.id}`),
-                balance: amount(`leftover-${c.id}`),
-                carryover: Boolean(values.get(`carryover-${c.id}`)),
-                goal: typeof goal === 'number' && goal > 0 ? goal : null,
-                longGoal: Boolean(values.get(`long-goal-${c.id}`)),
-              };
-            }),
-        }));
-      const plan: PlanMonth = {
-        month,
-        toBudget: amount('to-budget'),
-        totalIncome: amount('total-income'),
-        // The envelope sheet stores this negated, as money leaving "to budget" (server/budget/envelope.ts).
-        totalBudgeted: 0 - amount('total-budgeted'),
-        totalSpent: amount('total-spent'),
-        groups,
-      };
-      return plan;
-    },
-    // `get-budget-bounds` (server/budget/app.ts -> createAllBudgets in budget/base.ts): from three
-    // months before the earliest transaction to twelve months after the current one, inclusive.
-    async getMonthBounds() {
-      const { start, end } = await lib.send('get-budget-bounds');
-      return { start, end };
-    },
+    getPlanMonth: month => readPlanMonth(month),
+    getMonthBounds: () => readMonthBounds(),
     getMonth: month => lib.send('api/budget-month', { month }),
     // What the quick-add sheet offers. `api/accounts-get` returns live accounts in Actual's order
     // (sort_order, name) with `offbudget` and `closed` as booleans (accountModel in
@@ -357,20 +373,27 @@ export async function createEngine(
     // the movement note on the month are what Actual's apps would write, and they sync like any
     // other change. Months are YYYY-MM (`sheetForMonth`, `dbMonth`).
     //
+    // loot-core checks almost none of what it is given (see writeRules.ts), and two people edit
+    // the same budget, so a sheet can be showing older figures. Each write therefore reads the
+    // budget's bounds and the month as they are now, immediately before the action, and refuses
+    // with 'invalid-move' or 'stale' anything that would not do exactly what was asked. With the
+    // checks passed, every action below moves exactly `amount`:
+    //
     // `transfer-category` subtracts from `from`'s budgeted amount and adds to `to`'s, or to nothing
-    // when `to` is 'to-budget' (READY), and appends "Reassigned …" to the month's note.
-    // `transfer-available` adds to the category from Ready to budget, clamped to between zero and
-    // what Ready to budget has, and writes no note. `transfer-category` cannot move FROM READY: it
-    // would write a budget row for a category called 'to-budget'. So READY as `from` goes through
-    // `transfer-available`, as Actual's own Ready to budget menu does.
+    // when `to` is 'to-budget' (READY), and appends "Reassigned …" to the month's note. It checks
+    // nothing itself. `transfer-category` cannot move FROM READY: it would write a budget row for
+    // a category called 'to-budget'. So READY as `from` goes through `transfer-available`, as
+    // Actual's own Ready to budget menu does. That adds to the category, clamped to between zero
+    // and what Ready to budget has, and writes no note; the check that Ready to budget has the
+    // amount keeps the clamp from ever cutting a move short.
     //
     // `currencyCode` only sets the decimal places of the amount in that note (`getCurrency` falls
     // back to "None", two places, for a missing or unknown code). Actual's web app passes
     // `format.currency.code`, which is the synced preference `defaultCurrencyCode` or '' (useFormat),
     // so the same is passed here.
-    async moveMoney({ month, from, to, amount }) {
-      checkWrite(month, amount);
-      if (from === to) throw fail('invalid-move', 'Money cannot move to the pot it comes from');
+    async moveMoney(move) {
+      const { month, from, to, amount } = move;
+      checkMove(await currentMonth(month, amount), move);
       await budgetAction('Could not move the money', async () => {
         if (from === READY) {
           await lib.send('budget/transfer-available', { month, amount, category: to });
@@ -380,12 +403,14 @@ export async function createEngine(
         }
       });
     },
-    // `cover-overspending` takes a positive amount and inverts it itself, covers at most what
-    // `from` has left (its balance, or Ready to budget), and does nothing when `from` has nothing
-    // or `to` is not overspent. loot-core treats an amount of 0 as "cover all of it", so the same
-    // check as a move refuses it.
-    async coverOverspending({ month, category, from, amount }) {
-      checkWrite(month, amount);
+    // `cover-overspending` takes a positive amount and inverts it itself. Given an amount it never
+    // reads the category's balance: it moves min(amount, what `from` has) whether or not the
+    // category is overspent, and treats an amount of 0 as "cover all of it". The checks refuse a
+    // category that is not overspent, an amount above what it is over by or above what the source
+    // has, and READY as the category (that would write a budget row for a category 'to-budget').
+    async coverOverspending(cover) {
+      const { month, category, from, amount } = cover;
+      checkCover(await currentMonth(month, amount), cover);
       await budgetAction('Could not cover the overspending', async () => {
         const currencyCode = await currency();
         await lib.send('budget/cover-overspending', { month, to: category, from, amount, currencyCode });
@@ -403,7 +428,10 @@ export async function createEngine(
         .orderBy({ date: 'desc' });
       return (await lib.send('api/query', { query: query.serialize() })).data;
     },
+    // loot-core stores the date as parseInt of its digits without checking it, so a malformed
+    // date would be stored as NaN; the date and amount are checked first (writeRules.ts).
     async addTransaction(accountId, transaction) {
+      checkTransaction(transaction);
       await lib.send('api/transactions-add', { accountId, transactions: [transaction] });
     },
     // `api/sync` (server/api.ts) throws an Error carrying `code`, the reason from the failed sync:

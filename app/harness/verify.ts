@@ -258,15 +258,46 @@ async function main() {
     const sum = rows.reduce((total: number, r: any) => total + r.amount, 0);
     const newestFirst = rows.every((r: any, i: number) => i === 0 || rows[i - 1].date >= r.date);
     const inMonth = rows.every((r: any) => r.date.startsWith(month) && typeof r.account === 'string' && r.account);
-    if (!isDeepStrictEqual(rows.map((r: any) => r.id).sort(), [...expected.ids].sort()) ||
+    // The reference sorts by date, then sort_order, both newest first, so this checks order within a day too.
+    if (!isDeepStrictEqual(rows.map((r: any) => r.id), expected.ids) ||
         sum !== c.spent || sum !== expected.sum || !newestFirst || !inMonth) activityWrong.push(c.name);
     activityRows += rows.length;
     activityChildren += expected.children;
   }
-  check('activity: each category\'s transactions are the reference client\'s, newest first, and add up to spent',
+  check('activity: each category\'s transactions are the reference client\'s, in its order (date, then sort order, newest first), and add up to spent',
     activityWrong.length === 0 && activityChildren > 0,
     `(${planCategories.length} categories, ${activityRows} rows, ${activityChildren} split children` +
       `${activityWrong.length ? `; wrong: ${activityWrong.join(', ')}` : ''})`);
+
+  // Rows the seed wrote for this check (tools/test-server/scripts/seed.mjs), found by their notes.
+  // Expected figures come from the seed, not from the adapter's query.
+  const seeded = async (notes: string) =>
+    (await engine.getTransactions(undefined as any, '2000-01-01', today)).filter((t: any) => t.notes === notes);
+  const [splitParent] = await seeded('seed split');
+  const [transfer] = await seeded('seed transfer');
+  const [offBudget] = await seeded('seed off-budget');
+  if (!splitParent || !transfer || !offBudget) {
+    check('activity: the seeded split, transfer and off-budget rows exist', false, '(run `npm run seed` on a fresh server)');
+  } else {
+    const seedMonth = splitParent.date.slice(0, 7);
+    const seedPlan = (await engine.getPlanMonth(seedMonth)).groups.flatMap((g: any) => g.categories);
+    const named = (name: string) => seedPlan.find((c: any) => c.name === name);
+    const activityOf = (name: string) => engine.getCategoryActivity(named(name).id, seedMonth);
+    const [household, pets, holiday, books] = await Promise.all(['Household', 'Pets', 'Holiday', 'Books'].map(activityOf));
+    const child = (rows: any[], notes: string) => rows.find((r: any) => r.notes === notes);
+    check('activity: a split is listed as its children, each in its own category, and never as the parent',
+      child(household, 'seed split household')?.amount === -1500 && child(pets, 'seed split pets')?.amount === -2500 &&
+        !child(household, 'seed split pets') && !child(pets, 'seed split household') &&
+        ![household, pets].some((rows: any[]) => rows.some((r: any) => r.id === splitParent.id)));
+    const sent = child(holiday, 'seed transfer');
+    check('activity: a categorised transfer names the other account as its payee',
+      sent?.amount === -5000 && sent?.payee === 'Index Fund' && sent?.account === 'Everyday Checking' &&
+        holiday.filter((r: any) => r.notes === 'seed transfer').length === 1, `(${sent?.payee}, ${sent?.account})`);
+    const booksSpent = named('Books').spent;
+    check('activity: a categorised transaction on an off-budget account is not listed, and the rows still add up to spent',
+      !books.some((r: any) => r.id === offBudget.id || r.notes === 'seed off-budget') &&
+        books.reduce((t: number, r: any) => t + r.amount, 0) === booksSpent, `(${books.length} rows)`);
+  }
 
   const plain = planCategories.filter((c: any) => !c.carryover);
   const fuel = plain.find((c: any) => c.name === 'Fuel');
@@ -306,6 +337,13 @@ async function main() {
     moved(f0, f4, fuel.id, 0) && moved(f0, f4, household.id, 0) && f4.toBudget === f0.toBudget);
 
   const invalid = async (move: any) => (await engine.moveMoney(move).then(() => null, (e: any) => e))?.code;
+  const coverCode = async (cover: any) => (await engine.coverOverspending(cover).then(() => null, (e: any) => e))?.code;
+  const writeBounds = await engine.getMonthBounds();
+  const afterBounds = (() => {
+    const [y, m] = writeBounds.end.split('-').map(Number);
+    return m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}`;
+  })();
+  const income = (await engine.getQuickAddLists()).incomeCategories[0];
   const codes = [
     await invalid({ month, from: fuel.id, to: household.id, amount: 0 }),
     await invalid({ month, from: fuel.id, to: household.id, amount: -100 }),
@@ -315,13 +353,34 @@ async function main() {
     // loot-core would write budget rows for month NaN, which break every client that downloads them.
     await invalid({ month: 'not-a-month', from: fuel.id, to: household.id, amount: 100 }),
     await invalid({ month: '2026-13', from: fuel.id, to: household.id, amount: 100 }),
-    (await engine.coverOverspending({ month, category: fuel.id, from: household.id, amount: 0 })
-      .then(() => null, (e: any) => e))?.code,
+    await invalid({ month: afterBounds, from: fuel.id, to: household.id, amount: 100 }),
+    await invalid({ month: '0999-01', from: fuel.id, to: household.id, amount: 100 }),
+    await invalid({ month, from: fuel.id, to: household.id, amount: 9_999_999_999 + 1 }),
+    await invalid({ month, from: fuel.id, to: '', amount: 100 }),
+    await invalid({ month, from: fuel.id, to: 'overbudgeted', amount: 100 }),
+    await invalid({ month, from: fuel.id, to: 'no-such-category', amount: 100 }),
+    await invalid({ month, from: fuel.id, to: income.id, amount: 100 }),
+    await invalid({ month, from: income.id, to: fuel.id, amount: 100 }),
+    await coverCode({ month, category: fuel.id, from: household.id, amount: 0 }),
+    await coverCode({ month, category: READY, from: household.id, amount: 100 }),
+    await coverCode({ month, category: fuel.id, from: fuel.id, amount: 100 }),
+    await coverCode({ month, category: fuel.id, from: 'no-such-category', amount: 100 }),
   ];
   const f5 = await figures();
-  check('move: zero, negative, fractional, same-pot and bad-month moves, and a zero cover, fail with invalid-move and change nothing',
+  check('move and cover: malformed amounts, months, and pots fail with invalid-move and change nothing',
     codes.every(c => c === 'invalid-move') && moved(f0, f5, fuel.id, 0) && moved(f0, f5, household.id, 0) &&
       f5.toBudget === f0.toBudget, `(${codes.join(', ')})`);
+
+  // What the budget no longer allows: more than the source has.
+  const staleCodes = [
+    await invalid({ month, from: READY, to: fuel.id, amount: f5.toBudget + 1 }),
+    await invalid({ month, from: fuel.id, to: household.id, amount: Math.max(f5.of(fuel.id).balance, 0) + 1 }),
+    await invalid({ month, from: fuel.id, to: READY, amount: Math.max(f5.of(fuel.id).balance, 0) + 1 }),
+  ];
+  const f6 = await figures();
+  check('move: more than the source has fails with stale and changes nothing',
+    staleCodes.every(c => c === 'stale') && moved(f0, f6, fuel.id, 0) && moved(f0, f6, household.id, 0) &&
+      f6.toBudget === f0.toBudget, `(${staleCodes.join(', ')})`);
 
   // Cover: overspend Fuel by a known deficit, cover it from the category with the most left.
   const deficit = 777;
@@ -331,6 +390,17 @@ async function main() {
     date: today, amount: -overspend, payee_name: 'Harness Overspend', category: fuel.id, notes: `${tag}-overspend`,
   });
   const c0 = await figures();
+  const poor = plain.find((c: any) => c.id !== fuel.id && c0.of(c.id).balance < deficit);
+  const coverStale = [
+    await coverCode({ month, category: source.id, from: READY, amount: 1 }), // not overspent
+    await coverCode({ month, category: fuel.id, from: source.id, amount: deficit + 1 }), // more than the deficit
+    poor ? await coverCode({ month, category: fuel.id, from: poor.id, amount: deficit }) : 'no short source', // source short
+  ];
+  const cStale = await figures();
+  check('cover: not overspent, more than the deficit, or a source that is short fails with stale and changes nothing',
+    c0.of(source.id).balance >= 0 && coverStale.every(c => c === 'stale') &&
+      moved(c0, cStale, fuel.id, 0) && moved(c0, cStale, source.id, 0) && (!poor || moved(c0, cStale, poor.id, 0)) &&
+      cStale.toBudget === c0.toBudget, `(${coverStale.join(', ')})`);
   await engine.coverOverspending({ month, category: fuel.id, from: source.id, amount: deficit });
   const c1 = await figures();
   check('cover: the overspent category is back to 0 and the source fell by the deficit',
@@ -349,6 +419,23 @@ async function main() {
   check('cover: undoing it leaves the month as it was',
     moved(f0, c2, fuel.id, 0) && moved(f0, c2, source.id, 0) && c2.toBudget === f0.toBudget);
   await engine.sync();
+
+  // A malformed date or amount is refused before anything reaches loot-core.
+  const badTransactions = [
+    { date: `${month}-32`, amount: -100 },
+    { date: '2026-02-30', amount: -100 },
+    { date: 'not-a-date', amount: -100 },
+    { date: today, amount: 0 },
+    { date: today, amount: -12.5 },
+  ];
+  const badCodes: string[] = [];
+  for (const [i, t] of badTransactions.entries()) {
+    const e = await engine.addTransaction(checking.id, { ...t, notes: `${tag}-bad-${i}` }).then(() => null, (x: any) => x);
+    badCodes.push(e?.code);
+  }
+  const leaked = await engine.searchTransactions(`${tag}-bad-`);
+  check('add: a bad date or amount fails with invalid-transaction and adds nothing',
+    badCodes.every(c => c === 'invalid-transaction') && leaked.length === 0, `(${badCodes.join(', ')}; ${leaked.length} added)`);
 
   // --- Large budget: correctness and timing
   await timed('large: download + open', () => engine.openBudget(large));

@@ -81,9 +81,18 @@ export type Engine = {
   getQuickAddLists(): Promise<QuickAddLists>;
   /** The month's transactions in a category, newest first. A split's children count, not its parent. */
   getCategoryActivity(categoryId: string, month: string): Promise<ActivityRow[]>;
-  /** Moves `amount` cents between two pots in `month` (YYYY-MM). Rejects with 'invalid-move' if amount <= 0 or from === to. */
+  /**
+   * Moves exactly `amount` cents from one pot to another in `month` (YYYY-MM), or refuses:
+   * 'invalid-move' for a month the budget does not have, an amount that is not a whole number
+   * from 1 to MAX_AMOUNT, a pot that is neither READY nor a category the Plan shows, or the same
+   * pot twice; 'stale' when the source now has less than `amount`. See writeRules.ts.
+   */
   moveMoney(move: { month: string; from: PotId; to: PotId; amount: number }): Promise<void>;
-  /** Covers up to `amount` cents of `category`'s overspending in `month` from `from`. Rejects with 'invalid-move' if amount <= 0. */
+  /**
+   * Covers exactly `amount` cents of `category`'s overspending in `month` from `from`, or refuses:
+   * 'invalid-move' as for a move, and when `category` is READY or `from === category`; 'stale'
+   * when the category is not now overspent by at least `amount` or the source has less than it.
+   */
   coverOverspending(cover: { month: string; category: string; from: PotId; amount: number }): Promise<void>;
   /** Rejects with code 'network-failure' if it has not finished within the sync time limit (15 s). */
   sync(): Promise<void>;
@@ -92,5 +101,6 @@ export type Engine = {
   getAccounts(): Promise<{ id: string; name: string; offbudget: boolean; closed: boolean }[]>;
   getTransactions(accountId: string, startDate: string, endDate: string): Promise<any[]>;
   searchTransactions(text: string): Promise<{ id: string; date: string; amount: number; notes: string | null }[]>;
+  /** Rejects with 'invalid-transaction' for a date not on the calendar or a zero, fractional or out-of-range amount. */
   addTransaction(accountId: string, transaction: NewTransaction): Promise<void>;
 };

@@ -38,7 +38,7 @@ function monthAdd(base, delta) {
 }
 const daysIn = m => new Date(Date.UTC(+m.slice(0, 4), +m.slice(5, 7), 0)).getUTCDate();
 
-async function build({ seed, months, txPerMonth }) {
+async function build({ seed, months, txPerMonth, activityRows = false }) {
   const rand = mulberry32(seed);
   const pick = arr => arr[Math.floor(rand() * arr.length)];
   const cents = (lo, hi) => Math.round((lo + rand() * (hi - lo)) * 100);
@@ -115,6 +115,30 @@ async function build({ seed, months, txPerMonth }) {
       count++;
     }
   }
+  // Spike Small only: rows the engine harness checks a category's transactions against, by their
+  // notes. A split with two categorised children, a categorised transfer from an on-budget to an
+  // off-budget account (the on-budget side keeps its category), and a categorised transaction on
+  // the off-budget account itself, which the Plan does not count as spent.
+  if (activityRows) {
+    const date = `${thisMonth}-${pad(today)}`;
+    const id = name => cats.find(c => c.name === name).id;
+    const indexFundTransfer = payees.find(p => p.transfer_acct === accounts['Index Fund']);
+    batches[accounts['Everyday Checking']].push(
+      {
+        date, amount: -4000, payee_name: 'Corner Grocer', notes: 'seed split',
+        subtransactions: [
+          { amount: -1500, category: id('Household'), notes: 'seed split household' },
+          { amount: -2500, category: id('Pets'), notes: 'seed split pets' },
+        ],
+      },
+      { date, amount: -5000, payee: indexFundTransfer.id, category: id('Holiday'), notes: 'seed transfer' },
+    );
+    batches[accounts['Index Fund']].push({
+      date, amount: -700, payee_name: 'Dog-Eared Books', category: id('Books'), notes: 'seed off-budget',
+    });
+    count += 5;
+  }
+
   for (const [accountId, txns] of Object.entries(batches)) {
     if (txns.length) await api.addTransactions(accountId, txns, { runTransfers: true, learnCategories: false });
   }
@@ -148,7 +172,7 @@ async function main() {
   await api.init({ dataDir: clientDataDir('seed-client'), serverURL: SERVER_URL, password: PASSWORD });
   const existing = new Set((await api.getBudgets()).map(b => b.name));
   for (const spec of [
-    { name: 'Spike Small', seed: 1, months: 4, txPerMonth: 60 },
+    { name: 'Spike Small', seed: 1, months: 4, txPerMonth: 60, activityRows: true },
     { name: 'Spike Large', seed: 2, months: 36, txPerMonth: 340 },
   ]) {
     if (existing.has(spec.name)) {

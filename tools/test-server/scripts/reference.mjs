@@ -40,13 +40,15 @@ if (cmd === 'months') {
   await api.setBudgetAmount(month, categoryId, Number(budgeted));
   out = 'ok';
 } else if (cmd === 'activity') {
-  // Each category's transactions in the month, on on-budget accounts, from the public API's
-  // grouped read: a split counts as its children, each with its own category.
+  // Each category's transactions in the month, on on-budget accounts, newest first, from the
+  // public API's grouped read: a split counts as its children, each with its own category.
   const month = args[0];
   const onBudget = new Set((await api.getAccounts()).filter(a => !a.offbudget).map(a => a.id));
   const rows = (await api.getTransactions(undefined, `${month}-01`, `${month}-31`))
     .filter(t => onBudget.has(t.account))
     .flatMap(t => (t.subtransactions?.length ? t.subtransactions.map(s => ({ ...s, child: true })) : [t]));
+  // Newest first: date, then sort_order, both descending.
+  rows.sort((a, b) => (a.date === b.date ? b.sort_order - a.sort_order : a.date < b.date ? 1 : -1));
   out = {};
   for (const t of rows) {
     if (!t.category) continue;
