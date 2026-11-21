@@ -81,3 +81,12 @@ export function toCover(view: CoverView): { month: string; category: string; fro
   if (!view.canSave || !source) throw new Error('This cover cannot be saved');
   return { month: view.month, category: view.category, from: source.id, amount: source.covers };
 }
+
+/** Said under a source's amounts, and in its label, when it cannot cover all of the deficit. */
+export const NOT_ENOUGH = 'not enough for all of it';
+
+/** What a screen reader says for a cover source; whether it is chosen is said by its radio role. */
+export function sourceLabel(source: Source): string {
+  const text = `${source.name}, ${source.bite.before} now, ${source.bite.after}`;
+  return source.enough ? text : `${text}, ${NOT_ENOUGH}`;
+}

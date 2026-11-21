@@ -43,7 +43,7 @@ it('not selected: an unchecked radio, an empty check mark, no mint edge', async 
   await draw(ready, false);
   expect(screen.getByRole('radio').props.accessibilityState).toMatchObject({ checked: false });
   expect(screen.queryByTestId('source-check-on')).toBeNull();
-  expect(screen.getByTestId('source-check-off')).toBeTruthy();
+  expect(screen.getByTestId('source-check-off')).toHaveStyle({ borderColor: themes.dark.color.control });
   expect(screen.getByTestId('source-card')).not.toHaveStyle({ borderColor: themes.dark.color.ok });
 });
 

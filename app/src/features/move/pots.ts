@@ -2,6 +2,7 @@
 import { EngineError, READY, type PlanMonth, type PotId } from '../../engine/types';
 import { checkMonthAndAmount } from '../../engine/writeRules';
 import { formatMoney } from '../../lib/money';
+import type { Bite } from '../quickAdd/bite';
 
 export type Pot = { id: PotId; name: string; has: number }; // has: balance, or Ready to budget
 export const READY_NAME = 'Ready to budget';
@@ -26,6 +27,7 @@ export type Gain = {
   gained: number; // 0 to 1: the share that arrives; kept + gained === 1 when the pot started at or above zero
   before: string; // "$30.00"
   after: string; // "$40.00 after"
+  tone: 'funded' | 'over'; // over when the pot is still below zero after; the "after" is drawn in its colour
 };
 
 const MIN_GAINED = 0.04; // as bite's MIN_TAKEN: a small gain still shows
@@ -34,7 +36,8 @@ const MIN_GAINED = 0.04; // as bite's MIN_TAKEN: a small gain still shows
 export function gain(p: Pot, amount: number): Gain {
   const before = formatMoney(p.has);
   const after = `${formatMoney(p.has + amount)} after`;
-  const bar = (kept: number, gained: number): Gain => ({ kept, gained, before, after });
+  const tone = p.has + amount < 0 ? 'over' : 'funded';
+  const bar = (kept: number, gained: number): Gain => ({ kept, gained, before, after, tone });
   if (amount <= 0) return bar(p.has > 0 ? 1 : 0, 0);
   // Below zero: the bar is the deficit, and the share of it this fills (all of it, or more, is 1).
   if (p.has < 0) return bar(0, Math.max(Math.min(1, amount / -p.has), MIN_GAINED));
@@ -64,3 +67,15 @@ export function accepted(check: () => void): boolean {
  */
 export const wellFormed = (month: string, amount: number): boolean =>
   accepted(() => checkMonthAndAmount(month, amount, { start: month, end: month }));
+
+const isBite = (bar: Bite | Gain): bar is Bite => 'taken' in bar;
+
+/**
+ * What a screen reader says for a move's FROM or TO card, as one element, with the bite's
+ * warning when there is one: the strip under the card is not announced on iOS.
+ */
+export function potCardLabel(label: 'From' | 'To', name: string | null, bar: Bite | Gain | null): string {
+  if (name === null) return `${label}: none chosen, choose one`;
+  const text = bar ? `${label}: ${name}, ${bar.before} now, ${bar.after}` : `${label}: ${name}`;
+  return bar && isBite(bar) && bar.warning ? `${text}. ${bar.warning}` : text;
+}

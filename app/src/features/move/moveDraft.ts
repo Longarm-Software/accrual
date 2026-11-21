@@ -23,7 +23,7 @@ function entryOf(amount: number | undefined): Entry {
 
 export function newMove(start: { from?: PotId; to?: PotId; amount?: number }): MoveDraft {
   const entry = entryOf(start.amount);
-  return { from: start.from ?? null, to: start.to ?? null, entry, prefilled: entry !== emptyEntry };
+  return { from: start.from ?? null, to: start.to ?? null, entry, prefilled: !isEmpty(entry) };
 }
 
 /**
@@ -35,8 +35,10 @@ export function withKey(d: MoveDraft, key: Key): MoveDraft {
   if (!d.prefilled) return { ...d, entry: press(d.entry, key) };
   if (key === 'back') return { ...d, entry: emptyEntry, prefilled: false };
   const entry = press(emptyEntry, key);
-  return entry === emptyEntry ? d : { ...d, entry, prefilled: false };
+  return isEmpty(entry) ? d : { ...d, entry, prefilled: false };
 }
+
+const isEmpty = (entry: Entry): boolean => entry.digits === '' && entry.decimals === null;
 
 /** Choosing the pot that is already `to` makes it `from`, and `to` is chosen again. */
 export function withFrom(d: MoveDraft, id: PotId): MoveDraft {

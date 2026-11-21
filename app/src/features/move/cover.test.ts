@@ -2,7 +2,7 @@ import { READY, type PlanCategory, type PlanMonth } from '../../engine/types';
 import { checkCover, checkMonthAndAmount } from '../../engine/writeRules';
 import { fakePlanMonth } from '../../session/fakeEngine';
 import { bite } from '../quickAdd/bite';
-import { coverView, defaultSource, toCover } from './cover';
+import { coverView, defaultSource, sourceLabel, toCover } from './cover';
 import { gain } from './pots';
 
 const plan = fakePlanMonth; // Dining out is $28.10 over; Ready to budget has $312.00
@@ -127,5 +127,13 @@ describe('toCover', () => {
       expect(() => checkMonthAndAmount(request.month, request.amount, { start: '2026-01', end: '2027-12' })).not.toThrow();
       expect(() => checkCover(plan, request)).not.toThrow();
     }
+  });
+});
+
+describe('sourceLabel', () => {
+  it('name, now and after; and when it is not enough, says so', () => {
+    const v = coverView(month(0, [dining, cat('cat-coffee', 'Coffee', 1350), cat('cat-fun', 'Fun', 5000)]), 'cat-dining', null)!;
+    expect(sourceLabel(v.sources[0])).toBe('Coffee, $13.50 now, $0.00 after, not enough for all of it');
+    expect(sourceLabel(v.sources[1])).toBe('Fun, $50.00 now, $21.90 after');
   });
 });

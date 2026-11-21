@@ -35,8 +35,9 @@ it('draws amounts at the row size, and the last row a size larger after a hairli
   await render(<DetailRows rows={rows} />);
   const amountOf = (label: string) => screen.getByTestId(`detail-amount-${label}`);
   expect(amountOf('Spent')).toHaveStyle({ fontSize: amount.row });
-  expect(amountOf('Left')).toHaveStyle({ fontSize: amount.tileLong });
-  expect(amount.tileLong).toBeGreaterThan(amount.row);
+  expect(amountOf('Left')).toHaveStyle({ fontSize: amount.rowTotal });
+  expect(amount.rowTotal).toBeGreaterThan(amount.row);
+  expect(amount.rowTotal / amount.row).toBeLessThan(1.15); // one step, not a jump
   expect(screen.getByTestId('detail-Left')).toHaveStyle({ borderTopWidth: StyleSheet.hairlineWidth });
   expect(screen.getByTestId('detail-Spent')).not.toHaveStyle({ borderTopWidth: StyleSheet.hairlineWidth });
 });

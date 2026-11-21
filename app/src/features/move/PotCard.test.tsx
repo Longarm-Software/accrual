@@ -66,3 +66,8 @@ it('calls onPress when pressed', async () => {
   await fireEvent.press(screen.getByRole('button', { name: /Groceries/ }));
   expect(onPress).toHaveBeenCalledTimes(1);
 });
+
+it('a gain that leaves the pot below zero: a coral after', async () => {
+  await draw({ label: 'To', name: 'Dining out', bar: gain({ id: 'cat-dining', name: 'Dining out', has: -2810 }, 1350) });
+  expect(screen.getByText('−$14.60 after')).toHaveStyle({ color: themes.dark.color.over });
+});

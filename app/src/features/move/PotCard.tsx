@@ -9,7 +9,7 @@ import type { Bite } from '../quickAdd/bite';
 import { BiteBar } from '../quickAdd/BiteBar';
 import { Figures, Warning } from '../quickAdd/CategoryCard';
 import type { SheetDensity } from '../quickAdd/sheetLayout';
-import type { Gain } from './pots';
+import { potCardLabel, type Gain } from './pots';
 
 type Props = {
   label: 'From' | 'To';
@@ -23,25 +23,21 @@ type Props = {
 
 const isBite = (bar: Bite | Gain): bar is Bite => 'taken' in bar;
 
-/** What a screen reader says for the whole card, with the warning when there is one: the strip under it is not announced on iOS. */
-export function potCardLabel(label: Props['label'], name: string | null, bar: Bite | Gain | null): string {
-  if (name === null) return `${label}: none chosen, choose one`;
-  const text = bar ? `${label}: ${name}, ${bar.before} now, ${bar.after}` : `${label}: ${name}`;
-  return bar && isBite(bar) && bar.warning ? `${text}. ${bar.warning}` : text;
-}
-
 /**
  * One side of a move: FROM or TO, the pot's name, "Change ›" (or "Choose ›" with no pot), and
  * its bar — the bite the move takes from the from pot, or the gain it brings the to pot — with
  * what the pot has now and what it will have after. Quick add's category card, with a label:
  * it shares that card's figures and warning strip, so the two sheets read alike. More than the
- * from pot has gives the coral edge and the warning under the card.
+ * from pot has gives the coral edge and the warning under the card; a gain that leaves the pot
+ * still below zero has its "after" in coral.
  */
 export function PotCard({ label, name, bar, onPress, density = 'regular' }: Props) {
   const theme = useTheme();
   const inset = sheet[density].inset;
   const bite = bar && isBite(bar) ? bar : null;
   const over = bite?.state === 'over';
+  // The bite's state or the gain's tone decides; this only maps it to a colour.
+  const afterOver = bar !== null && (isBite(bar) ? bar.state === 'over' : bar.tone === 'over');
 
   return (
     <View style={{ gap: space.sm }}>
@@ -76,7 +72,7 @@ export function PotCard({ label, name, bar, onPress, density = 'regular' }: Prop
                 ) : (
                   <BiteBar kept={bar.kept} gained={bar.gained} />
                 )}
-                <Figures before={bar.before} after={bar.after} afterColor={over ? theme.color.over : theme.color.ok} />
+                <Figures before={bar.before} after={bar.after} afterColor={afterOver ? theme.color.over : theme.color.ok} />
               </View>
             )}
           </View>

@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { radius, size, space, tint, type } from '../../theme/tokens';
+import { radius, size, space, textScale, tint, type } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 
 export type CardAction = { label: string; onPress(): void };
@@ -37,7 +37,7 @@ export function ActionPill({ label, onPress, tone }: Props) {
       {tone === 'accent' && (
         <LinearGradient testID="action-accent" colors={theme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
       )}
-      <Text style={[type.action, { color: ink }]} numberOfLines={1}>
+      <Text style={[type.action, { color: ink }]} numberOfLines={1} maxFontSizeMultiplier={textScale.action}>
         {label}
       </Text>
     </Pressable>

@@ -19,6 +19,8 @@ export type Theme = {
     keyEdge: string;
     /** What is drawn on a coral (`over`) fill: the Save key's tick when the amount is too much. */
     onOver: string;
+    /** The ring of an unchecked control (a cover source's check mark): 3:1 on a tile, so it shows. */
+    control: string;
   };
   /** Mint to blue: buttons, progress, the logo. */
   gradient: [string, string];
@@ -36,6 +38,7 @@ export const themes: { dark: Theme; light: Theme } = {
       line: 'rgba(255,255,255,0.22)', shade: '#000000',
       onAccent: '#04221B',
       key: 'rgba(255,255,255,0.07)', keyEdge: 'rgba(255,255,255,0.11)', onOver: '#1B0704',
+      control: '#7D8896',
     },
     gradient: ['#62EFC2', '#5CCBF4'],
   },
@@ -50,6 +53,7 @@ export const themes: { dark: Theme; light: Theme } = {
       line: 'rgba(13,20,24,0.16)', shade: '#0D1418',
       onAccent: '#FFFFFF',
       key: 'rgba(255,255,255,0.8)', keyEdge: 'rgba(13,20,24,0.14)', onOver: '#FFFFFF',
+      control: '#8A95A2',
     },
     gradient: ['#067A5B', '#0B6BA8'],
   },
@@ -123,6 +127,8 @@ export const amount = {
   tileLong: 22,
   /** An amount in a list of rows (a category's details, its transactions): the size of body text. */
   row: type.body.fontSize,
+  /** A list's total line (a category's Left): one step up the type scale from `row`. */
+  rowTotal: type.month.fontSize,
   /** The amount being typed on quick add. */
   entry: 88,
   /** The amount being typed on a short screen (the compact sheet). */
@@ -201,8 +207,10 @@ export const sheet = {
  * The most the person's text size may enlarge a piece of text, where growing further would
  * break its box. `key`: a keypad digit at twice its size still fits a 60-point key. `amount`:
  * a fitted amount is already larger than the largest text, so it does not grow at all.
+ * `action`: a small pill button's word grows to half again its size, so the pill stays small
+ * beside the top card's label and the notice's text.
  */
-export const textScale = { key: 2, amount: 1 } as const;
+export const textScale = { key: 2, amount: 1, action: 1.5 } as const;
 
 /** Springs for the motion decision 10 allows. `bite`: the bite bar's split, quick and barely overshooting. */
 export const spring = { bite: { damping: 20, stiffness: 220 } } as const;

@@ -1,6 +1,7 @@
 import type { PlanCategory } from '../../engine/types';
 import { fakeActivity, fakePlanMonth } from '../../session/fakeEngine';
-import { activityDateLabel, activityTotal, detailRows } from './categoryDetail';
+import type { ActivityRow } from '../../engine/types';
+import { activityDateLabel, activityLines, activityTotal, detailRows } from './categoryDetail';
 
 const named = (name: string): PlanCategory => fakePlanMonth.groups.flatMap(g => g.categories).find(c => c.name === name)!;
 const base: PlanCategory = {
@@ -54,4 +55,27 @@ describe('activityDateLabel', () => {
   it('Today', () => expect(activityDateLabel('2026-11-19', nov19)).toBe('Today'));
   it('Yesterday', () => expect(activityDateLabel('2026-11-18', nov19)).toBe('Yesterday'));
   it('otherwise weekday, day and month', () => expect(activityDateLabel('2026-11-17', nov19)).toBe('Tue 17 Nov'));
+});
+
+describe('activityLines', () => {
+  const row = (amount: number, payee: string | null): ActivityRow => ({
+    id: `t${amount}`, date: '2026-11-19', amount, payee, account: 'Everyday Checking', notes: null,
+  });
+  it.each([
+    ['money out', row(-1840, 'Corner Bakery'), { payee: 'Corner Bakery', payeeTone: 'plain', tone: 'plain', label: 'Corner Bakery, −$18.40, Today, Everyday Checking' }],
+    ['money in', row(2500, 'Refunds Inc'), { payee: 'Refunds Inc', payeeTone: 'plain', tone: 'in', label: 'Refunds Inc, +$25.00, Today, Everyday Checking' }],
+    ['zero', row(0, 'Adjust'), { payee: 'Adjust', payeeTone: 'plain', tone: 'plain', label: 'Adjust, $0.00, Today, Everyday Checking' }],
+    ['no payee', row(-500, null), { payee: 'No payee', payeeTone: 'mute', tone: 'plain', label: 'No payee, −$5.00, Today, Everyday Checking' }],
+  ])('%s', (_, r, expected) => {
+    expect(activityLines([r], nov19)).toEqual([
+      { id: r.id, amount: r.amount, meta: 'Today · Everyday Checking', ...expected },
+    ]);
+  });
+  it('keeps the order given, and the date label follows the day', () => {
+    const rows = [{ ...row(-100, 'A'), id: 'a' }, { ...row(-200, 'B'), id: 'b', date: '2026-11-03' }];
+    expect(activityLines(rows, nov19).map(l => [l.id, l.meta])).toEqual([
+      ['a', 'Today · Everyday Checking'],
+      ['b', 'Tue 3 Nov · Everyday Checking'],
+    ]);
+  });
 });

@@ -9,10 +9,14 @@ import { Tick } from '../../ui/Tick';
 import type { Key } from './amountEntry';
 import type { SheetDensity } from './sheetLayout';
 
-type Props = {
+/**
+ * The +/− key is shown unless `sign` is false (a move has no sign); shown, it needs
+ * `onToggleSign`, and the types refuse it without one.
+ */
+type SignKey = { sign?: true; onToggleSign(): void } | { sign: false; onToggleSign?: undefined };
+
+type Props = SignKey & {
   onKey(key: Key): void;
-  /** Without it there is no +/− key and its cell is left empty: a move has no sign. */
-  onToggleSign?(): void;
   onSave(): void;
   canSave: boolean;
   over: boolean;
@@ -33,13 +37,13 @@ export const REPEAT_MS = 80;
  *   7 8 9 ✓
  *   . 0 00 ✓   (Save fills the right of the last two rows)
  *
- * Without `onToggleSign` the +/− cell is empty, so every other key keeps its place.
+ * With `sign={false}` the +/− cell is empty, so every other key keeps its place.
  *
  * Keys answer on every press, with no debounce, so a fast double press counts twice.
  * Holding delete repeats it until it is let go (rather than clearing), so a long amount can be
  * taken back a digit at a time without lifting the thumb, and nothing is lost to a slip.
  */
-export function Keypad({ onKey, onToggleSign, onSave, canSave, over, saveLabel, density = 'regular' }: Props) {
+export function Keypad({ onKey, sign = true, onToggleSign, onSave, canSave, over, saveLabel, density = 'regular' }: Props) {
   const theme = useTheme();
   const height = sheet[density].key;
   const digit = (key: Key, label: string = key) => (
@@ -62,7 +66,7 @@ export function Keypad({ onKey, onToggleSign, onSave, canSave, over, saveLabel, 
         {digit('4')}
         {digit('5')}
         {digit('6')}
-        {onToggleSign ? (
+        {sign && onToggleSign ? (
           <KeyButton label="Expense or income" height={height} onPress={onToggleSign}>
             <Text style={[type.key, { color: theme.color.mute }]} maxFontSizeMultiplier={textScale.key}>
               +/−

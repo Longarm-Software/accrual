@@ -70,6 +70,19 @@ describe('withKey', () => {
     expect(withKey(d, 'back').entry).toEqual(emptyEntry);
     expect(entryCents(withKey(withKey(d, 'back'), '3').entry)).toBe(300);
   });
+  it('a refused key is recognised by value, not by the empty entry\'s identity', () => {
+    jest.isolateModules(() => {
+      jest.doMock('../quickAdd/amountEntry', () => {
+        const real = jest.requireActual('../quickAdd/amountEntry');
+        return { ...real, press: (en: Entry, k: Key) => ({ ...real.press(en, k) }) }; // always a fresh object
+      });
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const fresh = require('./moveDraft') as typeof import('./moveDraft');
+      const d = fresh.newMove({ to: READY, amount: 1500 });
+      expect(fresh.withKey(d, '0')).toEqual(d);
+      expect(fresh.newMove({ amount: 0 }).prefilled).toBe(false);
+    });
+  });
   it('a typed entry is never treated as a pre-fill', () => {
     const d = newMove({ from: READY });
     expect(withKey(withKey(d, '1'), '2').entry).toEqual(e('12'));

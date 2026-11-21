@@ -10,7 +10,7 @@ import type { DetailRow } from './categoryDetail';
 
 /**
  * How a category's balance came about: one row per label and amount (Budgeted, Spent, Carried
- * in), and the last (Left) after a hairline, a size larger, as a sum's total line is set.
+ * in), and the last (Left) after a hairline, one step larger, as a sum's total line is set.
  */
 export function DetailRows({ rows }: { rows: DetailRow[] }) {
   const theme = useTheme();
@@ -31,7 +31,7 @@ export function DetailRows({ rows }: { rows: DetailRow[] }) {
             <Money
               testID={`detail-amount-${row.label}`}
               cents={row.amount}
-              size={last ? amount.tileLong : amount.row}
+              size={last ? amount.rowTotal : amount.row}
               color={tone[row.tone]}
               accessible={false}
             />

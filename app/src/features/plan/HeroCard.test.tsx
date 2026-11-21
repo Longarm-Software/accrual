@@ -54,3 +54,10 @@ it('the action is filled with the accent, or coral on an overbudgeted month', as
   expect(screen.queryByTestId('action-accent')).toBeNull();
   expect(screen.getByRole('button', { name: 'Fix' })).toHaveStyle({ backgroundColor: themes.light.color.over });
 });
+
+it('the action\'s word grows with the person\'s text size only as far as its pill allows', async () => {
+  const { textScale } = jest.requireActual('../../theme/tokens');
+  await render(<HeroCard hero={heroView(fakePlanMonth)} action={{ label: 'Assign', onPress: () => {} }} />);
+  expect(textScale.action).toBeGreaterThan(1);
+  expect(screen.getByText('Assign').props.maxFontSizeMultiplier).toBe(textScale.action);
+});

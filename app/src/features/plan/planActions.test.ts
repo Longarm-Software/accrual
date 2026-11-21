@@ -101,6 +101,10 @@ describe('links: builders refuse ids the parser would not accept', () => {
     expect(categoryAction(odd, 'cat x', nov19)).toBeNull();
     expect(noticeAction(odd, nov19)).toBeNull();
   });
+  it('the notice skips an overspent category whose id cannot be linked, and covers the next', () => {
+    const m = month(0, [cat('cat x', -5), cat('cat-b', -900)]);
+    expect(noticeAction(m, nov19)).toEqual({ label: 'Cover', href: '/cover?category=cat-b' });
+  });
 });
 
 describe('links: build and parse', () => {

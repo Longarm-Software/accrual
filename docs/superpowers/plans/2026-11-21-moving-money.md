@@ -141,7 +141,7 @@ export function pots(plan: PlanMonth): Pot[];               // READY first, then
 export function pot(plan: PlanMonth, id: PotId): Pot | null;
 
 // a gain is the mirror of a bite
-export type Gain = { kept: number; gained: number; before: string; after: string };
+export type Gain = { kept: number; gained: number; before: string; after: string; tone: 'funded' | 'over' };
 export function gain(p: Pot, amount: number): Gain;
 
 // moveDraft.ts
@@ -197,7 +197,7 @@ export function categoryAction(plan: PlanMonth, categoryId: string, today: Date)
 **Behaviour: `pots`, `gain`**
 
 - `pots`: `{ id: READY, name: 'Ready to budget', has: plan.toBudget }` first, then every category of every group in order, `has` its balance. (The plan month already leaves hidden and income categories out.)
-- `gain(p, amount)`: `before` is `formatMoney(p.has)`; `after` is `formatMoney(p.has + amount) + ' after'`. For the bar: when `p.has < 0` the bar's full width is the deficit (`-p.has`) and what arrives fills it in: `kept 0`, `gained = min(1, amount / -p.has)`, never below 0.04 when `amount > 0`; the rest of the bar is the empty track, so covering exactly to zero is `gained 1` and a partial cover part-fills the bar. When `p.has === 0`, `kept 0, gained 1`; otherwise `kept = p.has / (p.has + amount)`, `gained = 1 − kept`, with `gained` never below 0.04 when `amount > 0` (take it from `kept`). Amount 0: `kept 1 (0 if has ≤ 0), gained 0`. `kept + gained` is 1 when the pot started at or above zero and may be less below it. (Corrected in Task 3: the first rule drew an empty bar for any pot still below zero after, so a partial cover showed nothing.)
+- `gain(p, amount)`: `before` is `formatMoney(p.has)`; `after` is `formatMoney(p.has + amount) + ' after'`. For the bar: when `p.has < 0` the bar's full width is the deficit (`-p.has`) and what arrives fills it in: `kept 0`, `gained = min(1, amount / -p.has)`, never below 0.04 when `amount > 0`; the rest of the bar is the empty track, so covering exactly to zero is `gained 1` and a partial cover part-fills the bar. When `p.has === 0`, `kept 0, gained 1`; otherwise `kept = p.has / (p.has + amount)`, `gained = 1 − kept`, with `gained` never below 0.04 when `amount > 0` (take it from `kept`). Amount 0: `kept 1 (0 if has ≤ 0), gained 0`. `kept + gained` is 1 when the pot started at or above zero and may be less below it. `tone` is `over` when `p.has + amount < 0` (the pot is still below zero after), otherwise `funded`; the pot card and the cover target draw the "after" in the over or funded colour by it. (Corrected in Task 3: the first rule drew an empty bar for any pot still below zero after, so a partial cover showed nothing.)
 
 **Behaviour: the move sheet**
 
@@ -282,7 +282,7 @@ Notice:       gains { action?: { label: string; onPress(): void } }
 CategoryTile: gains { onPress?(): void }
 ```
 
-As built (Task 3): `BiteBar` takes either a bite (`kept`, `taken`, `state`) or a gain (`kept`, `gained`); a gain that does not fill the bar leaves the rest as the empty track. `PotCard` also takes `density?` as quick add's card does. `Keypad` leaves out the `+/−` key (its cell stays empty) when `onToggleSign` is not given, and `saveLabel?: string` puts a word on Save instead of the tick. The `action` on `HeroCard` and `Notice` is `CardAction` from `features/plan/ActionPill.tsx`. `Source` carries `has`.
+As built (Task 3): `BiteBar` takes either a bite (`kept`, `taken`, `state`) or a gain (`kept`, `gained`); a gain that does not fill the bar leaves the rest as the empty track. `PotCard` also takes `density?` as quick add's card does. `Keypad` leaves out the `+/−` key (its cell stays empty) with `sign={false}`; shown (the default) it requires `onToggleSign`, and the types refuse either mismatch. `saveLabel?: string` puts a word on Save instead of the tick. Accessibility labels come from the logic layer: `potCardLabel` in `pots.ts`, `sourceLabel` in `cover.ts`. The `action` on `HeroCard` and `Notice` is `CardAction` from `features/plan/ActionPill.tsx`. `Source` carries `has`.
 
 **What each shows and does**
 
@@ -291,7 +291,7 @@ As built (Task 3): `BiteBar` takes either a bite (`kept`, `taken`, `state`) or a
 | `PotCard` | As the design's FROM and TO cards: a small caps label, the pot's name, `Change ›` at the right, the bar, and `before` at the left with `after` at the right (coral when a bite is over, mint for a gain or a bite that fits). With no pot: `Choose ›` and no bar. A warning line from a `Bite` sits under the card, as quick add's card does. One accessibility label reading the whole card. Reuse quick add's `CategoryCard` internals where that is cleaner than a second copy; do not change how quick add looks |
 | `SourceRow` | As the design's cover sources: the pot's name, its bar with the bite, `before` and `after`, and a round check mark at the right, filled when selected; the selected row has the mint edge. A source that is not enough says `not enough for all of it` under its amounts and is still pressable. `accessibilityRole="radio"` with its checked state |
 | `DetailRows` | A glass card of label and amount rows; amounts drawn with `Money` at the size of body text, coloured by tone; the last row (`Left`) is separated by a hairline and set a size larger |
-| `ActivityList` | One row per transaction: the payee (or `No payee`), under it the date label and the account in mute text, and the amount at the right with `Money` (money in is mint with a `+`). The `empty` text when there are none. Not virtualised unless there are more than 50 rows; say which you chose |
+| `ActivityList` | One row per transaction: the payee (or `No payee`), under it the date label and the account in mute text, and the amount at the right with `Money` (money in is mint with a `+`). The `empty` text when there are none. Not virtualised, at any length: it sits inside the category screen's single scroll view, and one category's transactions in one month are few. Rows are keyed by transaction id. What each row says (payee text, the date-and-account line, the amount, its tone, the accessibility label) comes from `activityLines` in `categoryDetail.ts`; the component only maps tone to colour |
 | `BiteBar` with a gain | Solid `kept`, then hatching in the funded colour for `gained`; an empty bar when both are 0 |
 | `PickerList` disabled row | Dimmed, not pressable, `accessibilityState.disabled` |
 | `HeroCard` action | A small pill button at the top right of the card, as the design's `Assign`. Absent with no action |

@@ -1,5 +1,6 @@
 // What the category screen says: how its balance came about, and its month's transactions.
 import type { ActivityRow, PlanCategory } from '../../engine/types';
+import { formatMoney } from '../../lib/money';
 import { isOverspent } from '../plan/categoryView';
 import { dateLabel } from '../quickAdd/draft';
 
@@ -26,4 +27,33 @@ export function activityTotal(rows: ActivityRow[]): number {
 /** "Today", "Yesterday", otherwise e.g. "Tue 17 Nov": quick add's date label, which does exactly this. */
 export function activityDateLabel(date: string, today: Date): string {
   return dateLabel(date, today);
+}
+
+/** One transaction as the category screen's list draws it. `tone` 'in' is money in: mint, with a "+". */
+export type ActivityLine = {
+  id: string;
+  payee: string; // the payee, or "No payee"
+  payeeTone: 'plain' | 'mute';
+  meta: string; // "Today · Everyday Checking"
+  amount: number;
+  tone: 'in' | 'plain';
+  label: string; // what a screen reader says for the row
+};
+
+/** Each transaction as the list draws it, in the order given. */
+export function activityLines(rows: ActivityRow[], today: Date): ActivityLine[] {
+  return rows.map(row => {
+    const payee = row.payee ?? 'No payee';
+    const date = activityDateLabel(row.date, today);
+    const moneyIn = row.amount > 0;
+    return {
+      id: row.id,
+      payee,
+      payeeTone: row.payee === null ? 'mute' : 'plain',
+      meta: `${date} · ${row.account}`,
+      amount: row.amount,
+      tone: moneyIn ? 'in' : 'plain',
+      label: `${payee}, ${moneyIn ? '+' : ''}${formatMoney(row.amount)}, ${date}, ${row.account}`,
+    };
+  });
 }

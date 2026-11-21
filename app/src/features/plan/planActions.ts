@@ -75,11 +75,15 @@ export function heroAction(plan: PlanMonth, today: Date): PlanAction {
   return null;
 }
 
-/** The overspent notice's button: cover the first overspent category in plan order. */
+/** The overspent notice's button: cover the first overspent category in plan order (that can be linked to). */
 export function noticeAction(plan: PlanMonth, today: Date): PlanAction {
   if (!canChange(plan.month, today)) return null;
-  const first = plan.groups.flatMap(g => g.categories).find(isOverspent);
-  return first ? action('Cover', coverHref(first.id)) : null;
+  // The first overspent category whose id can be put in a link.
+  for (const category of plan.groups.flatMap(g => g.categories).filter(isOverspent)) {
+    const href = coverHref(category.id);
+    if (href !== null) return { label: 'Cover', href };
+  }
+  return null;
 }
 
 /** The category screen's button: Cover when it is overspent, else Move money from it (or to it, when it has nothing). */

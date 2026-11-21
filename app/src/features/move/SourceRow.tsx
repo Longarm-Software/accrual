@@ -8,17 +8,9 @@ import { Tick } from '../../ui/Tick';
 import { Body, Label } from '../../ui/Text';
 import { BiteBar } from '../quickAdd/BiteBar';
 import { Figures } from '../quickAdd/CategoryCard';
-import type { Source } from './cover';
+import { NOT_ENOUGH, sourceLabel, type Source } from './cover';
 
 type Props = { source: Source; selected: boolean; onPress(): void };
-
-const NOT_ENOUGH = 'not enough for all of it';
-
-/** What a screen reader says for the row; its checked state is said by the radio role. */
-export function sourceRowLabel(source: Source): string {
-  const text = `${source.name}, ${source.bite.before} now, ${source.bite.after}`;
-  return source.enough ? text : `${text}, ${NOT_ENOUGH}`;
-}
 
 /**
  * One pot that could pay for a cover: its name, the bite the cover takes from it, what it has
@@ -32,7 +24,7 @@ export function SourceRow({ source, selected, onPress }: Props) {
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityLabel={sourceRowLabel(source)}
+      accessibilityLabel={sourceLabel(source)}
       accessibilityState={{ checked: selected }}
       onPress={onPress}
       style={({ pressed }) => ({ opacity: pressed ? tint.pressed : 1 })}
@@ -60,7 +52,7 @@ function Check({ on }: { on: boolean }) {
   const theme = useTheme();
   const round = { width: size.check, height: size.check, borderRadius: radius.pill };
   if (!on) {
-    return <View testID="source-check-off" style={[round, { borderWidth: size.stroke, borderColor: theme.color.line }]} />;
+    return <View testID="source-check-off" style={[round, { borderWidth: size.stroke, borderColor: theme.color.control }]} />;
   }
   return (
     <View testID="source-check-on" style={[round, styles.on]}>
