@@ -4,7 +4,7 @@
 //   node reference.mjs months <syncId> <YYYY-MM,YYYY-MM,...>
 //   node reference.mjs find   <syncId> <accountId> <date> <notes>
 //   node reference.mjs search <syncId> <text>
-//   node reference.mjs edit   <syncId> <accountId> <date> <amount> <notes> <month> <categoryId> <budgeted>
+//   node reference.mjs edit   <syncId> <accountId> <date> <amount> <notes> <month> <categoryId> <budgeted> [txCategoryId]
 //   node reference.mjs activity <syncId> <YYYY-MM>
 //   node reference.mjs note   <syncId> <YYYY-MM>
 import * as api from '@actual-app/api';
@@ -35,8 +35,10 @@ if (cmd === 'months') {
   const payees = (await api.getPayees()).filter(p => /bakery/i.test(p.name)).map(p => p.name);
   out = { ids: data.map(t => t.id), bakeryPayees: payees };
 } else if (cmd === 'edit') {
-  const [accountId, date, amount, notes, month, categoryId, budgeted] = args;
-  await api.addTransactions(accountId, [{ date, amount: Number(amount), notes, payee_name: 'Reference Client' }]);
+  const [accountId, date, amount, notes, month, categoryId, budgeted, txCategoryId] = args;
+  const transaction = { date, amount: Number(amount), notes, payee_name: 'Reference Client' };
+  if (txCategoryId) transaction.category = txCategoryId;
+  await api.addTransactions(accountId, [transaction]);
   await api.setBudgetAmount(month, categoryId, Number(budgeted));
   out = 'ok';
 } else if (cmd === 'activity') {

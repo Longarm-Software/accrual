@@ -327,13 +327,18 @@ async function main() {
   };
   const moved = (before: any, after: any, id: string, delta: number) =>
     after.of(id).budgeted === before.of(id).budgeted + delta && after.of(id).balance === before.of(id).balance + delta;
+  // What a sheet drawn from figures `f` saw of a pot (0 for one the month does not have): every
+  // write carries it, and is refused as stale when the budget differs from it.
+  const has = (f: any, id: string) => (id === READY ? f.toBudget : (f.of(id)?.balance ?? 0));
+  const seenMove = (f: any, from: string, to: string) => ({ from: has(f, from), to: has(f, to) });
+  const seenCover = (f: any, category: string, from: string) => ({ category: has(f, category), from: has(f, from) });
 
   const f0 = await figures();
-  await engine.moveMoney({ month, from: fuel.id, to: household.id, amount: 1234 });
+  await engine.moveMoney({ month, from: fuel.id, to: household.id, amount: 1234, seen: seenMove(f0, fuel.id, household.id) });
   const f1 = await figures();
   check('move: category to category moves 1234 of budgeted and balance; Ready to budget unchanged',
     moved(f0, f1, fuel.id, -1234) && moved(f0, f1, household.id, 1234) && f1.toBudget === f0.toBudget);
-  await engine.moveMoney({ month, from: READY, to: fuel.id, amount: 500 });
+  await engine.moveMoney({ month, from: READY, to: fuel.id, amount: 500, seen: seenMove(f1, READY, fuel.id) });
   const f2 = await figures();
   check('move: from Ready to budget adds 500 to the category and takes 500 from Ready to budget',
     moved(f1, f2, fuel.id, 500) && f2.toBudget === f1.toBudget - 500, `(to budget ${f1.toBudget} -> ${f2.toBudget})`);
@@ -346,16 +351,19 @@ async function main() {
   check('move: Actual\'s movement note on the month reaches the reference client',
     new RegExp(`^- Reassigned 12\\.34 from ${fuel.name} → ${household.name} on [A-Z][a-z]+ \\d{2}$`).test(lastLine),
     `(${JSON.stringify(lastLine)})`);
-  await engine.moveMoney({ month, from: fuel.id, to: READY, amount: 500 });
+  await engine.moveMoney({ month, from: fuel.id, to: READY, amount: 500, seen: seenMove(f2, fuel.id, READY) });
   const f3 = await figures();
   check('move: to Ready to budget reverses it', moved(f2, f3, fuel.id, -500) && f3.toBudget === f1.toBudget);
-  await engine.moveMoney({ month, from: household.id, to: fuel.id, amount: 1234 });
+  await engine.moveMoney({ month, from: household.id, to: fuel.id, amount: 1234, seen: seenMove(f3, household.id, fuel.id) });
   const f4 = await figures();
   check('move: moving back leaves the month as it was',
     moved(f0, f4, fuel.id, 0) && moved(f0, f4, household.id, 0) && f4.toBudget === f0.toBudget);
 
-  const invalid = async (move: any) => (await engine.moveMoney(move).then(() => null, (e: any) => e))?.code;
-  const coverCode = async (cover: any) => (await engine.coverOverspending(cover).then(() => null, (e: any) => e))?.code;
+  // Each carries the figures as the engine has them, so it is refused for the reason it is built for.
+  const invalid = async (move: any, f: any = f0) =>
+    (await engine.moveMoney({ seen: seenMove(f, move.from, move.to), ...move }).then(() => null, (e: any) => e))?.code;
+  const coverCode = async (cover: any, f: any = f0) =>
+    (await engine.coverOverspending({ seen: seenCover(f, cover.category, cover.from), ...cover }).then(() => null, (e: any) => e))?.code;
   const writeBounds = await engine.getMonthBounds();
   const afterBounds = (() => {
     const [y, m] = writeBounds.end.split('-').map(Number);
@@ -383,6 +391,9 @@ async function main() {
     await coverCode({ month, category: READY, from: household.id, amount: 100 }),
     await coverCode({ month, category: fuel.id, from: fuel.id, amount: 100 }),
     await coverCode({ month, category: fuel.id, from: 'no-such-category', amount: 100 }),
+    // Without the figures the sheet drew, nothing is accepted.
+    (await engine.moveMoney({ month, from: fuel.id, to: household.id, amount: 100 } as any).then(() => null, (e: any) => e))?.code,
+    (await engine.coverOverspending({ month, category: fuel.id, from: household.id, amount: 1 } as any).then(() => null, (e: any) => e))?.code,
   ];
   const f5 = await figures();
   check('move and cover: malformed amounts, months, and pots fail with invalid-move and change nothing',
@@ -391,9 +402,9 @@ async function main() {
 
   // What the budget no longer allows: more than the source has.
   const staleCodes = [
-    await invalid({ month, from: READY, to: fuel.id, amount: f5.toBudget + 1 }),
-    await invalid({ month, from: fuel.id, to: household.id, amount: Math.max(f5.of(fuel.id).balance, 0) + 1 }),
-    await invalid({ month, from: fuel.id, to: READY, amount: Math.max(f5.of(fuel.id).balance, 0) + 1 }),
+    await invalid({ month, from: READY, to: fuel.id, amount: f5.toBudget + 1 }, f5),
+    await invalid({ month, from: fuel.id, to: household.id, amount: Math.max(f5.of(fuel.id).balance, 0) + 1 }, f5),
+    await invalid({ month, from: fuel.id, to: READY, amount: Math.max(f5.of(fuel.id).balance, 0) + 1 }, f5),
   ];
   const f6 = await figures();
   check('move: more than the source has fails with stale and changes nothing',
@@ -410,16 +421,16 @@ async function main() {
   const c0 = await figures();
   const poor = plain.find((c: any) => c.id !== fuel.id && c0.of(c.id).balance < deficit);
   const coverStale = [
-    await coverCode({ month, category: source.id, from: READY, amount: 1 }), // not overspent
-    await coverCode({ month, category: fuel.id, from: source.id, amount: deficit + 1 }), // more than the deficit
-    poor ? await coverCode({ month, category: fuel.id, from: poor.id, amount: deficit }) : 'no short source', // source short
+    await coverCode({ month, category: source.id, from: READY, amount: 1 }, c0), // not overspent
+    await coverCode({ month, category: fuel.id, from: source.id, amount: deficit + 1 }, c0), // more than the deficit
+    poor ? await coverCode({ month, category: fuel.id, from: poor.id, amount: deficit }, c0) : 'no short source', // source short
   ];
   const cStale = await figures();
   check('cover: not overspent, more than the deficit, or a source that is short fails with stale and changes nothing',
     c0.of(source.id).balance >= 0 && coverStale.every(c => c === 'stale') &&
       moved(c0, cStale, fuel.id, 0) && moved(c0, cStale, source.id, 0) && (!poor || moved(c0, cStale, poor.id, 0)) &&
       cStale.toBudget === c0.toBudget, `(${coverStale.join(', ')})`);
-  await engine.coverOverspending({ month, category: fuel.id, from: source.id, amount: deficit });
+  await engine.coverOverspending({ month, category: fuel.id, from: source.id, amount: deficit, seen: seenCover(c0, fuel.id, source.id) });
   const c1 = await figures();
   check('cover: the overspent category is back to 0 and the source fell by the deficit',
     c0.of(fuel.id).balance === -deficit && c1.of(fuel.id).balance === 0 &&
@@ -432,11 +443,71 @@ async function main() {
   await engine.addTransaction(checking.id, {
     date: today, amount: overspend, payee_name: 'Harness Overspend', category: fuel.id, notes: `${tag}-refund`,
   });
-  await engine.moveMoney({ month, from: fuel.id, to: source.id, amount: deficit });
+  const refunded = await figures();
+  await engine.moveMoney({ month, from: fuel.id, to: source.id, amount: deficit, seen: seenMove(refunded, fuel.id, source.id) });
   const c2 = await figures();
   check('cover: undoing it leaves the month as it was',
     moved(f0, c2, fuel.id, 0) && moved(f0, c2, source.id, 0) && c2.toBudget === f0.toBudget);
   await engine.sync();
+
+  // --- Two devices. The other device (the reference client) changes the budget on the server,
+  // and the engine has not synced: its own read still shows the old figures, as a sheet opened
+  // before the change would. Each write syncs first, so it is checked, and written, against the
+  // server's figures. The amounts on the server are what is asserted.
+  const onServer = (ids: string[]) => {
+    const [m] = reference('months', small.groupId, month);
+    const cats = m.categoryGroups.flatMap((g: any) => g.categories);
+    return ids.map(id => cats.find((c: any) => c.id === id).budgeted);
+  };
+  const d0 = await figures();
+  const [fuelBudgeted, householdBudgeted] = [d0.of(fuel.id).budgeted, d0.of(household.id).budgeted];
+  const fuelHas = d0.of(fuel.id).balance;
+  const cut = 300;
+  const kept = 100;
+  if (fuelHas < cut + kept) {
+    check('two devices: Fuel has enough to test with', false, `(${fuelHas}; run \`npm run seed\` on a fresh server)`);
+  } else {
+    // 1. The other device takes $3.00 from Fuel's budget. All of what the sheet showed is now too
+    // much; $1.00 is still allowed, but the sheet showed other figures. Both are refused.
+    reference('edit', small.groupId, checking.id, today, '0', `${tag}-elsewhere-cut`, month, fuel.id, String(fuelBudgeted - cut));
+    const local = await figures();
+    const tooMuch = await invalid({ month, from: fuel.id, to: household.id, amount: fuelHas }, d0);
+    const notAsShown = await invalid({ month, from: fuel.id, to: household.id, amount: kept }, d0);
+    await engine.sync();
+    const d1 = await figures();
+    check('two devices: unsynced, the engine still shows the old figures (the sheet\'s view)',
+      local.of(fuel.id).budgeted === fuelBudgeted, `(${local.of(fuel.id).budgeted})`);
+    const [fuel1, household1] = onServer([fuel.id, household.id]);
+    check('two devices: a move now too large is refused as stale, and one still allowed on figures the sheet did not show too; nothing is written',
+      tooMuch === 'stale' && notAsShown === 'stale' && fuel1 === fuelBudgeted - cut && household1 === householdBudgeted &&
+        d1.of(fuel.id).budgeted === fuelBudgeted - cut && d1.of(household.id).budgeted === householdBudgeted,
+      `(${tooMuch}, ${notAsShown}; server Fuel ${fuel1}, Household ${household1})`);
+
+    // 2. The other device budgets $4.00 more for Fuel and spends $4.00 from it: Fuel's balance is
+    // what the sheet showed, its budgeted amount is not. The move goes through, written on the
+    // server's budgeted amount, so the other device's change is kept. Without the sync before it,
+    // the phone would have written its own older figure minus the amount over it.
+    const extra = 400;
+    const before = await figures();
+    reference('edit', small.groupId, checking.id, today, String(-extra), `${tag}-elsewhere-spend`, month, fuel.id,
+      String(fuelBudgeted - cut + extra), fuel.id);
+    const moveError = await engine.moveMoney({ month, from: fuel.id, to: household.id, amount: kept, seen: seenMove(before, fuel.id, household.id) })
+      .then(() => null, (e: any) => e);
+    await engine.sync();
+    const [fuel2, household2] = onServer([fuel.id, household.id]);
+    check('two devices: a move still valid on the figures shown goes through, and the other device\'s change is kept',
+      moveError === null && fuel2 === fuelBudgeted - cut + extra - kept && household2 === householdBudgeted + kept,
+      `(${moveError?.code ?? 'moved'}; server Fuel ${fuel2}, expected ${fuelBudgeted - cut + extra - kept}; Household ${household2})`);
+
+    // Put both back from the other device, refunding its spend, and pull it in.
+    reference('edit', small.groupId, checking.id, today, String(extra), `${tag}-elsewhere-refund`, month, fuel.id,
+      String(fuelBudgeted), fuel.id);
+    reference('edit', small.groupId, checking.id, today, '0', `${tag}-elsewhere-reset`, month, household.id, String(householdBudgeted));
+    await engine.sync();
+    const d3 = await figures();
+    check('two devices: put back, the month is as it was', moved(d0, d3, fuel.id, 0) && moved(d0, d3, household.id, 0) &&
+      d3.toBudget === d0.toBudget);
+  }
 
   // A malformed date or amount is refused before anything reaches loot-core.
   const badTransactions = [
