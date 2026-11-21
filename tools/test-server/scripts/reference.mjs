@@ -5,6 +5,8 @@
 //   node reference.mjs find   <syncId> <accountId> <date> <notes>
 //   node reference.mjs search <syncId> <text>
 //   node reference.mjs edit   <syncId> <accountId> <date> <amount> <notes> <month> <categoryId> <budgeted>
+//   node reference.mjs activity <syncId> <YYYY-MM>
+//   node reference.mjs note   <syncId> <YYYY-MM>
 import * as api from '@actual-app/api';
 
 import { PASSWORD, SERVER_URL, clientDataDir } from './env.mjs';
@@ -37,6 +39,25 @@ if (cmd === 'months') {
   await api.addTransactions(accountId, [{ date, amount: Number(amount), notes, payee_name: 'Reference Client' }]);
   await api.setBudgetAmount(month, categoryId, Number(budgeted));
   out = 'ok';
+} else if (cmd === 'activity') {
+  // Each category's transactions in the month, on on-budget accounts, from the public API's
+  // grouped read: a split counts as its children, each with its own category.
+  const month = args[0];
+  const onBudget = new Set((await api.getAccounts()).filter(a => !a.offbudget).map(a => a.id));
+  const rows = (await api.getTransactions(undefined, `${month}-01`, `${month}-31`))
+    .filter(t => onBudget.has(t.account))
+    .flatMap(t => (t.subtransactions?.length ? t.subtransactions.map(s => ({ ...s, child: true })) : [t]));
+  out = {};
+  for (const t of rows) {
+    if (!t.category) continue;
+    const entry = (out[t.category] ??= { ids: [], children: 0, sum: 0 });
+    entry.ids.push(t.id);
+    entry.sum += t.amount;
+    if (t.child) entry.children++;
+  }
+} else if (cmd === 'note') {
+  const { data } = await api.aqlQuery(api.q('notes').filter({ id: `budget-${args[0]}` }).select(['note']));
+  out = data[0]?.note ?? null;
 } else {
   throw new Error('unknown command ' + cmd);
 }

@@ -5,8 +5,8 @@
 // There is one engine per process. Calling createEngine again signs in afresh and
 // replaces the previous session; an Engine returned earlier must not be used after that.
 import { recentUse, type UseRow } from './recentUse';
-import { EngineError } from './types';
-import type { Auth, Engine, PlanCategory, PlanMonth, QuickAddLists, RemoteBudget } from './types';
+import { EngineError, READY } from './types';
+import type { ActivityRow, Auth, Engine, PlanCategory, PlanMonth, QuickAddLists, RemoteBudget } from './types';
 
 export * from './types';
 
@@ -89,6 +89,27 @@ export async function createEngine(
       throw fail(e?.code, 'Could not sign in');
     }
   }
+
+  // The currency Actual's own client passes to the budget actions; see `moveMoney`.
+  const currency = async (): Promise<string> => {
+    const prefs = await lib.send('preferences/get');
+    return typeof prefs?.defaultCurrencyCode === 'string' ? prefs.defaultCurrencyCode : '';
+  };
+  // Checked before any budget action runs. loot-core does not check the month: given one that is
+  // not YYYY-MM it writes budget rows whose month is NaN, and every client that later downloads
+  // the budget fails while applying them. A fractional amount would be stored as is.
+  const checkWrite = (month: string, amount: number) => {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw fail('invalid-move', 'Not a month');
+    if (!Number.isInteger(amount) || amount <= 0) throw fail('invalid-move', 'The amount must be above zero');
+  };
+  // A budget action that throws inside loot-core rejects with 'internal'.
+  const budgetAction = async (message: string, run: () => Promise<void>) => {
+    try {
+      await run();
+    } catch {
+      throw new EngineError('internal', message);
+    }
+  };
 
   return {
     offline,
@@ -287,6 +308,88 @@ export async function createEngine(
         lastAccountId: accounts.some(a => a.id === use.lastAccount) ? use.lastAccount : null,
       };
       return lists;
+    },
+    // A category's transactions for the month, as the category screen lists them. The default
+    // `splits: 'inline'` is the mode wanted here: it leaves split parents out (`is_parent = 0`) and
+    // keeps their children, each with its own category; a parent's category reads as null anyway
+    // (the `v_transactions_internal` view in server/aql/schema/index.ts). Inline reads
+    // `v_transactions_internal_alive`, which already drops deleted transactions and the children
+    // of deleted parents; `tombstone: false` is kept so the rule does not hang on the mode.
+    // Only on-budget accounts count, as in the `sum-amount` cell the Plan's `spent` comes from
+    // (getSumAmountsByMonth in server/budget/base.ts), so the rows add up to `spent`. Dates are
+    // stored as YYYYMMDD integers, so `-31` bounds every month. A transfer's payee is the other
+    // account's transfer payee; the row names that account (`payee.transfer_acct.name`) rather
+    // than trusting the payee's own name to match it.
+    async getCategoryActivity(categoryId, month) {
+      const query = lib
+        .q('transactions')
+        .options({ splits: 'inline' })
+        .filter({
+          category: categoryId,
+          date: { $gte: `${month}-01`, $lte: `${month}-31` },
+          'account.offbudget': false,
+          tombstone: false,
+        })
+        .select([
+          'id',
+          'date',
+          'amount',
+          'notes',
+          { payeeName: 'payee.name' },
+          { transferName: 'payee.transfer_acct.name' },
+          { accountName: 'account.name' },
+        ])
+        .orderBy([{ date: 'desc' }, { sort_order: 'desc' }]);
+      const rows: any[] = (await lib.send('api/query', { query: query.serialize() })).data;
+      return rows.map(
+        (r): ActivityRow => ({
+          id: r.id,
+          date: r.date,
+          amount: r.amount,
+          payee: r.transferName || r.payeeName || null,
+          account: r.accountName ?? '',
+          notes: r.notes ?? null,
+        }),
+      );
+    },
+    // Moving and covering call Actual's own budget actions (server/budget/actions.ts), registered
+    // as `budget/...` mutators wrapped in `undoable` (server/budget/app.ts), so the budget rows and
+    // the movement note on the month are what Actual's apps would write, and they sync like any
+    // other change. Months are YYYY-MM (`sheetForMonth`, `dbMonth`).
+    //
+    // `transfer-category` subtracts from `from`'s budgeted amount and adds to `to`'s, or to nothing
+    // when `to` is 'to-budget' (READY), and appends "Reassigned …" to the month's note.
+    // `transfer-available` adds to the category from Ready to budget, clamped to between zero and
+    // what Ready to budget has, and writes no note. `transfer-category` cannot move FROM READY: it
+    // would write a budget row for a category called 'to-budget'. So READY as `from` goes through
+    // `transfer-available`, as Actual's own Ready to budget menu does.
+    //
+    // `currencyCode` only sets the decimal places of the amount in that note (`getCurrency` falls
+    // back to "None", two places, for a missing or unknown code). Actual's web app passes
+    // `format.currency.code`, which is the synced preference `defaultCurrencyCode` or '' (useFormat),
+    // so the same is passed here.
+    async moveMoney({ month, from, to, amount }) {
+      checkWrite(month, amount);
+      if (from === to) throw fail('invalid-move', 'Money cannot move to the pot it comes from');
+      await budgetAction('Could not move the money', async () => {
+        if (from === READY) {
+          await lib.send('budget/transfer-available', { month, amount, category: to });
+        } else {
+          const currencyCode = await currency();
+          await lib.send('budget/transfer-category', { month, amount, from, to, currencyCode });
+        }
+      });
+    },
+    // `cover-overspending` takes a positive amount and inverts it itself, covers at most what
+    // `from` has left (its balance, or Ready to budget), and does nothing when `from` has nothing
+    // or `to` is not overspent. loot-core treats an amount of 0 as "cover all of it", so the same
+    // check as a move refuses it.
+    async coverOverspending({ month, category, from, amount }) {
+      checkWrite(month, amount);
+      await budgetAction('Could not cover the overspending', async () => {
+        const currencyCode = await currency();
+        await lib.send('budget/cover-overspending', { month, to: category, from, amount, currencyCode });
+      });
     },
     getAccounts: () => lib.send('api/accounts-get'),
     getTransactions: (accountId, startDate, endDate) =>

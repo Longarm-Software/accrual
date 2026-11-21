@@ -48,6 +48,17 @@ export type NewTransaction = {
   cleared?: boolean;
 };
 
+export const READY = 'to-budget'; // the pot that is Ready to budget
+export type PotId = string; // a category id, or READY
+export type ActivityRow = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  amount: number; // cents; negative is money out
+  payee: string | null; // the payee's name; for a transfer, the other account's name
+  account: string; // the account's name
+  notes: string | null;
+};
+
 /** An engine failure with a short code the UI can turn into a sentence. */
 export class EngineError extends Error {
   readonly code: string;
@@ -68,6 +79,12 @@ export type Engine = {
   getMonthBounds(): Promise<MonthBounds>;
   getMonth(month: string): Promise<BudgetMonth>;
   getQuickAddLists(): Promise<QuickAddLists>;
+  /** The month's transactions in a category, newest first. A split's children count, not its parent. */
+  getCategoryActivity(categoryId: string, month: string): Promise<ActivityRow[]>;
+  /** Moves `amount` cents between two pots in `month` (YYYY-MM). Rejects with 'invalid-move' if amount <= 0 or from === to. */
+  moveMoney(move: { month: string; from: PotId; to: PotId; amount: number }): Promise<void>;
+  /** Covers up to `amount` cents of `category`'s overspending in `month` from `from`. Rejects with 'invalid-move' if amount <= 0. */
+  coverOverspending(cover: { month: string; category: string; from: PotId; amount: number }): Promise<void>;
   /** Rejects with code 'network-failure' if it has not finished within the sync time limit (15 s). */
   sync(): Promise<void>;
   close(): Promise<void>;

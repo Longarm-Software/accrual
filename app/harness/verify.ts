@@ -9,6 +9,8 @@ import net from 'node:net';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
+import { READY } from '../src/engine/types';
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { usesBundledGlobals, nativeFormatToParts } = require('./register.cjs');
 
@@ -241,6 +243,111 @@ async function main() {
   const named = afterId.payees.filter((p: any) => p.name === newPayee);
   check('quick add: adding with an existing payee id creates no second payee',
     named.length === 1 && named[0].id === top.id && afterId.payees[0].id === top.id, `(${named.length})`);
+  await engine.sync();
+
+  // --- A category's transactions, moving money and covering (Spike Small, this month)
+  const planNow = await engine.getPlanMonth(month);
+  const planCategories: any[] = planNow.groups.flatMap((g: any) => g.categories);
+  const referenceActivity = reference('activity', small.groupId, month);
+  let activityRows = 0;
+  let activityChildren = 0;
+  const activityWrong: string[] = [];
+  for (const c of planCategories) {
+    const rows = await engine.getCategoryActivity(c.id, month);
+    const expected = referenceActivity[c.id] ?? { ids: [], children: 0, sum: 0 };
+    const sum = rows.reduce((total: number, r: any) => total + r.amount, 0);
+    const newestFirst = rows.every((r: any, i: number) => i === 0 || rows[i - 1].date >= r.date);
+    const inMonth = rows.every((r: any) => r.date.startsWith(month) && typeof r.account === 'string' && r.account);
+    if (!isDeepStrictEqual(rows.map((r: any) => r.id).sort(), [...expected.ids].sort()) ||
+        sum !== c.spent || sum !== expected.sum || !newestFirst || !inMonth) activityWrong.push(c.name);
+    activityRows += rows.length;
+    activityChildren += expected.children;
+  }
+  check('activity: each category\'s transactions are the reference client\'s, newest first, and add up to spent',
+    activityWrong.length === 0 && activityChildren > 0,
+    `(${planCategories.length} categories, ${activityRows} rows, ${activityChildren} split children` +
+      `${activityWrong.length ? `; wrong: ${activityWrong.join(', ')}` : ''})`);
+
+  const plain = planCategories.filter((c: any) => !c.carryover);
+  const fuel = plain.find((c: any) => c.name === 'Fuel');
+  const household = plain.find((c: any) => c.name === 'Household');
+  const figures = async () => {
+    const plan = await engine.getPlanMonth(month);
+    const byId = new Map<string, any>(plan.groups.flatMap((g: any) => g.categories).map((c: any) => [c.id, c]));
+    return { toBudget: plan.toBudget, of: (id: string) => byId.get(id) };
+  };
+  const moved = (before: any, after: any, id: string, delta: number) =>
+    after.of(id).budgeted === before.of(id).budgeted + delta && after.of(id).balance === before.of(id).balance + delta;
+
+  const f0 = await figures();
+  await engine.moveMoney({ month, from: fuel.id, to: household.id, amount: 1234 });
+  const f1 = await figures();
+  check('move: category to category moves 1234 of budgeted and balance; Ready to budget unchanged',
+    moved(f0, f1, fuel.id, -1234) && moved(f0, f1, household.id, 1234) && f1.toBudget === f0.toBudget);
+  await engine.moveMoney({ month, from: READY, to: fuel.id, amount: 500 });
+  const f2 = await figures();
+  check('move: from Ready to budget adds 500 to the category and takes 500 from Ready to budget',
+    moved(f1, f2, fuel.id, 500) && f2.toBudget === f1.toBudget - 500, `(to budget ${f1.toBudget} -> ${f2.toBudget})`);
+  // While both moves stand, the reference client must read them after a sync.
+  await engine.sync();
+  await compareMonths(engine, small.groupId, [month], 'move: after a sync, the reference client');
+  // Moving from Ready to budget writes no note, so the month's last line is the first move's.
+  const note: string = reference('note', small.groupId, month) ?? '';
+  const lastLine = note.split('\n').at(-1) ?? '';
+  check('move: Actual\'s movement note on the month reaches the reference client',
+    new RegExp(`^- Reassigned 12\\.34 from ${fuel.name} → ${household.name} on [A-Z][a-z]+ \\d{2}$`).test(lastLine),
+    `(${JSON.stringify(lastLine)})`);
+  await engine.moveMoney({ month, from: fuel.id, to: READY, amount: 500 });
+  const f3 = await figures();
+  check('move: to Ready to budget reverses it', moved(f2, f3, fuel.id, -500) && f3.toBudget === f1.toBudget);
+  await engine.moveMoney({ month, from: household.id, to: fuel.id, amount: 1234 });
+  const f4 = await figures();
+  check('move: moving back leaves the month as it was',
+    moved(f0, f4, fuel.id, 0) && moved(f0, f4, household.id, 0) && f4.toBudget === f0.toBudget);
+
+  const invalid = async (move: any) => (await engine.moveMoney(move).then(() => null, (e: any) => e))?.code;
+  const codes = [
+    await invalid({ month, from: fuel.id, to: household.id, amount: 0 }),
+    await invalid({ month, from: fuel.id, to: household.id, amount: -100 }),
+    await invalid({ month, from: fuel.id, to: fuel.id, amount: 100 }),
+    await invalid({ month, from: READY, to: READY, amount: 100 }),
+    await invalid({ month, from: fuel.id, to: household.id, amount: 12.5 }),
+    // loot-core would write budget rows for month NaN, which break every client that downloads them.
+    await invalid({ month: 'not-a-month', from: fuel.id, to: household.id, amount: 100 }),
+    await invalid({ month: '2026-13', from: fuel.id, to: household.id, amount: 100 }),
+    (await engine.coverOverspending({ month, category: fuel.id, from: household.id, amount: 0 })
+      .then(() => null, (e: any) => e))?.code,
+  ];
+  const f5 = await figures();
+  check('move: zero, negative, fractional, same-pot and bad-month moves, and a zero cover, fail with invalid-move and change nothing',
+    codes.every(c => c === 'invalid-move') && moved(f0, f5, fuel.id, 0) && moved(f0, f5, household.id, 0) &&
+      f5.toBudget === f0.toBudget, `(${codes.join(', ')})`);
+
+  // Cover: overspend Fuel by a known deficit, cover it from the category with the most left.
+  const deficit = 777;
+  const source = [...plain].filter((c: any) => c.id !== fuel.id).sort((a: any, b: any) => b.balance - a.balance)[0];
+  const overspend = f0.of(fuel.id).balance + deficit;
+  await engine.addTransaction(checking.id, {
+    date: today, amount: -overspend, payee_name: 'Harness Overspend', category: fuel.id, notes: `${tag}-overspend`,
+  });
+  const c0 = await figures();
+  await engine.coverOverspending({ month, category: fuel.id, from: source.id, amount: deficit });
+  const c1 = await figures();
+  check('cover: the overspent category is back to 0 and the source fell by the deficit',
+    c0.of(fuel.id).balance === -deficit && c1.of(fuel.id).balance === 0 &&
+      c1.of(source.id).balance === c0.of(source.id).balance - deficit &&
+      c1.of(source.id).budgeted === c0.of(source.id).budgeted - deficit && c1.toBudget === c0.toBudget,
+    `(${source.name}: ${c0.of(source.id).balance} -> ${c1.of(source.id).balance})`);
+  await engine.sync();
+  await compareMonths(engine, small.groupId, [month], 'cover: after a sync, the reference client');
+  // Undo it: a refund of the same amount, and the deficit moved back.
+  await engine.addTransaction(checking.id, {
+    date: today, amount: overspend, payee_name: 'Harness Overspend', category: fuel.id, notes: `${tag}-refund`,
+  });
+  await engine.moveMoney({ month, from: fuel.id, to: source.id, amount: deficit });
+  const c2 = await figures();
+  check('cover: undoing it leaves the month as it was',
+    moved(f0, c2, fuel.id, 0) && moved(f0, c2, source.id, 0) && c2.toBudget === f0.toBudget);
   await engine.sync();
 
   // --- Large budget: correctness and timing

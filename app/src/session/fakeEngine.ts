@@ -1,5 +1,6 @@
 // An in-memory Engine for component tests. Fake data only.
-import type { Engine, PlanCategory, PlanMonth, QuickAddLists, RemoteBudget } from '../engine/types';
+import { EngineError, READY } from '../engine/types';
+import type { ActivityRow, Engine, PlanCategory, PlanMonth, PotId, QuickAddLists, RemoteBudget } from '../engine/types';
 
 export const fakeBudgets: RemoteBudget[] = [
   { name: 'Household', groupId: 'g-household', cloudFileId: 'c-household', encrypted: false },
@@ -66,7 +67,42 @@ export const fakeQuickAddLists: QuickAddLists = {
   lastAccountId: 'acct-checking',
 };
 
+/** Dining out's transactions in the fake month, newest first. They add up to its `spent`. */
+export const fakeActivity: ActivityRow[] = [
+  { id: 'tx-noodles-2', date: '2026-11-18', amount: -4210, payee: 'Noodle Bar', account: 'Travel Card', notes: null },
+  { id: 'tx-cafe', date: '2026-11-12', amount: -1850, payee: 'Little Lantern Cafe', account: 'Everyday Checking', notes: 'coffee' },
+  { id: 'tx-pizza', date: '2026-11-07', amount: -9600, payee: 'Moonlight Pizza', account: 'Travel Card', notes: null },
+  { id: 'tx-noodles-1', date: '2026-11-02', amount: -9150, payee: 'Noodle Bar', account: 'Everyday Checking', notes: 'birthday' },
+];
+
+/**
+ * An in-memory Engine for component tests. Moving and covering change the month `getPlanMonth`
+ * returns afterwards: a move takes `amount` from one pot and adds it to the other (budgeted and
+ * balance for a category, toBudget for READY); a cover is a move of up to `amount`, capped at
+ * what the source has, as loot-core caps it. Every engine starts from `fakePlanMonth`.
+ */
 export function fakeEngine(overrides: Partial<Engine> = {}): Engine {
+  let plan: PlanMonth = fakePlanMonth;
+  const has = (pot: PotId) =>
+    pot === READY ? plan.toBudget : (plan.groups.flatMap(g => g.categories).find(c => c.id === pot)?.balance ?? 0);
+  const shift = (pot: PotId, delta: number) => {
+    plan =
+      pot === READY
+        ? { ...plan, toBudget: plan.toBudget + delta }
+        : {
+            ...plan,
+            groups: plan.groups.map(g => ({
+              ...g,
+              categories: g.categories.map(c =>
+                c.id === pot ? { ...c, budgeted: c.budgeted + delta, balance: c.balance + delta } : c,
+              ),
+            })),
+          };
+  };
+  const move = (from: PotId, to: PotId, amount: number) => {
+    shift(from, -amount);
+    shift(to, amount);
+  };
   return {
     offline: false,
     sessionToken: async () => 'token-for-tests',
@@ -74,9 +110,18 @@ export function fakeEngine(overrides: Partial<Engine> = {}): Engine {
     openBudget: async (_budget, onStage = () => {}) => {
       for (const stage of ['downloading', 'syncing'] as const) await onStage(stage);
     },
-    getPlanMonth: async () => fakePlanMonth,
+    getPlanMonth: async () => plan,
     getMonthBounds: async () => ({ start: '2026-01', end: '2027-12' }),
     getQuickAddLists: async () => fakeQuickAddLists,
+    getCategoryActivity: async categoryId => (categoryId === 'cat-dining' ? fakeActivity : []),
+    moveMoney: async ({ from, to, amount }) => {
+      if (amount <= 0 || from === to) throw new EngineError('invalid-move', 'Not a move');
+      move(from, to, amount);
+    },
+    coverOverspending: async ({ category, from, amount }) => {
+      if (amount <= 0) throw new EngineError('invalid-move', 'Not a cover');
+      move(from, category, Math.max(0, Math.min(amount, has(from))));
+    },
     getMonth: async month => ({
       month, toBudget: 31200, totalBudgeted: 588000, totalSpent: 341617, totalIncome: 619200, totalBalance: 246383,
       categoryGroups: [],
