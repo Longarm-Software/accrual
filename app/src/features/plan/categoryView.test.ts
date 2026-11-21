@@ -77,6 +77,21 @@ describe('categoryView', () => {
     const v = categoryView(named('Electricity'), { month: '2026-12', today: new Date(2026, 10, 19) });
     expect(v).toEqual({ status: 'ok', note: 'Budgeted', fill: 0 });
   });
+  it('rule 10a: a future month with money only carried in, nothing budgeted, says carried in', () => {
+    const c = { ...base, budgeted: 0, balance: 4500 };
+    expect(categoryView(c, { month: '2026-12', today: new Date(2026, 10, 19) })).toEqual({
+      status: 'ok', note: '$45.00 carried in', fill: 0,
+    });
+  });
+  it('rule 10a: only in a future month; the current and past months keep their notes', () => {
+    const c = { ...base, budgeted: 0, balance: 4500 };
+    expect(categoryView(c, nov19).note).toBe('Not spent yet');
+    expect(categoryView(c, { month: '2026-10', today: new Date(2026, 10, 19) }).note).toBe('$45.00 left over');
+  });
+  it('rule 10a: a goal still comes first', () => {
+    const c = { ...base, budgeted: 0, balance: 4500, goal: 5000 };
+    expect(categoryView(c, { month: '2026-12', today: new Date(2026, 10, 19) }).note).toBe('$50.00 more needed');
+  });
   it('rule 8: a pace that rounds to $0 shows the balance and the days instead', () => {
     const c = { ...base, budgeted: 1000, spent: -970, balance: 30 };
     expect(categoryView(c, nov19).note).toBe('$0.30 left for 12 days');

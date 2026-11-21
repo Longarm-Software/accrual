@@ -45,13 +45,14 @@ export function entryCents(entry: Entry): number {
  */
 export type EntryText = { whole: string; fraction: string; dimmed: boolean; label: string };
 
-export function entryText(entry: Entry, income: boolean): EntryText {
+/** `unsigned`: no sign at all (the move sheet, where an amount is neither spent nor earned). */
+export function entryText(entry: Entry, income: boolean, { unsigned = false }: { unsigned?: boolean } = {}): EntryText {
   const cents = entryCents(entry);
-  const label = (income && cents > 0 ? '+' : '') + formatMoney(income ? cents : -cents);
+  const label = unsigned ? formatMoney(cents) : (income && cents > 0 ? '+' : '') + formatMoney(income ? cents : -cents);
   if (entry.digits === '' && entry.decimals === null) return { whole: '$0', fraction: '.00', dimmed: true, label };
   const grouped = (entry.digits === '' ? '0' : entry.digits).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return {
-    whole: `${income ? '+' : '−'}$${grouped}`,
+    whole: `${unsigned ? '' : income ? '+' : '−'}$${grouped}`,
     fraction: entry.decimals === null ? '' : `.${entry.decimals}`,
     dimmed: false,
     label,

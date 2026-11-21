@@ -15,7 +15,8 @@ import { GroupHeader } from '../features/plan/GroupHeader';
 import { HeroCard } from '../features/plan/HeroCard';
 import { MonthSwitcher } from '../features/plan/MonthSwitcher';
 import { Notice } from '../features/plan/Notice';
-import { onSaved, setPlanToday } from '../features/plan/quickAddSignal';
+import { categoryHref, heroAction, noticeAction } from '../features/plan/planActions';
+import { onSaved, setPlanShown, setPlanToday } from '../features/plan/planSignal';
 import { groupAvailable, hasCategories, heroView, overspentNotice, syncLabel } from '../features/plan/planSummary';
 import { rowAmountSize } from '../features/plan/tile';
 import { usePlanMonth } from '../features/plan/usePlanMonth';
@@ -97,15 +98,22 @@ function Plan({ engine, budgetName, onSignOut }: PlanProps) {
     if (returns > 0) void refreshInBackground.current();
   }, [returns]);
 
-  // Quick add is another route: it dates its transaction with this screen's "today" (renewed
-  // above, so a sheet opened after midnight dates the new day; a sheet already open keeps the
-  // day it opened with, see add.tsx), and says when it has saved one, so the month is read
-  // again and then synced, through the same path as a pull. The latest `afterSave` is kept in
-  // a ref, so the subscription is made once.
+  // Quick add, the category screen and the move and cover sheets are other routes. Quick add
+  // dates its transaction with this screen's "today" (renewed above, so a sheet opened after
+  // midnight dates the new day; a sheet already open keeps the day it opened with, see add.tsx).
+  // The month on screen and its latest read are published too: a sheet acts on that month, and
+  // the category screen draws its category from that read, so it follows each read made here.
+  // Each says when it has saved, so the month is read again and then synced, through the same
+  // path as a pull. The latest `afterSave` is kept in a ref, so the subscription is made once.
   useEffect(() => {
     setPlanToday(today);
     return () => setPlanToday(null);
   }, [today]);
+  const shownPlan = load.state === 'ready' ? load.month : null;
+  useEffect(() => {
+    setPlanShown({ month, plan: shownPlan });
+  }, [month, shownPlan]);
+  useEffect(() => () => setPlanShown(null), []);
   const afterSave = useRef(plan.afterSave);
   useEffect(() => {
     afterSave.current = plan.afterSave;
@@ -179,10 +187,13 @@ type MonthContentProps = { month: PlanMonth; today: Date; columns: 1 | 2 };
 function MonthContent({ month, today, columns }: MonthContentProps) {
   if (!hasCategories(month)) return <Message text="This budget has no categories yet. Add them in Actual." />;
   const notice = overspentNotice(month);
+  // Assign or Fix, and Cover: none in a month before the current one (decided in planActions).
+  const hero = heroAction(month, today);
+  const cover = noticeAction(month, today);
   return (
     <>
-      <HeroCard hero={heroView(month)} />
-      {notice && <Notice text={notice} />}
+      <HeroCard hero={heroView(month)} action={hero ? { label: hero.label, onPress: () => router.push(hero.href) } : undefined} />
+      {notice && <Notice text={notice} action={cover ? { label: cover.label, onPress: () => router.push(cover.href) } : undefined} />}
       <View>
         {month.groups
           .filter(group => group.categories.length > 0)
@@ -213,16 +224,21 @@ function TileRow({ row, columns, month, today }: TileRowProps) {
   const amountSize = rowAmountSize(row.map(category => category.balance));
   return (
     <View testID="tile-row" style={{ flexDirection: 'row', alignItems: 'stretch', gap: space.md }}>
-      {row.map(category => (
-        <View key={category.id} style={{ flex: 1 }}>
-          <CategoryTile
-            category={category}
-            view={categoryView(category, { month, today })}
-            compact={columns === 2}
-            amountSize={amountSize}
-          />
-        </View>
-      ))}
+      {row.map(category => {
+        // Any month's category opens, past ones included: the screen is read-only there.
+        const href = categoryHref(category.id);
+        return (
+          <View key={category.id} style={{ flex: 1 }}>
+            <CategoryTile
+              category={category}
+              view={categoryView(category, { month, today })}
+              compact={columns === 2}
+              amountSize={amountSize}
+              onPress={href === null ? undefined : () => router.push(href)}
+            />
+          </View>
+        );
+      })}
       {row.length < columns && <View style={{ flex: columns - row.length }} />}
     </View>
   );

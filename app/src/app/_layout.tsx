@@ -31,6 +31,12 @@ export default function RootLayout() {
         {/* Quick add slides up over the Plan. Swiping it down (iOS) or the back button (Android)
             closes it, as Cancel does. */}
         <Stack.Screen name="add" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        {/* Moving and covering money are sheets as quick add is, over the Plan or a category. */}
+        <Stack.Screen name="move" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="cover" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        {/* A category is pushed: the platform's own push, so iOS's edge swipe and Android's back
+            return to the Plan, which stays mounted underneath with its scroll position. */}
+        <Stack.Screen name="category/[id]" options={{ presentation: 'card', animation: 'default', gestureEnabled: true }} />
       </Stack>
     </SessionProvider>
   );

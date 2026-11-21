@@ -5,18 +5,31 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { radius, sheet, size, space, textScale, tint, type } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
+import { Spinner } from '../../ui/Spinner';
 import { Tick } from '../../ui/Tick';
 import type { Key } from './amountEntry';
 import type { SheetDensity } from './sheetLayout';
 
-type Props = {
+/**
+ * The +/− key is shown unless `sign` is false (a move has no sign); shown, it needs
+ * `onToggleSign`, and the types refuse it without one.
+ */
+type SignKey = { sign?: true; onToggleSign(): void } | { sign: false; onToggleSign?: undefined };
+
+type Props = SignKey & {
   onKey(key: Key): void;
-  onToggleSign(): void;
   onSave(): void;
   canSave: boolean;
   over: boolean;
+  /** A short word on Save instead of the tick ("Move"); it also names the key. */
+  saveLabel?: string;
   /** Compact on a short screen: keys at the touch minimum, so the form above keeps its room. */
   density?: SheetDensity;
+  /**
+   * A write is under way: every key is off, and Save shows a spinner in place of its tick or
+   * word, which stays laid out (unseen) so the key keeps its size.
+   */
+  busy?: boolean;
 };
 
 /** How often a held delete key deletes again, once the hold is recognised. */
@@ -30,15 +43,17 @@ export const REPEAT_MS = 80;
  *   7 8 9 ✓
  *   . 0 00 ✓   (Save fills the right of the last two rows)
  *
+ * With `sign={false}` the +/− cell is empty, so every other key keeps its place.
+ *
  * Keys answer on every press, with no debounce, so a fast double press counts twice.
  * Holding delete repeats it until it is let go (rather than clearing), so a long amount can be
  * taken back a digit at a time without lifting the thumb, and nothing is lost to a slip.
  */
-export function Keypad({ onKey, onToggleSign, onSave, canSave, over, density = 'regular' }: Props) {
+export function Keypad({ onKey, sign = true, onToggleSign, onSave, canSave, over, saveLabel, density = 'regular', busy = false }: Props) {
   const theme = useTheme();
   const height = sheet[density].key;
   const digit = (key: Key, label: string = key) => (
-    <KeyButton label={label} height={height} onPress={() => onKey(key)}>
+    <KeyButton label={label} height={height} onPress={() => onKey(key)} disabled={busy}>
       <Text style={[type.key, { color: theme.color.ink }]} maxFontSizeMultiplier={textScale.key}>
         {key}
       </Text>
@@ -51,17 +66,21 @@ export function Keypad({ onKey, onToggleSign, onSave, canSave, over, density = '
         {digit('1')}
         {digit('2')}
         {digit('3')}
-        <DeleteKey height={height} onDelete={() => onKey('back')} />
+        <DeleteKey height={height} onDelete={() => onKey('back')} disabled={busy} />
       </View>
       <View style={styles.row}>
         {digit('4')}
         {digit('5')}
         {digit('6')}
-        <KeyButton label="Expense or income" height={height} onPress={onToggleSign}>
-          <Text style={[type.key, { color: theme.color.mute }]} maxFontSizeMultiplier={textScale.key}>
-            +/−
-          </Text>
-        </KeyButton>
+        {sign && onToggleSign ? (
+          <KeyButton label="Expense or income" height={height} onPress={onToggleSign} disabled={busy}>
+            <Text style={[type.key, { color: theme.color.mute }]} maxFontSizeMultiplier={textScale.key}>
+              +/−
+            </Text>
+          </KeyButton>
+        ) : (
+          <View testID="keypad-empty-cell" style={{ flex: 1, minHeight: height }} />
+        )}
       </View>
       <View style={styles.row}>
         <View style={styles.left}>
@@ -76,7 +95,7 @@ export function Keypad({ onKey, onToggleSign, onSave, canSave, over, density = '
             {digit('00', 'Double zero')}
           </View>
         </View>
-        <SaveKey height={height} onSave={onSave} canSave={canSave} over={over} />
+        <SaveKey height={height} onSave={onSave} canSave={canSave && !busy} over={over} label={saveLabel} busy={busy} />
       </View>
     </View>
   );
@@ -88,15 +107,18 @@ type KeyProps = {
   onPress: () => void;
   onLongPress?: () => void;
   onPressOut?: () => void;
+  disabled?: boolean;
   children: ReactNode;
 };
 
-function KeyButton({ label, height, onPress, onLongPress, onPressOut, children }: KeyProps) {
+function KeyButton({ label, height, onPress, onLongPress, onPressOut, disabled = false, children }: KeyProps) {
   const theme = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={disabled ? { disabled: true } : undefined}
+      disabled={disabled}
       onPress={onPress}
       onLongPress={onLongPress}
       onPressOut={onPressOut}
@@ -115,7 +137,7 @@ function KeyButton({ label, height, onPress, onLongPress, onPressOut, children }
   );
 }
 
-function DeleteKey({ height, onDelete }: { height: number; onDelete: () => void }) {
+function DeleteKey({ height, onDelete, disabled }: { height: number; onDelete: () => void; disabled: boolean }) {
   // The parent may pass a new callback on every render, closed over the amount as it was then.
   // Each repeat calls the latest one, so it deletes from the amount as it is now.
   const latest = useRef(onDelete);
@@ -126,10 +148,15 @@ function DeleteKey({ height, onDelete }: { height: number; onDelete: () => void 
     repeat.current = null;
   };
   useEffect(() => stop, []);
+  // A hold that is repeating when the keys go off stops at once.
+  useEffect(() => {
+    if (disabled) stop();
+  }, [disabled]);
   return (
     <KeyButton
       label="Delete"
       height={height}
+      disabled={disabled}
       onPress={onDelete}
       // A press that became a hold does not also fire onPress, so the first delete happens here.
       onLongPress={() => {
@@ -144,20 +171,25 @@ function DeleteKey({ height, onDelete }: { height: number; onDelete: () => void 
   );
 }
 
-function SaveKey({ height, onSave, canSave, over }: { height: number; onSave: () => void; canSave: boolean; over: boolean }) {
+type SaveProps = { height: number; onSave: () => void; canSave: boolean; over: boolean; label?: string; busy: boolean };
+
+function SaveKey({ height, onSave, canSave, over, label, busy }: SaveProps) {
   const theme = useTheme();
+  const ink = over ? theme.color.onOver : theme.color.onAccent;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Save"
-      accessibilityState={{ disabled: !canSave }}
+      accessibilityLabel={label ?? 'Save'}
+      // `busy` always present: Android keeps a state key that a later render leaves out.
+      accessibilityState={{ disabled: busy || !canSave, busy }}
       disabled={!canSave}
       onPress={onSave}
       style={({ pressed }) => [
         styles.key,
         { minHeight: height },
         styles.save,
-        { opacity: !canSave ? tint.disabled : pressed ? tint.pressed : 1 },
+        // Busy is not dimmed: the spinner on it is the point.
+        { opacity: busy ? 1 : !canSave ? tint.disabled : pressed ? tint.pressed : 1 },
         over && { backgroundColor: theme.color.over },
       ]}
     >
@@ -171,7 +203,25 @@ function SaveKey({ height, onSave, canSave, over }: { height: number; onSave: ()
           style={StyleSheet.absoluteFill}
         />
       )}
-      <Tick size={size.tick} stroke={size.tickStroke} color={over ? theme.color.onOver : theme.color.onAccent} />
+      <View style={{ opacity: busy ? 0 : 1 }}>
+        {label === undefined ? (
+          <Tick testID="save-tick" size={size.tick} stroke={size.tickStroke} color={ink} />
+        ) : (
+          <Text
+            style={[type.heading, { color: ink, paddingHorizontal: space.xs }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            maxFontSizeMultiplier={textScale.key}
+          >
+            {label}
+          </Text>
+        )}
+      </View>
+      {busy && (
+        <View style={[StyleSheet.absoluteFill, styles.centre]}>
+          <Spinner size={size.spinnerInline} tone="onAccent" />
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -243,4 +293,5 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   save: { borderWidth: 0 },
+  centre: { alignItems: 'center', justifyContent: 'center' },
 });

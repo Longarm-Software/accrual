@@ -6,11 +6,16 @@ import { useTheme } from '../../theme/useTheme';
 import { Glass } from '../../ui/Glass';
 import { Money } from '../../ui/Money';
 import { Label } from '../../ui/Text';
+import { ActionPill, type CardAction } from './ActionPill';
 import { heroLabel } from './planSummary';
 import type { FlowKey, HeroView } from './planSummary';
 
-/** The top card: what is left to budget, and where the month's money went. */
-export function HeroCard({ hero }: { hero: HeroView }) {
+/**
+ * The top card: what is left to budget, and where the month's money went. With an `action`
+ * (Assign, Fix) a small pill sits at the top right, on the label's line: the amount keeps the
+ * card's whole width under it, so the pill can never push it onto a second line.
+ */
+export function HeroCard({ hero, action }: { hero: HeroView; action?: CardAction }) {
   const theme = useTheme();
   const over = hero.state === 'over';
   return (
@@ -26,11 +31,17 @@ export function HeroCard({ hero }: { hero: HeroView }) {
         />
       )}
       <View style={{ padding: space.xl }}>
-        <View accessible accessibilityLabel={heroLabel(hero)}>
-          <Label style={type.name}>{hero.label}</Label>
-          <View style={{ marginTop: space.xs, marginBottom: space.lg }}>
-            <Money cents={hero.amount} size={amount.hero} color={over ? theme.color.over : undefined} accessible={false} />
+        {/* The label's line reads the whole figure out, so the pill beside it stays its own button.
+            It is the pill's height with or without one, so the amount sits at the same place in
+            every month. */}
+        <View testID="hero-header" style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: size.action }}>
+          <View accessible accessibilityLabel={heroLabel(hero)} style={{ flex: 1 }}>
+            <Label style={type.name}>{hero.label}</Label>
           </View>
+          {action && <ActionPill {...action} tone={over ? 'over' : 'accent'} />}
+        </View>
+        <View testID="hero-amount" style={{ marginTop: space.xs, marginBottom: space.lg }}>
+          <Money cents={hero.amount} size={amount.hero} color={over ? theme.color.over : undefined} accessible={false} />
         </View>
         <FlowBar flow={hero.flow} />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: space.md, marginTop: space.md }}>

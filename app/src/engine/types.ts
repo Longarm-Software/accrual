@@ -48,6 +48,27 @@ export type NewTransaction = {
   cleared?: boolean;
 };
 
+export const READY = 'to-budget'; // the pot that is Ready to budget
+export type PotId = string; // a category id, or READY
+/**
+ * A move as a sheet asks for it. `seen` is what the sheet drew each pot as having (a category's
+ * balance, READY's toBudget) when the person pressed: the write is refused as 'stale' if either
+ * differs from the budget at that moment, so what is written is what was shown.
+ */
+export type MoveRequest = { month: string; from: PotId; to: PotId; amount: number; seen: { from: number; to: number } };
+/** A cover as a sheet asks for it. `seen`: the overspent category's balance and what the source has, as drawn. */
+export type CoverRequest = {
+  month: string; category: string; from: PotId; amount: number; seen: { category: number; from: number };
+};
+export type ActivityRow = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  amount: number; // cents; negative is money out
+  payee: string | null; // the payee's name; for a transfer, the other account's name
+  account: string; // the account's name
+  notes: string | null;
+};
+
 /** An engine failure with a short code the UI can turn into a sentence. */
 export class EngineError extends Error {
   readonly code: string;
@@ -68,6 +89,25 @@ export type Engine = {
   getMonthBounds(): Promise<MonthBounds>;
   getMonth(month: string): Promise<BudgetMonth>;
   getQuickAddLists(): Promise<QuickAddLists>;
+  /** The month's transactions in a category, newest first. A split's children count, not its parent. */
+  getCategoryActivity(categoryId: string, month: string): Promise<ActivityRow[]>;
+  /**
+   * Moves exactly `amount` cents from one pot to another in `month` (YYYY-MM), or refuses:
+   * 'invalid-move' for a month the budget does not have, an amount that is not a whole number
+   * from 1 to MAX_AMOUNT, a pot that is neither READY nor a category the Plan shows, the same pot
+   * twice, or no `seen`; 'stale' when the source now has less than `amount`, or either pot has
+   * other figures than `seen`. Syncs first (for at most 3 s; a failed or slow sync is ignored and
+   * the write is made on the phone's copy), so the check is against the budget as the server has
+   * it. See writeRules.ts and adapter.ts.
+   */
+  moveMoney(move: MoveRequest): Promise<void>;
+  /**
+   * Covers exactly `amount` cents of `category`'s overspending in `month` from `from`, or refuses:
+   * 'invalid-move' as for a move, and when `category` is READY or `from === category`; 'stale'
+   * when the category is not now overspent by at least `amount`, the source has less than it, or
+   * either has other figures than `seen`. Syncs first, as a move does.
+   */
+  coverOverspending(cover: CoverRequest): Promise<void>;
   /** Rejects with code 'network-failure' if it has not finished within the sync time limit (15 s). */
   sync(): Promise<void>;
   close(): Promise<void>;
@@ -75,5 +115,6 @@ export type Engine = {
   getAccounts(): Promise<{ id: string; name: string; offbudget: boolean; closed: boolean }[]>;
   getTransactions(accountId: string, startDate: string, endDate: string): Promise<any[]>;
   searchTransactions(text: string): Promise<{ id: string; date: string; amount: number; notes: string | null }[]>;
+  /** Rejects with 'invalid-transaction' for a date not on the calendar or a zero, fractional or out-of-range amount. */
   addTransaction(accountId: string, transaction: NewTransaction): Promise<void>;
 };

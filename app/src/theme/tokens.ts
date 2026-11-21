@@ -19,6 +19,8 @@ export type Theme = {
     keyEdge: string;
     /** What is drawn on a coral (`over`) fill: the Save key's tick when the amount is too much. */
     onOver: string;
+    /** The ring of an unchecked control (a cover source's check mark): 3:1 on a tile, so it shows. */
+    control: string;
   };
   /** Mint to blue: buttons, progress, the logo. */
   gradient: [string, string];
@@ -36,6 +38,7 @@ export const themes: { dark: Theme; light: Theme } = {
       line: 'rgba(255,255,255,0.22)', shade: '#000000',
       onAccent: '#04221B',
       key: 'rgba(255,255,255,0.07)', keyEdge: 'rgba(255,255,255,0.11)', onOver: '#1B0704',
+      control: '#7D8896',
     },
     gradient: ['#62EFC2', '#5CCBF4'],
   },
@@ -50,6 +53,7 @@ export const themes: { dark: Theme; light: Theme } = {
       line: 'rgba(13,20,24,0.16)', shade: '#0D1418',
       onAccent: '#FFFFFF',
       key: 'rgba(255,255,255,0.8)', keyEdge: 'rgba(13,20,24,0.14)', onOver: '#FFFFFF',
+      control: '#7C8794',
     },
     gradient: ['#067A5B', '#0B6BA8'],
   },
@@ -103,6 +107,10 @@ export const type = {
   figure: { fontFamily: font.medium, fontSize: 13 },
   /** The account and the date on quick add. */
   meta: { fontFamily: font.semibold, fontSize: 14 },
+  /** A small pill button's word: Assign on the top card, Cover on the notice. */
+  action: { fontFamily: font.semibold, fontSize: 13 },
+  /** A pot card's FROM and TO: small capitals, spaced. */
+  caps: { fontFamily: font.semibold, fontSize: 11, letterSpacing: 0.8 },
   /** A row's name in a list on a sheet, and a payee match. */
   row: { fontFamily: font.medium, fontSize: 15.5 },
 } as const;
@@ -115,8 +123,12 @@ export const amount = {
   tracking: -0.015,
   hero: 58,
   tile: 27,
-  /** A tile amount of $1,000 or more either way, one size down so it fits. */
+  /** A tile amount of $1,000 or more either way, one size down so it fits. Also a list's total line. */
   tileLong: 22,
+  /** An amount in a list of rows (a category's details, its transactions): the size of body text. */
+  row: type.body.fontSize,
+  /** A list's total line (a category's Left): one step up the type scale from `row`. */
+  rowTotal: type.month.fontSize,
   /** The amount being typed on quick add. */
   entry: 88,
   /** The amount being typed on a short screen (the compact sheet). */
@@ -163,10 +175,16 @@ export const size = {
   entryCompact: 68,
   /** The bite bar's thickness. */
   bite: 10,
+  /** A small pill button on a card or the notice. Its touch area is extended to `touch`. */
+  action: 32,
+  /** The round check mark at the right of a cover source. */
+  check: 22,
   /** The tick on Save, and the smaller one on a picked row. */
   tick: 20,
   tickSmall: 12,
   tickStroke: 3,
+  /** The spinner drawn in place of a button's label while its write runs (Save, Move, Cover). */
+  spinnerInline: 22,
   /** The delete key's mark: the height of its arrow-shaped outline. */
   deleteMark: 16,
   /** The date stepper's label at text scale 1: wide enough for "Wed 30 Sep". Multiply by the font scale. */
@@ -191,8 +209,10 @@ export const sheet = {
  * The most the person's text size may enlarge a piece of text, where growing further would
  * break its box. `key`: a keypad digit at twice its size still fits a 60-point key. `amount`:
  * a fitted amount is already larger than the largest text, so it does not grow at all.
+ * `action`: a small pill button's word grows to half again its size, so the pill stays small
+ * beside the top card's label and the notice's text.
  */
-export const textScale = { key: 2, amount: 1 } as const;
+export const textScale = { key: 2, amount: 1, action: 1.5 } as const;
 
 /** Springs for the motion decision 10 allows. `bite`: the bite bar's split, quick and barely overshooting. */
 export const spring = { bite: { damping: 20, stiffness: 220 } } as const;

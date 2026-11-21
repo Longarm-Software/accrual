@@ -88,3 +88,14 @@ describe('entryText: the amount as typed, sign first', () => {
     expect(entryText(press(e('18'), '.'), false)).not.toEqual(entryText(e('18'), false));
   });
 });
+
+describe('entryText unsigned (the move sheet: an amount moves, it is neither spent nor earned)', () => {
+  it.each<[Entry, string, string, boolean, string]>([
+    [emptyEntry, '$0', '.00', true, '$0.00'],
+    [e('50'), '$50', '', false, '$50.00'],
+    [e('1250', '4'), '$1,250', '.4', false, '$1,250.40'],
+    [e('0', ''), '$0', '.', false, '$0.00'],
+  ])('%j is %s%s', (entry, whole, fraction, dimmed, label) => {
+    expect(entryText(entry, false, { unsigned: true })).toEqual({ whole, fraction, dimmed, label });
+  });
+});

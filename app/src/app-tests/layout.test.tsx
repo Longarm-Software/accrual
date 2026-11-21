@@ -86,3 +86,17 @@ it('presents quick add as a modal over the Plan', async () => {
   await render(<RootLayout />);
   expect(mockScreen).toHaveBeenCalledWith(expect.objectContaining({ name: 'add', options: expect.objectContaining({ presentation: 'modal' }) }));
 });
+
+it('presents the move and cover sheets as modals, and pushes a category with the platform’s own back gesture', async () => {
+  mockUseFonts.mockReturnValue([true, null]);
+  await render(<RootLayout />);
+  for (const name of ['move', 'cover']) {
+    expect(mockScreen).toHaveBeenCalledWith(expect.objectContaining({ name, options: expect.objectContaining({ presentation: 'modal' }) }));
+  }
+  expect(mockScreen).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: 'category/[id]',
+      options: expect.objectContaining({ presentation: 'card', animation: 'default', gestureEnabled: true }),
+    }),
+  );
+});

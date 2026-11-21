@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import type { PlanCategory } from '../../engine/types';
 import { fakePlanMonth } from '../../session/fakeEngine';
@@ -49,4 +49,25 @@ it('shows a big amount in full', async () => {
   await draw({ ...find('Groceries'), budgeted: 200000, spent: -75945, balance: -120455 });
   expect(screen.getByText('−$1,204')).toBeTruthy();
   expect(screen.getByText('.55')).toBeTruthy();
+});
+
+describe('pressable', () => {
+  it('with onPress: one button with the tile\'s label and a hint, which calls onPress', async () => {
+    const onPress = jest.fn();
+    const groceries = find('Groceries');
+    await render(<CategoryTile category={groceries} view={categoryView(groceries, when)} compact onPress={onPress} />);
+    const tile = screen.getByRole('button', { name: 'Groceries, $207.62 available, $17 a day for 12 days' });
+    expect(tile.props.accessibilityHint).toBe('Opens Groceries');
+    await fireEvent.press(tile);
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+  it('grows to its row\'s height like the tile it holds', async () => {
+    const groceries = find('Groceries');
+    await render(<CategoryTile category={groceries} view={categoryView(groceries, when)} compact onPress={() => {}} />);
+    expect(screen.getByRole('button')).toHaveStyle({ flexGrow: 1 });
+  });
+  it('without onPress: not a button', async () => {
+    await draw(find('Groceries'));
+    expect(screen.queryByRole('button')).toBeNull();
+  });
 });

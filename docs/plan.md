@@ -52,7 +52,15 @@ and record the decision in `docs/decisions/`.
       to its first screen. The cards show a note from the category's own numbers when it has no
       goal template, and a daily pace in the current month. See "What works" in
       [app/README.md](../app/README.md#what-works).)*
-- **Category detail:** activity list, target, and moving money in or out (cover overspending).
+- [x] **Category detail:** activity list, target, and moving money in or out (cover overspending).
+      *(Built in plan 4: a tile opens its category for the Plan's month, with budgeted, spent,
+      carried in and left, and its transactions, newest first. The activity list is read-only;
+      editing a transaction is plan 5. Money moves through one sheet (between categories, or
+      from and to Ready to budget, which is how Assign and Fix work) and overspending is covered
+      from a second. A goal's target shows as the tile's note; there is no target editor. Past
+      months are read-only. Verified on an Android emulator; on the iOS simulator the app was only
+      built and opened to its first screen. See "What works" in
+      [app/README.md](../app/README.md#what-works).)*
 - **Transactions:** account list, register, quick add (payee, category, amount, account) and
   categorize uncategorized items.
       *(Quick add is built: payee, category, amount, account and date, from a + on the Plan.
@@ -65,9 +73,11 @@ and record the decision in `docs/decisions/`.
       before the Plan appears; without a connection the app opens the copy on the phone instead.
       Since plan 3 the app also syncs, and re-reads today's date, when it returns to the
       foreground, and a sync gives up after 15 seconds. Not checked on the iOS simulator.)*
-- Overspending alert banner ("2 categories overspent. Cover them?").
-      *(The banner is built and shows on the Plan, without the "Cover them?" button: covering
-      overspending arrives with category detail in plan 4.)*
+- [x] Overspending alert banner ("2 categories overspent. Cover them?").
+      *(The banner reads "2 categories are $546.61 over" with a `Cover` button, which opens the
+      cover sheet for the first overspent category in the Plan's order; it stays until none is
+      left. A category whose overspending rolls over is not counted. Verified on an Android
+      emulator; not on the iOS simulator beyond its first screen.)*
 
 ### Phase 2: Polish and public beta
 - Home-screen widgets: "Left this week" for chosen categories and the To Budget amount.

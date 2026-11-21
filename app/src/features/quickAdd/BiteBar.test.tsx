@@ -56,3 +56,35 @@ it('draws a modest number of stripes, enough to cross the bar', async () => {
   expect(stripes.length).toBeGreaterThan(40);
   expect(stripes.length).toBeLessThan(60);
 });
+
+describe('a gain', () => {
+  const grow = (id: string): number =>
+    [screen.getByTestId(id).props.style].flat(Infinity).reduce((all, s) => ({ ...all, ...s }), {}).flexGrow;
+  it('solid kept, then hatching in the funded colour for gained, then the empty rest', async () => {
+    await render(<BiteBar kept={0.6} gained={0.25} />);
+    expect(screen.getByTestId('bite-kept')).toHaveStyle({ flexGrow: 0.6 });
+    expect(screen.getByTestId('bite-gained')).toHaveStyle({ flexGrow: 0.25 });
+    expect(grow('bite-rest')).toBeCloseTo(0.15);
+    expect(screen.getByTestId('bite-hatch-gain')).toBeTruthy();
+    expect(screen.queryByTestId('bite-taken')).toBeNull();
+    expect(screen.queryByTestId('bite-hatch-fits')).toBeNull();
+  });
+  it('a filled deficit: the whole bar hatched, no rest', async () => {
+    await render(<BiteBar kept={0} gained={1} />);
+    expect(screen.getByTestId('bite-gained')).toHaveStyle({ flexGrow: 1 });
+    expect(screen.getByTestId('bite-rest')).toHaveStyle({ flexGrow: 0 });
+  });
+  it('follows new values', async () => {
+    await render(<BiteBar kept={0} gained={0.3} />);
+    await screen.rerender(<BiteBar kept={0} gained={0.7} />);
+    expect(screen.getByTestId('bite-gained')).toHaveStyle({ flexGrow: 0.7 });
+    expect(grow('bite-rest')).toBeCloseTo(0.3);
+  });
+  it('an empty bar when both are 0', async () => {
+    await render(<BiteBar kept={0} gained={0} />);
+    expect(screen.getByTestId('bite-kept')).toHaveStyle({ flexGrow: 0 });
+    expect(screen.getByTestId('bite-gained')).toHaveStyle({ flexGrow: 0 });
+    expect(screen.getByTestId('bite-rest')).toHaveStyle({ flexGrow: 1 });
+    expect(screen.queryByTestId('bite-hatch-gain')).toBeNull();
+  });
+});
