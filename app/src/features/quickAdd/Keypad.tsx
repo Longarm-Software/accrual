@@ -180,7 +180,8 @@ function SaveKey({ height, onSave, canSave, over, label, busy }: SaveProps) {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label ?? 'Save'}
-      accessibilityState={busy ? { disabled: true, busy: true } : { disabled: !canSave }}
+      // `busy` always present: Android keeps a state key that a later render leaves out.
+      accessibilityState={{ disabled: busy || !canSave, busy }}
       disabled={!canSave}
       onPress={onSave}
       style={({ pressed }) => [
@@ -218,7 +219,7 @@ function SaveKey({ height, onSave, canSave, over, label, busy }: SaveProps) {
       </View>
       {busy && (
         <View style={[StyleSheet.absoluteFill, styles.centre]}>
-          <Spinner size={size.spinnerInline} />
+          <Spinner size={size.spinnerInline} tone="onAccent" />
         </View>
       )}
     </Pressable>

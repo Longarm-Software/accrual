@@ -27,7 +27,8 @@ export function Button({ title, onPress, variant = 'primary', disabled = false, 
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={title}
-      accessibilityState={busy ? { disabled: true, busy: true } : { disabled }}
+      // `busy` always present: Android keeps a state key that a later render leaves out.
+      accessibilityState={{ disabled: off, busy }}
       disabled={off}
       onPress={onPress}
       style={({ pressed }) => [
@@ -42,7 +43,7 @@ export function Button({ title, onPress, variant = 'primary', disabled = false, 
       </Text>
       {busy && (
         <View style={[StyleSheet.absoluteFill, styles.centre]}>
-          <Spinner size={size.spinnerInline} />
+          <Spinner size={size.spinnerInline} tone={primary ? 'onAccent' : 'page'} />
         </View>
       )}
     </Pressable>

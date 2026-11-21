@@ -37,3 +37,9 @@ it('busy: off, a spinner over the label, which stays laid out so the button keep
   expect(screen.getByLabelText('Working')).toBeTruthy();
   expect(StyleSheet.flatten(screen.getByText('Cover $28.10').props.style).opacity).toBe(0);
 });
+
+it('says busy is over once it is, rather than dropping the key (Android keeps a dropped one)', async () => {
+  await render(<Button title="Cover $28.10" onPress={() => {}} busy />);
+  await screen.rerender(<Button title="Cover $28.10" onPress={() => {}} />);
+  expect(screen.getByRole('button', { name: 'Cover $28.10' }).props.accessibilityState).toEqual({ disabled: false, busy: false });
+});

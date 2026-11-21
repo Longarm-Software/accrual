@@ -189,6 +189,12 @@ describe('busy: a write is under way', () => {
     expect(screen.getByLabelText('Working')).toBeTruthy();
     expect(screen.getByText('Move')).toBeTruthy();
   });
+  it('says busy is over, not just leaves it out, once the write ends: Android keeps a state key a render drops', async () => {
+    const calls = { onKey: jest.fn<void, [Key]>(), onToggleSign: jest.fn(), onSave: jest.fn() };
+    await render(<Keypad {...calls} canSave over={false} saveLabel="Move" busy />);
+    await screen.rerender(<Keypad {...calls} canSave over={false} saveLabel="Move" busy={false} />);
+    expect(button('Move').props.accessibilityState).toEqual({ disabled: false, busy: false });
+  });
   it('is off by default: quick add draws as before', async () => {
     await draw();
     expect(screen.queryByLabelText('Working')).toBeNull();
